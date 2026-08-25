@@ -7,7 +7,7 @@ import {
 import { getFormation } from '../formations.js';
 import { renderLineupEditor } from './pitch.js';
 import { openMatchSheet } from './matches.js';
-import { navigate } from '../app.js';
+import { navigate } from '../router.js';
 
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
 let tab = 'kokoonpano';
@@ -173,7 +173,7 @@ function resultTab(m) {
     h('div', { class: 'tiny muted bold ellip', text: label }),
     h('div', { class: 'row', style: 'justify-content:center;gap:14px;margin-top:6px' },
       h('button', { class: 'iconbtn', onclick: () => setScore(key, -1) }, '−'),
-      h('span', { style: 'font-size:32px;font-weight:800;min-width:38px', text: String(r[key] || 0) }),
+      h('span', { style: 'font-size:32px;font-weight:800;min-width:38px;font-variant-numeric:tabular-nums', text: String(r[key] || 0) }),
       h('button', { class: 'iconbtn', onclick: () => setScore(key, 1) }, '＋')));
 
   wrap.append(h('div', { class: 'row', style: 'gap:10px;align-items:stretch' },

@@ -1,12 +1,14 @@
 // Sovelluksen käynnistys ja reititys.
 import { h, clear } from './ui.js';
 import { getState, subscribe } from './store.js';
+import { setRenderer } from './router.js';
 import { matchesView } from './views/matches.js';
 import { matchView } from './views/match.js';
 import { lineupsView, lineupView } from './views/lineups.js';
 import { playersView } from './views/players.js';
 import { statsView } from './views/stats.js';
 import { settingsView } from './views/settings.js';
+import { navigate } from './router.js';
 
 const TABS = [
   { href: '#/ottelut', ic: '⚽', label: 'Ottelut' },
@@ -34,11 +36,6 @@ function resolve() {
     if (m) return { spec: r, params: m };
   }
   return { spec: ROUTES[1], params: null };
-}
-
-export function navigate(hash) {
-  if (location.hash === hash) render();
-  else location.hash = hash;
 }
 
 let currentTab = '#/ottelut';
@@ -85,6 +82,7 @@ function render() {
   document.title = `${page.title} · Pelikirja`;
 }
 
+setRenderer(render);
 window.addEventListener('hashchange', render);
 subscribe(() => render());
 
@@ -96,7 +94,7 @@ render();
 void getState;
 
 // Service worker (offline-tuki)
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.__PELIKIRJA_YKSITIEDOSTO__) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW:', e));
   });

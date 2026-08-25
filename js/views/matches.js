@@ -2,7 +2,7 @@
 import { h, sheet, toast, fmtShortDate, countdownText } from '../ui.js';
 import { getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff } from '../store.js';
 import { getFormation } from '../formations.js';
-import { navigate } from '../app.js';
+import { navigate } from '../router.js';
 
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
 let tab = 'tulevat';

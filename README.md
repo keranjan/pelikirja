@@ -50,12 +50,18 @@ Sovellus tarvitsee HTTPS-osoitteen (tai `localhost`), jotta sen voi asentaa koti
 
 Sovellus toimii tämän jälkeen myös lentokonetilassa – kentän laidalla ei tarvita verkkoa.
 
+## Yhden tiedoston versio
+
+`dist/pelikirja.html` on koko sovellus yhtenä tiedostona: sen voi avata suoraan puhelimessa
+tai laittaa mihin tahansa web-hotelliin ilman muita tiedostoja. Rakennus: `npm run build`.
+
 ## Kehitys
 
 ```bash
 npm install      # vain testejä varten (Playwright)
 npm start        # http://localhost:8080
 npm test         # selainpohjainen savutesti, kuvakaappaukset .screenshots/-kansioon
+npm run build    # dist/pelikirja.html (yksi tiedosto)
 ```
 
 Sovelluksessa ei ole käännösvaihetta: `index.html` ja ES-moduulit toimivat sellaisenaan.
@@ -70,5 +76,6 @@ js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
 js/views/               näkymät: ottelut, ottelu, kokoonpanot, pelaajat, kenttä, tilastot, asetukset
+tools/build-single.mjs  kokoaa yhden tiedoston version
 tests/smoke.mjs         päävirran savutesti
 ```

@@ -3,7 +3,7 @@ import { h, sheet, toast, confirmSheet } from '../ui.js';
 import { getState, lineupById, addLineup, removeLineup, update } from '../store.js';
 import { getFormation, formationsBySize } from '../formations.js';
 import { renderLineupEditor } from './pitch.js';
-import { navigate } from '../app.js';
+import { navigate } from '../router.js';
 
 export function lineupsView() {
   const lineups = getState().lineups;

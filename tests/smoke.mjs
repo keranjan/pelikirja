@@ -123,6 +123,25 @@ await shot('08-kokoonpanot');
 await tap('#tabbar a[href="#/asetukset"]');
 await shot('09-asetukset');
 
+// --- Varmuuskopion vienti ja tuonti ---
+await tapText('Vie tiedot');
+await page.waitForTimeout(200);
+const backup = await page.locator('.sheet textarea').inputValue();
+await page.locator('#overlay .iconbtn').first().click();
+await tapText('Tyhjennä kaikki tiedot');
+await page.waitForTimeout(200);
+await page.locator('.sheet .btn.danger').click();
+await page.waitForTimeout(300);
+const afterReset = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).players.length);
+await tapText('Tuo tiedot');
+await page.waitForTimeout(200);
+await page.locator('.sheet textarea').fill(backup);
+await page.locator('.sheet .btn', { hasText: 'Tuo liitetty teksti' }).click();
+await page.waitForTimeout(300);
+const afterImport = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).players.length);
+console.log('varmuuskopio: tyhjennyksen jälkeen', afterReset, 'pelaajaa, tuonnin jälkeen', afterImport);
+if (afterReset !== 0 || afterImport !== players.length) { console.error('Varmuuskopion vienti/tuonti ei toimi'); process.exit(1); }
+
 // --- Ottelulista (pelatut) ---
 await tap('#tabbar a[href="#/ottelut"]');
 await page.locator('#view .segmented button', { hasText: 'Pelatut' }).click();

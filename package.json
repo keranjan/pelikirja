@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node tests/serve.mjs",
+    "build": "node tools/build-single.mjs",
     "test": "node tests/smoke.mjs"
   },
   "devDependencies": {

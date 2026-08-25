@@ -1,5 +1,5 @@
 // Joukkueen tiedot, varmuuskopiot ja tietojen tyhjennys.
-import { h, toast, confirmSheet } from '../ui.js';
+import { h, sheet, toast, confirmSheet } from '../ui.js';
 import { getState, update, exportJSON, importJSON, resetAll } from '../store.js';
 
 export function settingsView() {
@@ -24,8 +24,8 @@ export function settingsView() {
   body.append(h('div', { class: 'section-title', text: 'Varmuuskopio' }));
   body.append(h('div', { class: 'card stack' },
     h('p', { class: 'small muted', text: 'Kaikki tiedot tallentuvat vain tähän laitteeseen. Ota varmuuskopio ennen selaimen tietojen tyhjennystä tai kun vaihdat puhelinta.' }),
-    h('button', { class: 'btn', onclick: doExport }, '⬇️ Vie tiedot tiedostoon'),
-    h('button', { class: 'btn', onclick: doImport }, '⬆️ Tuo tiedot tiedostosta')));
+    h('button', { class: 'btn', onclick: doExport }, '⬇️ Vie tiedot'),
+    h('button', { class: 'btn', onclick: doImport }, '⬆️ Tuo tiedot')));
 
   body.append(h('div', { class: 'section-title', text: 'Sovellus' }));
   body.append(h('div', { class: 'card stack' },
@@ -54,33 +54,71 @@ export function settingsView() {
 }
 
 function doExport() {
-  const blob = new Blob([exportJSON()], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `pelikirja-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast('Varmuuskopio viety');
+  const json = exportJSON();
+  const name = `pelikirja-${new Date().toISOString().slice(0, 10)}.json`;
+
+  sheet('Vie tiedot', (body) => {
+    body.append(
+      h('p', { class: 'small muted', text: 'Tallenna varmuuskopio tiedostoksi tai kopioi se talteen esimerkiksi muistiinpanoihin. Tuo se myöhemmin takaisin Tuo tiedot -painikkeella.' }),
+      h('button', {
+        class: 'btn primary', style: 'margin-bottom:10px',
+        onclick: () => {
+          const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+          const a = h('a', { href: url, download: name, style: 'display:none' });
+          document.body.append(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          toast('Tiedosto tallennettu');
+        },
+      }, `⬇️ Lataa ${name}`),
+      h('button', {
+        class: 'btn', style: 'margin-bottom:14px',
+        onclick: async () => {
+          try {
+            await navigator.clipboard.writeText(json);
+            toast('Varmuuskopio kopioitu');
+          } catch {
+            ta.focus();
+            ta.select();
+            toast('Kopioi teksti alta');
+          }
+        },
+      }, '📋 Kopioi leikepöydälle'));
+    const ta = h('textarea', { style: 'min-height:160px;font-family:ui-monospace,monospace;font-size:12px', text: json });
+    body.append(ta);
+  });
 }
 
 function doImport() {
-  const input = h('input', { type: 'file', accept: 'application/json,.json', style: 'display:none' });
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      importJSON(await file.text());
-      toast('Tiedot tuotu');
-    } catch (e) {
-      toast('Tuonti epäonnistui');
-      console.warn(e);
-    } finally {
-      input.remove();
-    }
+  sheet('Tuo tiedot', (body, close) => {
+    const ta = h('textarea', {
+      style: 'min-height:160px;font-family:ui-monospace,monospace;font-size:12px',
+      placeholder: 'Liitä varmuuskopion sisältö tähän',
+    });
+
+    const load = (text) => {
+      try {
+        importJSON(text);
+        close();
+        toast('Tiedot tuotu');
+      } catch (e) {
+        toast('Sisältö ei kelpaa varmuuskopioksi');
+        console.warn(e);
+      }
+    };
+
+    const file = h('input', { type: 'file', accept: 'application/json,.json', style: 'display:none' });
+    file.addEventListener('change', async () => {
+      if (file.files?.[0]) load(await file.files[0].text());
+    });
+
+    body.append(
+      h('p', { class: 'small muted', text: 'Nykyiset tiedot korvautuvat varmuuskopion sisällöllä.' }),
+      file,
+      h('button', { class: 'btn primary', style: 'margin-bottom:10px', onclick: () => file.click() }, '📂 Valitse tiedosto'),
+      h('div', { class: 'section-title', text: 'Tai liitä teksti' }),
+      ta,
+      h('button', { class: 'btn', style: 'margin-top:10px', onclick: () => load(ta.value) }, 'Tuo liitetty teksti'));
   });
-  document.body.append(input);
-  input.click();
 }
