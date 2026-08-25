@@ -113,3 +113,37 @@ export function shortName(name) {
   if (parts.length === 1) return parts[0];
   return `${parts[0][0]}. ${parts[parts.length - 1]}`;
 }
+
+/* ---------- Videolinkit ---------- */
+
+const VIDEO_SERVICES = {
+  'app.veo.co': 'Veo',
+  'veo.co': 'Veo',
+  'youtube.com': 'YouTube',
+  'm.youtube.com': 'YouTube',
+  'youtu.be': 'YouTube',
+  'vimeo.com': 'Vimeo',
+  'spiideo.com': 'Spiideo',
+  'app.spiideo.com': 'Spiideo',
+  'hudl.com': 'Hudl',
+  'fi.hudl.com': 'Hudl',
+};
+
+/**
+ * Tunnistaa ottelun videolinkin. Palauttaa null, jos osoite ei kelpaa
+ * (vain http- ja https-osoitteet hyväksytään).
+ */
+export function videoInfo(raw) {
+  const text = (raw || '').trim();
+  if (!text) return null;
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const host = url.hostname.replace(/^www\./, '');
+  const service = VIDEO_SERVICES[host];
+  return { url: url.href, host, service: service || host, known: !!service };
+}

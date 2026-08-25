@@ -1,5 +1,5 @@
 // Yksittäisen ottelun näkymä: kokoonpano, tulos ja tiedot.
-import { h, sheet, toast, confirmSheet, fmtDate } from '../ui.js';
+import { h, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js';
 import {
   getState, matchById, updateMatch, removeMatch, update, uid,
   sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
@@ -103,6 +103,59 @@ function saveAsTemplate(m) {
   });
 }
 
+/* ---------- Ottelun video ---------- */
+
+function videoBlock(m) {
+  const video = videoInfo(m.videoUrl);
+  const wrap = h('div', { class: 'stack', style: 'margin-top:16px' });
+
+  if (!video) {
+    wrap.append(h('button', { class: 'btn', onclick: () => openVideoSheet(m) }, '🎬 Lisää videolinkki'));
+    return wrap;
+  }
+
+  wrap.append(h('a', {
+    class: 'btn primary', href: video.url, target: '_blank', rel: 'noopener noreferrer',
+  }, video.known ? `▶︎ Katso ${video.service}-tallenne` : '▶︎ Katso ottelun tallenne'));
+  wrap.append(h('div', { class: 'row between' },
+    h('span', { class: 'tiny muted ellip', text: video.host }),
+    h('button', { class: 'btn sm ghost', onclick: () => openVideoSheet(m) }, 'Muokkaa linkkiä')));
+  return wrap;
+}
+
+function openVideoSheet(m) {
+  sheet('Ottelun video', (body, close) => {
+    const input = h('input', {
+      type: 'text', value: m.videoUrl || '', inputmode: 'url', autocomplete: 'off',
+      placeholder: 'https://app.veo.co/matches/...',
+    });
+
+    body.append(
+      h('p', { class: 'small muted', text: 'Liitä ottelun tallenteen osoite, esimerkiksi Veosta. Linkki avautuu uuteen välilehteen – video toistetaan palvelun omassa sovelluksessa.' }),
+      h('label', { class: 'field' }, h('span', { text: 'Videolinkki' }), input),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const value = input.value.trim();
+          if (value && !videoInfo(value)) {
+            toast('Videolinkin pitää alkaa https://');
+            input.focus();
+            return;
+          }
+          updateMatch(m.id, { videoUrl: value });
+          close();
+          toast(value ? 'Videolinkki tallennettu' : 'Videolinkki poistettu');
+        },
+      }, 'Tallenna'),
+      m.videoUrl ? h('button', {
+        class: 'btn danger', style: 'margin-top:10px',
+        onclick: () => { updateMatch(m.id, { videoUrl: '' }); close(); toast('Videolinkki poistettu'); },
+      }, 'Poista linkki') : null);
+
+    setTimeout(() => input.focus(), 60);
+  });
+}
+
 /* ---------- Kokoonpanon jakaminen ---------- */
 
 function lineupText(m) {
@@ -182,6 +235,8 @@ function resultTab(m) {
 
   const outcome = r.gf > r.ga ? ['win', 'Voitto'] : r.gf === r.ga ? ['draw', 'Tasapeli'] : ['loss', 'Tappio'];
   wrap.append(h('div', { class: 'center' }, h('span', { class: `badge ${outcome[0]}`, text: outcome[1] })));
+
+  wrap.append(videoBlock(m));
 
   wrap.append(h('div', { class: 'section-title', text: `Maalit (${r.events.length})` }));
   if (!r.events.length) {
@@ -277,6 +332,13 @@ function infoTab(m) {
     row('Paikka', m.venue),
     row('Tyyppi', TYPES[m.type] || m.type),
     row('Koti/vieras', m.home ? 'Kotiottelu' : 'Vierasottelu'));
+
+  const video = videoInfo(m.videoUrl);
+  wrap.append(h('div', { class: 'card row between' },
+    h('span', { class: 'small muted', text: 'Video' }),
+    video
+      ? h('a', { class: 'bold ellip', href: video.url, target: '_blank', rel: 'noopener noreferrer', style: 'color:var(--accent)', text: `${video.service} ↗` })
+      : h('span', { class: 'bold', text: '–' })));
 
   if (m.notes) {
     wrap.append(h('div', { class: 'section-title', text: 'Muistiinpanot' }));

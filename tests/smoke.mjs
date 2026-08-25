@@ -34,6 +34,7 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
+const VEO = 'https://app.veo.co/matches/20260824-ilves-keltainen-vs-pjk-v40f1ec0/';
 const shot = (n) => page.screenshot({ path: `${SHOT}/${n}.png` });
 const tap = async (sel) => { await page.locator(sel).first().click(); await page.waitForTimeout(120); };
 const tapText = async (t) => { await page.getByText(t, { exact: false }).first().click(); await page.waitForTimeout(120); };
@@ -113,6 +114,20 @@ await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(200);
 await page.locator('#view .card .iconbtn', { hasText: '＋' }).nth(1).click(); // vastustajan maali
 await page.waitForTimeout(200);
+// Veo-videolinkki
+await tapText('Lisää videolinkki');
+await page.waitForTimeout(200);
+await page.locator('.sheet input[type=text]').fill('ei-mikaan-osoite');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(200);
+if (!(await page.locator('#overlay .sheet').count())) { console.error('Kelvoton videolinkki hyväksyttiin'); process.exit(1); }
+await page.locator('.sheet input[type=text]').fill(VEO);
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(250);
+const videoLink = page.locator('#view a.btn.primary');
+const videoHref = await videoLink.getAttribute('href');
+console.log('videonappi:', (await videoLink.textContent()).trim(), '->', videoHref);
+if (videoHref !== VEO) { console.error('Videolinkki ei tallentunut'); process.exit(1); }
 await shot('06-tulos');
 
 // --- Tilastot / kokoonpanot / asetukset ---
@@ -152,6 +167,7 @@ await shot('10-ottelut-pelatut');
 await page.reload();
 await page.waitForTimeout(500);
 const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')));
+console.log('videolinkki tallessa:', persisted.matches[0].videoUrl === VEO);
 console.log('pelaajia:', persisted.players.length, '| otteluita:', persisted.matches.length,
   '| pohjia:', persisted.lineups.length, '| tulos:', JSON.stringify(persisted.matches[0].result?.gf) + '-' + persisted.matches[0].result?.ga,
   '| kentällä:', persisted.matches[0].lineup.slots.filter(Boolean).length);

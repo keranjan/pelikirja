@@ -1,5 +1,5 @@
 // Otteluluettelo: tulevat tapahtumat ja pelatut ottelut.
-import { h, sheet, toast, fmtShortDate, countdownText } from '../ui.js';
+import { h, sheet, toast, fmtShortDate, countdownText, videoInfo } from '../ui.js';
 import { getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff } from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
@@ -73,7 +73,8 @@ function matchCard(m) {
     h('div', { class: 'row', style: 'gap:6px;margin-top:8px' },
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
-      cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null));
+      cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
+      videoInfo(m.videoUrl) ? h('span', { class: 'badge', text: '🎬 Video' }) : null));
 }
 
 export function openMatchSheet(match) {
@@ -86,6 +87,10 @@ export function openMatchSheet(match) {
     const oppI = h('input', { type: 'text', value: match?.opponent || '', placeholder: 'Vastustajan nimi', autocomplete: 'off' });
     const venueI = h('input', { type: 'text', value: match?.venue || '', placeholder: 'Kenttä tai halli', autocomplete: 'off' });
     const notesI = h('textarea', { placeholder: 'Kokoontuminen, varusteet, muuta huomioitavaa', text: match?.notes || '' });
+    const videoI = h('input', {
+      type: 'text', value: match?.videoUrl || '', autocomplete: 'off',
+      inputmode: 'url', placeholder: 'https://app.veo.co/matches/...',
+    });
     const typeSel = h('select', {}, ...Object.entries(TYPES).map(([v, label]) =>
       h('option', { value: v, text: label, selected: (match?.type || 'ottelu') === v })));
 
@@ -106,11 +111,21 @@ export function openMatchSheet(match) {
       h('label', { class: 'field' }, h('span', { text: 'Paikka' }), venueI),
       h('label', { class: 'field' }, h('span', { text: 'Tapahtuman tyyppi' }), typeSel),
       h('label', { class: 'field' }, h('span', { text: 'Koti vai vieras' }), haToggle),
+      h('label', { class: 'field' },
+        h('span', { text: 'Videolinkki' }), videoI,
+        h('span', { class: 'tiny muted', text: 'Ottelun tallenne esimerkiksi Veosta – linkki avautuu ottelun Tulos-välilehdeltä.' })),
       h('label', { class: 'field' }, h('span', { text: 'Muistiinpanot' }), notesI),
       h('button', {
         class: 'btn primary',
         onclick: () => {
+          const video = videoI.value.trim();
+          if (video && !videoInfo(video)) {
+            toast('Videolinkin pitää alkaa https://');
+            videoI.focus();
+            return;
+          }
           const data = {
+            videoUrl: video,
             date: dateI.value || new Date().toISOString().slice(0, 10),
             time: timeI.value || '18:00',
             opponent: oppI.value.trim(),

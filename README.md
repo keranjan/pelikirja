@@ -27,6 +27,8 @@ ilman verkkoyhteyttä ja kaikki tiedot tallentuvat vain omaan laitteeseen.
 - Tulevat tapahtumat aikajärjestyksessä, mukana lähtölaskenta ja kokoonpanon täyttöaste
 - Jokaisella ottelulla oma kokoonpanonsa
 - Tulos: maalit puolittain, maalintekijät, syöttäjät ja maaliminuutit
+- Videolinkki otteluun (Veo, YouTube, Vimeo, Spiideo, Hudl tai mikä tahansa https-osoite):
+  tallenne avautuu Tulos-välilehdeltä yhdellä napautuksella palvelun omaan sovellukseen
 - Pelatut ottelut omalla välilehdellään voitto/tasapeli/tappio-merkinnöin
 
 **Tilastot**

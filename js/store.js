@@ -147,6 +147,7 @@ export function addMatch(data) {
     home: true,
     venue: '',
     type: 'ottelu',           // ottelu | turnaus | harjoitus
+    videoUrl: '',             // esim. Veo-tallenne ottelusta
     notes: '',
     lineup: emptyLineup(),
     result: null,             // { gf, ga, events:[{id, scorerId, assistId, minute}], notes }
