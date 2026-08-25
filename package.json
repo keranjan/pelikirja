@@ -1,0 +1,14 @@
+{
+  "name": "pelikirja",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pelikirja – jalkapallojoukkueen kokoonpanot, pelipaikat, ottelut ja tulokset (PWA)",
+  "type": "module",
+  "scripts": {
+    "start": "node tests/serve.mjs",
+    "test": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
