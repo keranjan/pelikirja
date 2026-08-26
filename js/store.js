@@ -8,10 +8,21 @@ const listeners = new Set();
 export const uid = () =>
   Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
 
+/** Valmennuksen ja toimihenkilöiden tehtävät. */
+export const STAFF_ROLES = {
+  paavalmentaja: 'Päävalmentaja',
+  apuvalmentaja: 'Apuvalmentaja',
+  mv_valmentaja: 'Maalivahtivalmentaja',
+  joukkueenjohtaja: 'Joukkueenjohtaja',
+  huoltaja: 'Huoltaja',
+  muu: 'Muu toimihenkilö',
+};
+
 const emptyState = () => ({
   version: 1,
   team: { name: DEFAULT_TEAM_NAME, season: String(new Date().getFullYear()), theme: 'system' },
   players: [],
+  staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   matches: [],
 });
@@ -25,6 +36,7 @@ export function emptyLineup(formationId = '4-4-2') {
     unavailable: [],
     positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
     drawings: [],    // taktiikkapiirrokset
+    staff: [],       // otteluun mukaan merkityt valmentajat ja toimihenkilöt
   };
 }
 
@@ -34,6 +46,7 @@ function migrate(data) {
   const st = { ...base, ...data };
   st.team = { ...base.team, ...(data.team || {}) };
   st.players = Array.isArray(data.players) ? data.players : [];
+  st.staff = Array.isArray(data.staff) ? data.staff : [];
   // Pelipaikkojen nimet muuttuivat: DKK -> AKK, HKK -> YKK.
   const RENAMED = { DKK: 'AKK', HKK: 'YKK' };
   for (const p of st.players) {
@@ -49,6 +62,7 @@ function migrate(data) {
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
     if (!Array.isArray(l.drawings)) l.drawings = [];
+    if (!Array.isArray(l.staff)) l.staff = [];
     if (!l.positions || typeof l.positions !== 'object') l.positions = {};
   }
   return st;
@@ -143,6 +157,51 @@ export function removePlayer(id) {
       if (m.result) m.result.events = m.result.events.filter((e) => e.scorerId !== id && e.assistId !== id);
     });
   });
+}
+
+/* ---------- Valmentajat ja toimihenkilöt ---------- */
+
+export const staffById = (id) => state.staff.find((x) => x.id === id) || null;
+
+export const staffName = (id) => staffById(id)?.name || 'Tuntematon';
+
+/** Järjestys tehtävän mukaan, jotta päävalmentaja on aina ensin. */
+export const sortedStaff = (staff = state.staff) => {
+  const order = Object.keys(STAFF_ROLES);
+  return [...staff].sort((a, b) => {
+    const ai = order.indexOf(a.role), bi = order.indexOf(b.role);
+    if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    return a.name.localeCompare(b.name, 'fi');
+  });
+};
+
+export function addStaff(data) {
+  const person = { id: uid(), name: '', role: 'apuvalmentaja', phone: '', notes: '', active: true, ...data };
+  update((st) => { st.staff.push(person); });
+  return person;
+}
+
+export function updateStaff(id, data) {
+  update((st) => {
+    const person = st.staff.find((x) => x.id === id);
+    if (person) Object.assign(person, data);
+  });
+}
+
+export function removeStaff(id) {
+  update((st) => {
+    st.staff = st.staff.filter((x) => x.id !== id);
+    const clean = (lu) => { if (lu) lu.staff = (lu.staff || []).filter((v) => v !== id); };
+    st.lineups.forEach((l) => clean(l.lineup));
+    st.matches.forEach((m) => clean(m.lineup));
+  });
+}
+
+export function toggleLineupStaff(lineup, staffId) {
+  if (!Array.isArray(lineup.staff)) lineup.staff = [];
+  lineup.staff = lineup.staff.includes(staffId)
+    ? lineup.staff.filter((v) => v !== staffId)
+    : [...lineup.staff, staffId];
 }
 
 /* ---------- Kokoonpanopohjat ---------- */

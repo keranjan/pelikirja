@@ -6,6 +6,7 @@ import {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
   toggleBench, toggleUnavailable, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
+  sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
 } from '../store.js';
 import {
   TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
@@ -148,10 +149,30 @@ export function renderLineupEditor(lineup, commit) {
     }
   }
 
-  wrap.append(h('button', {
-    class: 'btn', style: 'margin-top:10px',
-    onclick: () => openSquadSheet(lineup, commit),
-  }, 'Hallitse ryhmää'));
+  /* --- Valmentajat --- */
+  const staffIds = lineup.staff || [];
+  wrap.append(h('div', { class: 'section-title', text: `Valmentajat (${staffIds.length})` }));
+  if (!staffIds.length) {
+    wrap.append(h('div', { class: 'card small muted', text: 'Ei valmentajia merkittynä otteluun.' }));
+  } else {
+    for (const id of staffIds) {
+      const person = staffById(id);
+      if (!person) continue;
+      wrap.append(h('div', { class: 'card row' },
+        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+        h('span', { class: 'grow' },
+          h('div', { class: 'bold ellip', text: person.name }),
+          h('div', { class: 'tiny muted', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+        h('button', {
+          class: 'btn sm ghost',
+          onclick: () => commit(() => toggleLineupStaff(lineup, id)),
+        }, 'Poista')));
+    }
+  }
+
+  wrap.append(h('div', { class: 'btn-row', style: 'margin-top:10px' },
+    h('button', { class: 'btn', onclick: () => openSquadSheet(lineup, commit) }, 'Hallitse ryhmää'),
+    h('button', { class: 'btn', onclick: () => openStaffPicker(lineup, commit) }, 'Valmentajat')));
 
   return wrap;
 }
@@ -467,6 +488,35 @@ function openSquadSheet(lineup, commit) {
               class: (lineup.unavailable || []).includes(p.id) ? 'on' : '',
               onclick: () => { commit(() => toggleUnavailable(lineup, p.id)); draw(); },
             }, 'Poissa'))));
+      }
+    };
+    draw();
+  });
+}
+
+/* ---------- Valmentajien valinta otteluun ---------- */
+
+function openStaffPicker(lineup, commit) {
+  sheet('Valmentajat', (body) => {
+    const draw = () => {
+      body.replaceChildren();
+      const staff = sortedStaff(getState().staff);
+      if (!staff.length) {
+        body.append(h('p', { class: 'muted', text: 'Lisää valmentajat ensin Ryhmä-välilehdellä.' }));
+        return;
+      }
+      body.append(h('p', { class: 'tiny muted', text: 'Valitse ketkä ovat mukana tässä ottelussa.' }));
+      for (const person of staff) {
+        const on = (lineup.staff || []).includes(person.id);
+        body.append(h('button', {
+          class: `list-item${on ? ' sel' : ''}`,
+          onclick: () => { commit(() => toggleLineupStaff(lineup, person.id)); draw(); },
+        },
+          h('span', { class: `numchip${on ? ' accent' : ''}`, style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+          h('span', { class: 'grow' },
+            h('div', { class: 'bold ellip', text: person.name }),
+            h('div', { class: 'tiny muted', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+          h('span', { class: on ? 'badge accent' : 'badge', text: on ? 'mukana' : 'ei' })));
       }
     };
     draw();

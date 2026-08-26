@@ -155,6 +155,28 @@ if (nameA !== nameB) fail(`laitteet eivät päätyneet samaan tulokseen: ${nameA
 else if (nameB !== 'B:n versio') fail(`ristiriidan piti ratketa myöhemmin synkronoineen hyväksi, tuli: ${nameB}`);
 else console.log(`ristiriita ratkesi ennustettavasti: "${nameB}" (A:n synkronointi: ${ra.conflicts} ristiriitaa, B:n: ${rb.conflicts})`);
 
+// --- Valmentajat synkronoituvat ---
+await a.edit((st) => {
+  st.staff.push({ id: 's1', name: 'Väinö Valmentaja', role: 'paavalmentaja', phone: '', notes: '', active: true });
+  st.matches[0].lineup.staff = ['s1'];
+});
+await b.edit((st) => {
+  st.staff.push({ id: 's2', name: 'Aino Apuvalmentaja', role: 'apuvalmentaja', phone: '', notes: '', active: true });
+});
+await a.sync();
+await b.sync();
+await a.sync();
+const staffA = (await a.state()).staff.map((x) => x.id).sort().join(',');
+const staffB = (await b.state()).staff.map((x) => x.id).sort().join(',');
+const lineupStaff = (await b.state()).matches[0].lineup.staff;
+if (staffA !== 's1,s2' || staffB !== 's1,s2') {
+  fail(`valmentajat eivät yhdistyneet: A=${staffA} B=${staffB}`);
+} else if (!lineupStaff.includes('s1')) {
+  fail('valmentajan merkintä otteluun ei siirtynyt');
+} else {
+  console.log('valmentajat yhdistyivät molemmilta laitteilta ja ottelumerkintä siirtyi');
+}
+
 // --- Poisto leviää toiselle laitteelle ---
 await a.edit((st) => { st.players = st.players.filter((p) => p.id !== 'p1'); });
 await a.sync();

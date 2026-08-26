@@ -28,7 +28,10 @@ const SHOT = process.argv[2] || path.join(ROOT, '.screenshots');
 fs.mkdirSync(SHOT, { recursive: true });
 const exe = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const browser = await chromium.launch({ executablePath: fs.existsSync(exe) ? exe : undefined });
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'fi-FI' });
+const ctx = await browser.newContext({
+  viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'fi-FI',
+  permissions: ['clipboard-read', 'clipboard-write'],
+});
 const page = await ctx.newPage();
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
@@ -100,6 +103,16 @@ for (const [name, num, role] of players) {
   await page.locator('.sheet .btn.primary').click();
   await page.waitForTimeout(80);
 }
+// Valmentajat samalla välilehdellä
+await tapText('Lisää valmentaja');
+await page.waitForTimeout(250);
+await page.locator('.sheet input[type=text]').first().fill('Väinö Valmentaja');
+await page.locator('.sheet select').first().selectOption('paavalmentaja');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(250);
+const staffCount = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).staff.length);
+if (staffCount !== 1) { console.error('Valmentaja ei tallentunut'); process.exit(1); }
+
 await shot('01-pelaajat');
 
 // Muokkausnäkymässä on poistopainike eikä irrallista tekstiä
@@ -162,7 +175,7 @@ await page.waitForTimeout(200);
 await shot('05-penkki');
 
 // --- Taktiikkataulu ---
-await page.locator('#view .segmented button', { hasText: 'Taktiikka' }).click();
+await page.locator('#view .mode-switch button', { hasText: 'Taktiikka' }).click();
 await page.waitForTimeout(250);
 
 // Veto pitää aloittaa kohdasta, jossa ei ole pelaajaa – muuten se on siirto.
@@ -288,8 +301,36 @@ const cleared = await page.evaluate(() =>
   JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.positions);
 if (Object.keys(cleared).length) { console.error('Paikkojen palautus ei toiminut'); process.exit(1); }
 
-await page.locator('#view .segmented button', { hasText: 'Kokoonpano' }).first().click();
-await page.waitForTimeout(200);
+await page.locator('#view .mode-switch button', { hasText: 'Kokoonpano' }).click();
+await page.waitForTimeout(250);
+
+// Valmentaja mukaan otteluun
+await page.locator('#view .btn', { hasText: 'Valmentajat' }).click();
+await page.waitForTimeout(250);
+await page.locator('#overlay .list-item').first().click();
+await page.waitForTimeout(250);
+await page.locator('#overlay .iconbtn').first().click();
+await page.waitForTimeout(250);
+const inLineup = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.staff);
+if (inLineup.length !== 1) { console.error('Valmentaja ei tullut kokoonpanoon: ' + JSON.stringify(inLineup)); process.exit(1); }
+
+// Jaettu kokoonpano sisältää valmennuksen
+await page.locator('#view .btn', { hasText: 'Jaa kokoonpano' }).click();
+await page.waitForTimeout(400);
+const shared = await page.evaluate(async () => {
+  try { return await navigator.clipboard.readText(); }
+  catch { return document.querySelector('#overlay textarea')?.value || ''; }
+});
+if (!/Valmennus: Väinö Valmentaja \(Päävalmentaja\)/.test(shared)) {
+  console.error('Jaettu kokoonpano ei sisällä valmennusta:\n' + shared);
+  process.exit(1);
+}
+if (await page.locator('#overlay .sheet').count()) {
+  await page.locator('#overlay .iconbtn').first().click();
+  await page.waitForTimeout(200);
+}
+console.log('valmentaja kokoonpanossa ja jaetussa tekstissä');
 
 // Tallenna pohjaksi
 await tapText('Tallenna pohjaksi');

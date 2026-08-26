@@ -36,10 +36,13 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Viimeisin tulos maalintekijöineen ja videolinkkeineen
 - Kauden luvut: ottelut, voitot–tasapelit–tappiot ja maalit
 
-**Pelaajat**
+**Ryhmä**
 - Pelaajakortti: nimi, pelinumero, vahvempi jalka, muistiinpanot
 - Pelipaikat (MV, LP, KP, AKK, KK, YKK, LH, KH) – sovellus ehdottaa niiden perusteella sopivia pelaajia
 - Merkintä "ei käytettävissä" pidempiaikaisille poissaoloille
+- Valmentajat ja toimihenkilöt omana ryhmänään: nimi, tehtävä
+  (päävalmentaja, apuvalmentaja, maalivahtivalmentaja, joukkueenjohtaja,
+  huoltaja, muu), puhelin ja muistiinpanot
 
 **Kokoonpanot ja pelipaikat**
 - Kenttäkuva, jossa pelaajat asetellaan paikoilleen napauttamalla
@@ -49,6 +52,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
   7 vs 7 (2-3-1, 3-2-1, 2-1-2-1) ja 5 vs 5 (1-2-1, 2-1-1, 1-1-2)
 - Automaattitäyttö, joka sijoittaa pelaajat heidän pelipaikkojensa mukaan
 - Vaihtopenkki ja ottelukohtaiset poissaolot
+- Valmentajat merkitään mukaan ottelukohtaisesti ja he näkyvät myös
+  jaettavassa kokoonpanossa
 - Kokoonpanopohjat: tallenna vakioasetelmat ja hae ne otteluun yhdellä napautuksella
 - Kokoonpanon jakaminen tekstinä esimerkiksi joukkueen WhatsApp-ryhmään
 

@@ -4,6 +4,7 @@ import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js
 import {
   getState, matchById, updateMatch, removeMatch, update, uid,
   sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
+  staffById, STAFF_ROLES,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { renderLineupEditor } from './pitch.js';
@@ -178,6 +179,13 @@ function lineupText(m) {
     lines.push(`${slot.pos.padEnd(4, ' ')}${pid ? who(pid) : '(avoin)'}`);
   });
   if (m.lineup.bench.length) lines.push('', `Vaihdot: ${m.lineup.bench.map(who).join(', ')}`);
+  if ((m.lineup.staff || []).length) {
+    const staff = m.lineup.staff
+      .map((id) => staffById(id))
+      .filter(Boolean)
+      .map((person) => `${person.name} (${STAFF_ROLES[person.role] || 'toimihenkilö'})`);
+    if (staff.length) lines.push('', `Valmennus: ${staff.join(', ')}`);
+  }
   if ((m.lineup.unavailable || []).length) lines.push(`Poissa: ${m.lineup.unavailable.map(who).join(', ')}`);
   if (m.notes) lines.push('', m.notes);
   return lines.join('\n');

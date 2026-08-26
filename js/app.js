@@ -17,7 +17,7 @@ const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
   { href: '#/ottelut', ic: 'calendar', label: 'Ottelut' },
   { href: '#/kokoonpanot', ic: 'lineup', label: 'Kokoonpanot' },
-  { href: '#/pelaajat', ic: 'players', label: 'Pelaajat' },
+  { href: '#/pelaajat', ic: 'players', label: 'Ryhmä' },
   { href: '#/tilastot', ic: 'chart', label: 'Tilastot' },
 ];
 

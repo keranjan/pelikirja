@@ -77,15 +77,17 @@ export function mergeStates(base, local, remote) {
   let conflicts = 0;
 
   const players = mergeList(b.players, local.players, remote.players);
+  const staff = mergeList(b.staff, local.staff, remote.staff);
   const matches = mergeList(b.matches, local.matches, remote.matches);
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
-  conflicts += players.conflicts + matches.conflicts + lineups.conflicts;
+  conflicts += players.conflicts + staff.conflicts + matches.conflicts + lineups.conflicts;
 
   // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
   // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
   // ylikirjoittaisi joukkueen nimen. Jos nimi on jo annettu, se on
   // käyttäjän tietoinen valinta ja käsitellään normaalina muutoksena.
   const localIsFresh = !(local.players || []).length
+    && !(local.staff || []).length
     && !(local.matches || []).length
     && !(local.lineups || []).length
     && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
@@ -109,6 +111,7 @@ export function mergeStates(base, local, remote) {
     version: 1,
     team,
     players: sortById(players.list),
+    staff: sortById(staff.list),
     matches: sortById(matches.list),
     lineups: sortById(lineups.list),
   };
@@ -128,6 +131,7 @@ export function payload(state) {
     version: 1,
     team: withoutTheme(state.team || {}),
     players: sortById(state.players || []),
+    staff: sortById(state.staff || []),
     matches: sortById(state.matches || []),
     lineups: sortById(state.lineups || []),
   };

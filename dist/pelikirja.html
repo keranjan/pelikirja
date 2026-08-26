@@ -1013,10 +1013,21 @@ const listeners = new Set();
 const uid = () =>
   Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
 
+/** Valmennuksen ja toimihenkilöiden tehtävät. */
+const STAFF_ROLES = {
+  paavalmentaja: 'Päävalmentaja',
+  apuvalmentaja: 'Apuvalmentaja',
+  mv_valmentaja: 'Maalivahtivalmentaja',
+  joukkueenjohtaja: 'Joukkueenjohtaja',
+  huoltaja: 'Huoltaja',
+  muu: 'Muu toimihenkilö',
+};
+
 const emptyState = () => ({
   version: 1,
   team: { name: DEFAULT_TEAM_NAME, season: String(new Date().getFullYear()), theme: 'system' },
   players: [],
+  staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   matches: [],
 });
@@ -1030,6 +1041,7 @@ function emptyLineup(formationId = '4-4-2') {
     unavailable: [],
     positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
     drawings: [],    // taktiikkapiirrokset
+    staff: [],       // otteluun mukaan merkityt valmentajat ja toimihenkilöt
   };
 }
 
@@ -1039,6 +1051,7 @@ function migrate(data) {
   const st = { ...base, ...data };
   st.team = { ...base.team, ...(data.team || {}) };
   st.players = Array.isArray(data.players) ? data.players : [];
+  st.staff = Array.isArray(data.staff) ? data.staff : [];
   // Pelipaikkojen nimet muuttuivat: DKK -> AKK, HKK -> YKK.
   const RENAMED = { DKK: 'AKK', HKK: 'YKK' };
   for (const p of st.players) {
@@ -1054,6 +1067,7 @@ function migrate(data) {
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
     if (!Array.isArray(l.drawings)) l.drawings = [];
+    if (!Array.isArray(l.staff)) l.staff = [];
     if (!l.positions || typeof l.positions !== 'object') l.positions = {};
   }
   return st;
@@ -1148,6 +1162,51 @@ function removePlayer(id) {
       if (m.result) m.result.events = m.result.events.filter((e) => e.scorerId !== id && e.assistId !== id);
     });
   });
+}
+
+/* ---------- Valmentajat ja toimihenkilöt ---------- */
+
+const staffById = (id) => state.staff.find((x) => x.id === id) || null;
+
+const staffName = (id) => staffById(id)?.name || 'Tuntematon';
+
+/** Järjestys tehtävän mukaan, jotta päävalmentaja on aina ensin. */
+const sortedStaff = (staff = state.staff) => {
+  const order = Object.keys(STAFF_ROLES);
+  return [...staff].sort((a, b) => {
+    const ai = order.indexOf(a.role), bi = order.indexOf(b.role);
+    if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    return a.name.localeCompare(b.name, 'fi');
+  });
+};
+
+function addStaff(data) {
+  const person = { id: uid(), name: '', role: 'apuvalmentaja', phone: '', notes: '', active: true, ...data };
+  update((st) => { st.staff.push(person); });
+  return person;
+}
+
+function updateStaff(id, data) {
+  update((st) => {
+    const person = st.staff.find((x) => x.id === id);
+    if (person) Object.assign(person, data);
+  });
+}
+
+function removeStaff(id) {
+  update((st) => {
+    st.staff = st.staff.filter((x) => x.id !== id);
+    const clean = (lu) => { if (lu) lu.staff = (lu.staff || []).filter((v) => v !== id); };
+    st.lineups.forEach((l) => clean(l.lineup));
+    st.matches.forEach((m) => clean(m.lineup));
+  });
+}
+
+function toggleLineupStaff(lineup, staffId) {
+  if (!Array.isArray(lineup.staff)) lineup.staff = [];
+  lineup.staff = lineup.staff.includes(staffId)
+    ? lineup.staff.filter((v) => v !== staffId)
+    : [...lineup.staff, staffId];
 }
 
 /* ---------- Kokoonpanopohjat ---------- */
@@ -1307,7 +1366,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -1390,15 +1449,17 @@ function mergeStates(base, local, remote) {
   let conflicts = 0;
 
   const players = mergeList(b.players, local.players, remote.players);
+  const staff = mergeList(b.staff, local.staff, remote.staff);
   const matches = mergeList(b.matches, local.matches, remote.matches);
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
-  conflicts += players.conflicts + matches.conflicts + lineups.conflicts;
+  conflicts += players.conflicts + staff.conflicts + matches.conflicts + lineups.conflicts;
 
   // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
   // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
   // ylikirjoittaisi joukkueen nimen. Jos nimi on jo annettu, se on
   // käyttäjän tietoinen valinta ja käsitellään normaalina muutoksena.
   const localIsFresh = !(local.players || []).length
+    && !(local.staff || []).length
     && !(local.matches || []).length
     && !(local.lineups || []).length
     && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
@@ -1422,6 +1483,7 @@ function mergeStates(base, local, remote) {
     version: 1,
     team,
     players: sortById(players.list),
+    staff: sortById(staff.list),
     matches: sortById(matches.list),
     lineups: sortById(lineups.list),
   };
@@ -1441,6 +1503,7 @@ function payload(state) {
     version: 1,
     team: withoutTheme(state.team || {}),
     players: sortById(state.players || []),
+    staff: sortById(state.staff || []),
     matches: sortById(state.matches || []),
     lineups: sortById(state.lineups || []),
   };
@@ -1902,6 +1965,7 @@ const {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
   toggleBench, toggleUnavailable, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
+  sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
 } = __req('store');
 const {
   TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
@@ -2043,10 +2107,30 @@ function renderLineupEditor(lineup, commit) {
     }
   }
 
-  wrap.append(h('button', {
-    class: 'btn', style: 'margin-top:10px',
-    onclick: () => openSquadSheet(lineup, commit),
-  }, 'Hallitse ryhmää'));
+  /* --- Valmentajat --- */
+  const staffIds = lineup.staff || [];
+  wrap.append(h('div', { class: 'section-title', text: `Valmentajat (${staffIds.length})` }));
+  if (!staffIds.length) {
+    wrap.append(h('div', { class: 'card small muted', text: 'Ei valmentajia merkittynä otteluun.' }));
+  } else {
+    for (const id of staffIds) {
+      const person = staffById(id);
+      if (!person) continue;
+      wrap.append(h('div', { class: 'card row' },
+        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+        h('span', { class: 'grow' },
+          h('div', { class: 'bold ellip', text: person.name }),
+          h('div', { class: 'tiny muted', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+        h('button', {
+          class: 'btn sm ghost',
+          onclick: () => commit(() => toggleLineupStaff(lineup, id)),
+        }, 'Poista')));
+    }
+  }
+
+  wrap.append(h('div', { class: 'btn-row', style: 'margin-top:10px' },
+    h('button', { class: 'btn', onclick: () => openSquadSheet(lineup, commit) }, 'Hallitse ryhmää'),
+    h('button', { class: 'btn', onclick: () => openStaffPicker(lineup, commit) }, 'Valmentajat')));
 
   return wrap;
 }
@@ -2368,6 +2452,35 @@ function openSquadSheet(lineup, commit) {
   });
 }
 
+/* ---------- Valmentajien valinta otteluun ---------- */
+
+function openStaffPicker(lineup, commit) {
+  sheet('Valmentajat', (body) => {
+    const draw = () => {
+      body.replaceChildren();
+      const staff = sortedStaff(getState().staff);
+      if (!staff.length) {
+        body.append(h('p', { class: 'muted', text: 'Lisää valmentajat ensin Ryhmä-välilehdellä.' }));
+        return;
+      }
+      body.append(h('p', { class: 'tiny muted', text: 'Valitse ketkä ovat mukana tässä ottelussa.' }));
+      for (const person of staff) {
+        const on = (lineup.staff || []).includes(person.id);
+        body.append(h('button', {
+          class: `list-item${on ? ' sel' : ''}`,
+          onclick: () => { commit(() => toggleLineupStaff(lineup, person.id)); draw(); },
+        },
+          h('span', { class: `numchip${on ? ' accent' : ''}`, style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+          h('span', { class: 'grow' },
+            h('div', { class: 'bold ellip', text: person.name }),
+            h('div', { class: 'tiny muted', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+          h('span', { class: on ? 'badge accent' : 'badge', text: on ? 'mukana' : 'ei' })));
+      }
+    };
+    draw();
+  });
+}
+
 /* ---------- Automaattitäyttö ---------- */
 
 function autoFill(lineup) {
@@ -2398,20 +2511,29 @@ return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls 
 __mods['players'] = () => {
 // Pelaajaluettelo ja pelaajakortin muokkaus.
 const { icon } = __req('icons');
-const { h, add, sheet, toast, confirmSheet } = __req('ui');
+const { h, add, sheet, toast, confirmSheet, initials } = __req('ui');
 const { ROLES, ROLE_NAMES } = __req('formations');
-const { getState, sortedPlayers, addPlayer, updatePlayer, removePlayer } = __req('store');
+const {
+  getState, sortedPlayers, addPlayer, updatePlayer, removePlayer,
+  sortedStaff, addStaff, updateStaff, removeStaff, STAFF_ROLES,
+} = __req('store');
 function playersView() {
   const players = sortedPlayers(getState().players);
   const body = h('div', { class: 'stack' });
 
-  if (!players.length) {
+  const staff = sortedStaff(getState().staff);
+
+  if (!players.length && !staff.length) {
     body.append(h('div', { class: 'empty' },
       h('span', { class: 'big' }, icon('players', 30)),
       h('p', { text: 'Ei vielä pelaajia.' }),
       h('p', { class: 'small', text: 'Lisää joukkueesi pelaajat, niin voit rakentaa kokoonpanot.' }),
       h('button', { class: 'btn primary', style: 'margin-top:14px;max-width:260px', onclick: () => openPlayerSheet(null) }, '＋ Lisää ensimmäinen pelaaja')));
-    return { title: 'Pelaajat', body };
+    return {
+      title: 'Ryhmä',
+      actions: [{ label: 'Valmentaja', aria: 'Lisää valmentaja', onClick: () => openStaffSheet(null) }],
+      body,
+    };
   }
 
   const active = players.filter((p) => p.active !== false);
@@ -2426,7 +2548,7 @@ function playersView() {
       h('div', { class: 'tiny muted ellip', text: (p.roles || []).map((r) => ROLE_NAMES[r] || r).join(' · ') || 'Ei pelipaikkoja' })),
     h('span', { class: 'muted', text: '›' }));
 
-  body.append(h('div', { class: 'section-title', text: `Ryhmä (${active.length})` }));
+  body.append(h('div', { class: 'section-title', text: `Pelaajat (${active.length})` }));
   body.append(h('div', { class: 'cards' }, active.map(card)));
 
   if (inactive.length) {
@@ -2434,12 +2556,68 @@ function playersView() {
     body.append(h('div', { class: 'cards' }, inactive.map(card)));
   }
 
+  body.append(h('div', { class: 'section-title', text: `Valmentajat ja toimihenkilöt (${staff.length})` }));
+  if (staff.length) {
+    body.append(h('div', { class: 'cards' }, staff.map((person) =>
+      h('button', { class: 'card row', onclick: () => openStaffSheet(person) },
+        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+        h('span', { class: 'grow' },
+          h('div', { class: 'bold ellip', text: person.name }),
+          h('div', { class: 'tiny muted ellip', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+        h('span', { class: 'muted', text: '›' })))));
+  } else {
+    body.append(h('div', { class: 'card small muted', text: 'Ei valmentajia. Lisää heidät, niin voit merkitä kuka on mukana kussakin ottelussa.' }));
+  }
+  body.append(h('button', { class: 'btn', style: 'margin-top:4px', onclick: () => openStaffSheet(null) }, '＋ Lisää valmentaja'));
+
   return {
-    title: 'Pelaajat',
-    subtitle: `${active.length} pelaajaa`,
+    title: 'Ryhmä',
+    subtitle: `${active.length} pelaajaa · ${staff.length} valmentajaa`,
     actions: [{ icon: '＋', aria: 'Lisää pelaaja', onClick: () => openPlayerSheet(null) }],
     body,
   };
+}
+
+/* ---------- Valmentajat ja toimihenkilöt ---------- */
+
+function openStaffSheet(person) {
+  const isNew = !person;
+
+  sheet(isNew ? 'Uusi valmentaja' : 'Muokkaa valmentajaa', (body, close) => {
+    const nameI = h('input', { type: 'text', value: person?.name || '', placeholder: 'Etunimi Sukunimi', autocomplete: 'off' });
+    const roleSel = h('select', {}, ...Object.entries(STAFF_ROLES).map(([value, label]) =>
+      h('option', { value, text: label, selected: (person?.role || 'apuvalmentaja') === value })));
+    const phoneI = h('input', { type: 'text', value: person?.phone || '', placeholder: '040 123 4567', inputmode: 'tel', autocomplete: 'off' });
+    const notesI = h('textarea', { placeholder: 'Muistiinpanot', text: person?.notes || '' });
+
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Nimi' }), nameI),
+      h('label', { class: 'field' }, h('span', { text: 'Tehtävä' }), roleSel),
+      h('label', { class: 'field' }, h('span', { text: 'Puhelin' }), phoneI),
+      h('label', { class: 'field' }, h('span', { text: 'Muistiinpanot' }), notesI),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const name = nameI.value.trim();
+          if (!name) { toast('Anna nimi'); nameI.focus(); return; }
+          const data = { name, role: roleSel.value, phone: phoneI.value.trim(), notes: notesI.value.trim() };
+          if (isNew) { addStaff(data); toast('Valmentaja lisätty'); }
+          else { updateStaff(person.id, data); toast('Tallennettu'); }
+          close();
+        },
+      }, isNew ? 'Lisää valmentaja' : 'Tallenna'),
+      isNew ? null : h('button', {
+        class: 'btn danger', style: 'margin-top:10px',
+        onclick: async () => {
+          if (await confirmSheet('Poista valmentaja', `Poistetaanko ${person.name}? Hän poistuu myös otteluiden kokoonpanoista.`)) {
+            removeStaff(person.id);
+            toast('Valmentaja poistettu');
+          }
+        },
+      }, 'Poista valmentaja'));
+
+    if (isNew) setTimeout(() => nameI.focus(), 60);
+  });
 }
 
 function openPlayerSheet(player) {
@@ -2526,7 +2704,7 @@ function openPlayerSheet(player) {
   });
 }
 
-return { playersView, openPlayerSheet };
+return { playersView, openStaffSheet, openPlayerSheet };
 };
 
 __mods['matches'] = () => {
@@ -2897,6 +3075,7 @@ const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update, uid,
   sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
+  staffById, STAFF_ROLES,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { renderLineupEditor } = __req('pitch');
@@ -3070,6 +3249,13 @@ function lineupText(m) {
     lines.push(`${slot.pos.padEnd(4, ' ')}${pid ? who(pid) : '(avoin)'}`);
   });
   if (m.lineup.bench.length) lines.push('', `Vaihdot: ${m.lineup.bench.map(who).join(', ')}`);
+  if ((m.lineup.staff || []).length) {
+    const staff = m.lineup.staff
+      .map((id) => staffById(id))
+      .filter(Boolean)
+      .map((person) => `${person.name} (${STAFF_ROLES[person.role] || 'toimihenkilö'})`);
+    if (staff.length) lines.push('', `Valmennus: ${staff.join(', ')}`);
+  }
   if ((m.lineup.unavailable || []).length) lines.push(`Poissa: ${m.lineup.unavailable.map(who).join(', ')}`);
   if (m.notes) lines.push('', m.notes);
   return lines.join('\n');
@@ -3719,7 +3905,7 @@ const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
   { href: '#/ottelut', ic: 'calendar', label: 'Ottelut' },
   { href: '#/kokoonpanot', ic: 'lineup', label: 'Kokoonpanot' },
-  { href: '#/pelaajat', ic: 'players', label: 'Pelaajat' },
+  { href: '#/pelaajat', ic: 'players', label: 'Ryhmä' },
   { href: '#/tilastot', ic: 'chart', label: 'Tilastot' },
 ];
 
