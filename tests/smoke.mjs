@@ -76,7 +76,7 @@ await shot('02-ottelu-kokoonpano-tyhja');
 // Systeemi + automaattitäyttö
 await page.locator('#view select').first().selectOption('4-3-3');
 await page.waitForTimeout(150);
-await tapText('Täytä automaattisesti');
+await tapText('Automaattitäyttö');
 await page.waitForTimeout(200);
 await shot('03-kokoonpano-taytetty');
 

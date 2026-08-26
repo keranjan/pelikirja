@@ -77,7 +77,7 @@ function render() {
 
   const view = clear(document.getElementById('view'));
   view.append(page.body);
-  window.scrollTo(0, 0);
+  view.scrollTop = 0;
   renderTabs();
   document.title = `${page.title} · Pelikirja`;
 }
