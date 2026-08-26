@@ -29,14 +29,17 @@ export function matchesView() {
         : null));
   } else {
     let lastMonth = '';
+    let group = null;
     for (const m of list) {
       const month = matchKickoff(m).getFullYear() + '-' + matchKickoff(m).getMonth();
       if (month !== lastMonth) {
         lastMonth = month;
         const d = matchKickoff(m);
         body.append(h('div', { class: 'section-title', text: d.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' }) }));
+        group = h('div', { class: 'cards' });
+        body.append(group);
       }
-      body.append(matchCard(m));
+      group.append(matchCard(m));
     }
   }
 

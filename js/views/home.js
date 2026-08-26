@@ -11,7 +11,7 @@ import { openMatchSheet } from './matches.js';
 
 export function homeView() {
   const st = getState();
-  const body = h('div', { class: 'stack' });
+  const body = h('div', { class: 'stack home' });
   const next = upcomingMatches()[0];
   const played = pastMatches().filter(isPlayed);
 

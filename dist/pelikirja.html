@@ -208,6 +208,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #app { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 }
 
+/* Kortit ruudukkoon: yksi sarake puhelimessa, kaksi tai kolme tabletilla. */
+.cards { display: grid; gap: 12px; }
+
 /* ---------- Yläpalkki ---------- */
 
 #topbar {
@@ -557,6 +560,94 @@ html.board-open, html.board-open body { overflow: hidden; }
     padding-bottom: calc(12px + var(--safe-b));
   }
   .board .toolrow { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------- Tabletti ---------- */
+
+/* Pystyasennossa oleva tabletti: leveämpi kehys, isompi teksti, kaksi saraketta. */
+@media (min-width: 720px) {
+  body { font-size: 17px; }
+  /* Kenttäkuva ei saa venyä koko leveydelle, muuten se ei mahdu ruudulle.
+     Leveys rajataan korkeusbudjetista kentän mittasuhteiden mukaan. */
+  .pitch-wrap { display: flex; justify-content: center; }
+  .pitch-wrap .pitch { max-width: calc(62dvh * 68 / 95); }
+  .mini-pitch { max-width: 480px; margin-left: auto; margin-right: auto; }
+  #app { max-width: 900px; }
+  #topbar { padding: calc(var(--safe-t) + 18px) 28px 18px; min-height: 72px; }
+  #topbar h1 { font-size: 24px; }
+  #topbar .sub { font-size: 13.5px; }
+  #view { padding: 24px 28px 40px; }
+  .stack { gap: 14px; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { padding: 18px; }
+  .section-title { margin: 28px 2px 10px; font-size: 12px; }
+  .kpi-grid { gap: 14px; }
+  .kpi .v { font-size: 26px; }
+  .hero { padding: 28px; }
+  .hero .opponent { font-size: 38px; }
+  .empty { padding: 72px 24px; }
+  .sheet { max-width: 640px; border-radius: 22px; margin-bottom: 24px; }
+  #overlay { align-items: center; }
+  .toolrow { gap: 10px; }
+  .toolbtn { min-height: 64px; }
+  .swatch { width: 46px; height: 46px; }
+}
+
+/* Vaaka-asennossa oleva tabletti: navigaatio sivupalkkiin, kenttä ja
+   säätimet rinnakkain. */
+@media (min-width: 1000px) {
+  #app {
+    max-width: none;
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "nav top" "nav view";
+    border-left: 0; border-right: 0;
+  }
+  #topbar { grid-area: top; }
+  #view { grid-area: view; }
+  #view > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+
+  #tabbar {
+    grid-area: nav;
+    height: auto; padding: 16px 8px calc(16px + var(--safe-b));
+    grid-auto-flow: row; grid-auto-columns: auto; grid-auto-rows: max-content;
+    align-content: start; gap: 6px;
+    border-top: 0; border-right: 1px solid var(--line);
+  }
+  #tabbar a { gap: 6px; padding: 10px 4px; border-radius: 14px; font-size: 11.5px; }
+  #tabbar a .ic { padding: 6px 16px; }
+  #tabbar a.active { background: var(--accent-soft); }
+  #tabbar a.active .ic { background: none; }
+
+  #toast { left: auto; right: 32px; transform: none; bottom: 32px; }
+
+  .cards { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+
+  /* Kokoonpanoeditori: kenttä vasemmalle, säätimet oikealle. */
+  .lineup-editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 14px 28px;
+    align-items: start;
+  }
+  .lineup-editor > * { grid-column: 2; }
+  .lineup-editor > .mode-switch { grid-column: 1 / -1; }
+  .lineup-editor > .pitch-wrap { grid-column: 1; grid-row: 2 / span 99; align-self: start; }
+  /* Vaaka-asennossa kenttä käyttää koko käytettävissä olevan korkeuden. */
+  .lineup-editor > .pitch-wrap .pitch { max-width: calc((100dvh - 200px) * 68 / 95); }
+  .pitch-wrap .pitch.drawing { max-width: none; }
+
+  /* Etusivu: seuraava ottelu vasemmalle, muu oikealle. */
+  .home {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 12px 28px;
+    align-content: start;
+  }
+  .home > * { grid-column: 2; }
+  .home > .hero { grid-column: 1; grid-row: 1 / span 99; align-self: start; }
+  .home .cards { grid-template-columns: 1fr; }
 }
 
 /* ---------- Alapaneeli ---------- */
@@ -1876,11 +1967,11 @@ const pitchLines = () => {
  */
 function renderLineupEditor(lineup, commit) {
   const formation = getFormation(lineup.formation);
-  const wrap = h('div', { class: 'stack' });
+  const wrap = h('div', { class: 'stack lineup-editor' });
 
   /* --- Tila: kokoonpano vai taktiikka --- */
   const setMode = (value) => { mode = value; commit(() => {}); };
-  wrap.append(h('div', { class: 'segmented' },
+  wrap.append(h('div', { class: 'segmented mode-switch' },
     h('button', { class: mode === 'kokoonpano' ? 'on' : '', onclick: () => setMode('kokoonpano') }, 'Kokoonpano'),
     h('button', { class: mode === 'taktiikka' ? 'on' : '', onclick: () => setMode('taktiikka') }, 'Taktiikka')));
 
@@ -2336,11 +2427,11 @@ function playersView() {
     h('span', { class: 'muted', text: '›' }));
 
   body.append(h('div', { class: 'section-title', text: `Ryhmä (${active.length})` }));
-  active.forEach((p) => body.append(card(p)));
+  body.append(h('div', { class: 'cards' }, active.map(card)));
 
   if (inactive.length) {
     body.append(h('div', { class: 'section-title', text: `Ei käytettävissä (${inactive.length})` }));
-    inactive.forEach((p) => body.append(card(p)));
+    body.append(h('div', { class: 'cards' }, inactive.map(card)));
   }
 
   return {
@@ -2469,14 +2560,17 @@ function matchesView() {
         : null));
   } else {
     let lastMonth = '';
+    let group = null;
     for (const m of list) {
       const month = matchKickoff(m).getFullYear() + '-' + matchKickoff(m).getMonth();
       if (month !== lastMonth) {
         lastMonth = month;
         const d = matchKickoff(m);
         body.append(h('div', { class: 'section-title', text: d.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' }) }));
+        group = h('div', { class: 'cards' });
+        body.append(group);
       }
-      body.append(matchCard(m));
+      group.append(matchCard(m));
     }
   }
 
@@ -2608,7 +2702,7 @@ const { icon } = __req('icons');
 const { openMatchSheet } = __req('matches');
 function homeView() {
   const st = getState();
-  const body = h('div', { class: 'stack' });
+  const body = h('div', { class: 'stack home' });
   const next = upcomingMatches()[0];
   const played = pastMatches().filter(isPlayed);
 
@@ -3183,10 +3277,12 @@ function lineupsView() {
     return { title: 'Kokoonpanot', body };
   }
 
+  const grid = h('div', { class: 'cards' });
+  body.append(grid);
   for (const l of lineups) {
     const f = getFormation(l.lineup.formation);
     const filled = l.lineup.slots.filter(Boolean).length;
-    body.append(h('button', { class: 'card row', onclick: () => navigate(`#/kokoonpano/${l.id}`) },
+    grid.append(h('button', { class: 'card row', onclick: () => navigate(`#/kokoonpano/${l.id}`) },
       h('span', { class: 'numchip accent', style: 'width:auto;padding:0 8px', text: f.name }),
       h('span', { class: 'grow' },
         h('div', { class: 'bold ellip', text: l.name }),

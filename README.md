@@ -17,6 +17,17 @@ Sovellus avautuu **Ottelupäivä**-etusivulle, joka näyttää seuraavan ottelun
 isona: lähtölaskenta, kokoonpanon täyttöaste pikkukenttänä, viimeisin tulos
 ja kauden luvut. Muut näkymät ovat omina välilehtinään.
 
+Asettelu mukautuu näytön kokoon kolmessa portaassa:
+
+| Näyttö | Asettelu |
+|---|---|
+| Puhelin | Yksi sarake, välilehdet alareunassa |
+| Tabletti pystyssä (≥ 720 px) | Leveämpi kehys, isompi teksti, kortit kahdessa sarakkeessa |
+| Tabletti vaakassa (≥ 1000 px) | Navigaatio sivupalkkiin, kenttä ja säätimet rinnakkain, kortit kolmessa sarakkeessa |
+
+Kenttäkuvan leveys lasketaan käytettävissä olevasta korkeudesta, joten
+kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
+
 ## Ominaisuudet
 
 **Ottelupäivä (etusivu)**

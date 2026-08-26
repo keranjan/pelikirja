@@ -72,11 +72,11 @@ const pitchLines = () => {
  */
 export function renderLineupEditor(lineup, commit) {
   const formation = getFormation(lineup.formation);
-  const wrap = h('div', { class: 'stack' });
+  const wrap = h('div', { class: 'stack lineup-editor' });
 
   /* --- Tila: kokoonpano vai taktiikka --- */
   const setMode = (value) => { mode = value; commit(() => {}); };
-  wrap.append(h('div', { class: 'segmented' },
+  wrap.append(h('div', { class: 'segmented mode-switch' },
     h('button', { class: mode === 'kokoonpano' ? 'on' : '', onclick: () => setMode('kokoonpano') }, 'Kokoonpano'),
     h('button', { class: mode === 'taktiikka' ? 'on' : '', onclick: () => setMode('taktiikka') }, 'Taktiikka')));
 

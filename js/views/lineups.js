@@ -19,10 +19,12 @@ export function lineupsView() {
     return { title: 'Kokoonpanot', body };
   }
 
+  const grid = h('div', { class: 'cards' });
+  body.append(grid);
   for (const l of lineups) {
     const f = getFormation(l.lineup.formation);
     const filled = l.lineup.slots.filter(Boolean).length;
-    body.append(h('button', { class: 'card row', onclick: () => navigate(`#/kokoonpano/${l.id}`) },
+    grid.append(h('button', { class: 'card row', onclick: () => navigate(`#/kokoonpano/${l.id}`) },
       h('span', { class: 'numchip accent', style: 'width:auto;padding:0 8px', text: f.name }),
       h('span', { class: 'grow' },
         h('div', { class: 'bold ellip', text: l.name }),

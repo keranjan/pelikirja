@@ -30,11 +30,11 @@ export function playersView() {
     h('span', { class: 'muted', text: '›' }));
 
   body.append(h('div', { class: 'section-title', text: `Ryhmä (${active.length})` }));
-  active.forEach((p) => body.append(card(p)));
+  body.append(h('div', { class: 'cards' }, active.map(card)));
 
   if (inactive.length) {
     body.append(h('div', { class: 'section-title', text: `Ei käytettävissä (${inactive.length})` }));
-    inactive.forEach((p) => body.append(card(p)));
+    body.append(h('div', { class: 'cards' }, inactive.map(card)));
   }
 
   return {

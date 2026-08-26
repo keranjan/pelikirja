@@ -379,6 +379,66 @@ console.log('pelaajia:', persisted.players.length, '| otteluita:', persisted.mat
   '| pohjia:', persisted.lineups.length, '| tulos:', JSON.stringify(persisted.matches[0].result?.gf) + '-' + persisted.matches[0].result?.ga,
   '| kentällä:', persisted.matches[0].lineup.slots.filter(Boolean).length);
 
+// --- Tablettiasettelu ---
+for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
+                             ['tabletti vaaka', { width: 1280, height: 800 }]]) {
+  const ctx = await browser.newContext({ viewport: size, locale: 'fi-FI', hasTouch: true });
+  const tp = await ctx.newPage();
+  tp.on('pageerror', (e) => errors.push(`${label}: ${e.message}`));
+  await tp.goto('http://localhost:8777/index.html');
+  await tp.evaluate((seed) => localStorage.setItem('pelikirja.v1', JSON.stringify(seed)), {
+    version: 1, team: { name: 'Tabletti', season: '2026', theme: 'light' }, matches: [],
+    players: Array.from({ length: 8 }, (_, i) => ({ id: 'p' + i, name: 'Pelaaja ' + i, number: i + 1, roles: ['KK'], active: true })),
+    lineups: [{ id: 'l1', name: 'Asetelma', lineup: {
+      formation: '4-3-3', slots: Array(11).fill(null), bench: [], unavailable: [], positions: {}, drawings: [] } }],
+  });
+  await tp.reload();
+  await tp.waitForTimeout(400);
+
+  // Sovellus käyttää käytettävissä olevan leveyden, ei jää kapeaksi palkiksi
+  const appWidth = await tp.evaluate(() => document.getElementById('app').getBoundingClientRect().width);
+  if (appWidth < Math.min(size.width, 780)) {
+    console.error(`${label}: kehys jäi kapeaksi (${Math.round(appWidth)} px / ${size.width} px)`);
+    process.exit(1);
+  }
+
+  // Pelaajakortit useassa sarakkeessa
+  await tp.evaluate(() => { location.hash = '#/pelaajat'; });
+  await tp.waitForTimeout(300);
+  const columns = await tp.evaluate(() => {
+    const cards = [...document.querySelectorAll('#view .cards > *')].slice(0, 4);
+    return new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size;
+  });
+  if (columns < 2) { console.error(`${label}: pelaajalista jäi yhteen sarakkeeseen`); process.exit(1); }
+
+  // Kenttäkuva mahtuu ruudulle ilman vieritystä
+  await tp.evaluate(() => { location.hash = '#/kokoonpano/l1'; });
+  await tp.waitForTimeout(400);
+  const pitch = await tp.evaluate(() => {
+    const r = document.querySelector('.pitch').getBoundingClientRect();
+    return { h: Math.round(r.height), bottom: Math.round(r.bottom), vh: window.innerHeight };
+  });
+  if (pitch.h < 200 || pitch.bottom > pitch.vh + 8) {
+    console.error(`${label}: kenttä ei mahdu ruudulle (${JSON.stringify(pitch)})`);
+    process.exit(1);
+  }
+
+  // Vaaka-asennossa navigaatio on sivupalkkina kentän vasemmalla puolella
+  if (size.width >= 1000) {
+    const rail = await tp.evaluate(() => {
+      const nav = document.getElementById('tabbar').getBoundingClientRect();
+      const view = document.getElementById('view').getBoundingClientRect();
+      return { navRight: Math.round(nav.right), viewLeft: Math.round(view.left), navHeight: Math.round(nav.height) };
+    });
+    if (rail.navRight > rail.viewLeft + 1 || rail.navHeight < 300) {
+      console.error(`${label}: sivunavigaatio puuttuu (${JSON.stringify(rail)})`);
+      process.exit(1);
+    }
+  }
+  console.log(`${label}: kehys ${Math.round(appWidth)} px, ${columns} saraketta, kenttä ${pitch.h} px`);
+  await ctx.close();
+}
+
 // --- Sormella piirtäminen kosketusnäytöllä ---
 {
   const touchCtx = await browser.newContext({
