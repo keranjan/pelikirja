@@ -223,6 +223,7 @@ export function buildPitch(lineup, commit, { drawing = false } = {}) {
     pitch.append(token);
   });
 
+  if (drawing) blockBrowserGestures(pitch);
   if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
   return pitch;
 }
@@ -230,6 +231,25 @@ export function buildPitch(lineup, commit, { drawing = false } = {}) {
 /* ---------- Koko ruudun taktiikkataulu ---------- */
 
 let boardRoot = null;
+let savedViewport = null;
+
+/**
+ * Koko ruudun taulussa piirretään ja vain piirretään, joten zoomaus kytketään
+ * pois koko sivulta taulun ajaksi. Muualla nipistyszoomaus säilyy.
+ */
+function lockZoom() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta || savedViewport !== null) return;
+  savedViewport = meta.getAttribute('content');
+  meta.setAttribute('content', `${savedViewport}, maximum-scale=1, user-scalable=no`);
+}
+
+function unlockZoom() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta || savedViewport === null) return;
+  meta.setAttribute('content', savedViewport);
+  savedViewport = null;
+}
 
 /** Avaa kentän koko ruudun kokoiseksi piirtoalustaksi. */
 export function openBoard(lineup) {
@@ -241,14 +261,17 @@ export function openBoard(lineup) {
   const commit = (fn) => { update(fn); draw(); };
 
   function draw() {
+    const area = h('div', { class: 'board-pitch' },
+      buildPitch(lineup, commit, { drawing: true }),
+      h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20)));
+    blockBrowserGestures(area);
     boardRoot.replaceChildren(
-      h('div', { class: 'board-pitch' },
-        buildPitch(lineup, commit, { drawing: true }),
-        h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20))),
+      area,
       h('div', { class: 'board-tools' }, tacticsControls(lineup, commit)));
   }
 
   draw();
+  lockZoom();
   window.addEventListener('hashchange', closeBoard);
   document.addEventListener('keydown', onKey);
   // Androidilla saadaan selainpalkitkin pois; iOS jättää tämän huomiotta.
@@ -259,6 +282,7 @@ export function closeBoard() {
   if (!boardRoot) return;
   boardRoot.remove();
   boardRoot = null;
+  unlockZoom();
   document.documentElement.classList.remove('board-open');
   window.removeEventListener('hashchange', closeBoard);
   document.removeEventListener('keydown', onKey);
@@ -337,6 +361,35 @@ function toolSample(id) {
   svg.append(line);
   if (t.arrow) svg.append(el('polygon', { points: '32,6 22,11 22,1', fill: 'currentColor' }));
   return svg;
+}
+
+/* ---------- Selaimen eleiden estäminen piirtoalustalla ---------- */
+
+/**
+ * touch-action ei yksin riitä: iOS:n Safari zoomaa kaksoisnapautuksesta
+ * siitä huolimatta. Toinen napautus estetään siksi tapahtumatasolla, ja
+ * samalla Safarin omat nipistyseleet piirtoalustan päällä.
+ */
+export function blockBrowserGestures(el) {
+  let lastTouchEnd = 0;
+
+  el.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 400) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // Piirtäessä ei myöskään haluta tekstin valintaa tai suurennuslasia.
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
+  el.addEventListener('dblclick', (e) => e.preventDefault());
+
+  // Safarin epästandardit nipistyseleet.
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    el.addEventListener(type, (e) => e.preventDefault());
+  }
 }
 
 /* ---------- Piirtäminen ---------- */

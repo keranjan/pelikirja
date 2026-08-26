@@ -516,7 +516,10 @@ a.btn { text-decoration: none; }
 
 /* ---------- Taktiikkataulu ---------- */
 
-.pitch.drawing { touch-action: none; cursor: crosshair; }
+.pitch.drawing {
+  touch-action: none; cursor: crosshair;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
 /* Kavennetaan upotettua kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
 .pitch-wrap .pitch.drawing {
   max-width: calc(46dvh * 68 / 95);
@@ -580,6 +583,7 @@ html.board-open, html.board-open body { overflow: hidden; }
   flex: 1; min-height: 0; position: relative;
   display: grid; place-items: center; padding: 10px;
   touch-action: none;      /* piirtoalustalla ei vieritetä eikä zoomata */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .board-pitch .pitch { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
 .board-close { position: absolute; top: 14px; right: 14px; z-index: 5; box-shadow: var(--shadow-md); }
@@ -2394,6 +2398,7 @@ function buildPitch(lineup, commit, { drawing = false } = {}) {
     pitch.append(token);
   });
 
+  if (drawing) blockBrowserGestures(pitch);
   if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
   return pitch;
 }
@@ -2401,6 +2406,25 @@ function buildPitch(lineup, commit, { drawing = false } = {}) {
 /* ---------- Koko ruudun taktiikkataulu ---------- */
 
 let boardRoot = null;
+let savedViewport = null;
+
+/**
+ * Koko ruudun taulussa piirretään ja vain piirretään, joten zoomaus kytketään
+ * pois koko sivulta taulun ajaksi. Muualla nipistyszoomaus säilyy.
+ */
+function lockZoom() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta || savedViewport !== null) return;
+  savedViewport = meta.getAttribute('content');
+  meta.setAttribute('content', `${savedViewport}, maximum-scale=1, user-scalable=no`);
+}
+
+function unlockZoom() {
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta || savedViewport === null) return;
+  meta.setAttribute('content', savedViewport);
+  savedViewport = null;
+}
 
 /** Avaa kentän koko ruudun kokoiseksi piirtoalustaksi. */
 function openBoard(lineup) {
@@ -2412,14 +2436,17 @@ function openBoard(lineup) {
   const commit = (fn) => { update(fn); draw(); };
 
   function draw() {
+    const area = h('div', { class: 'board-pitch' },
+      buildPitch(lineup, commit, { drawing: true }),
+      h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20)));
+    blockBrowserGestures(area);
     boardRoot.replaceChildren(
-      h('div', { class: 'board-pitch' },
-        buildPitch(lineup, commit, { drawing: true }),
-        h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20))),
+      area,
       h('div', { class: 'board-tools' }, tacticsControls(lineup, commit)));
   }
 
   draw();
+  lockZoom();
   window.addEventListener('hashchange', closeBoard);
   document.addEventListener('keydown', onKey);
   // Androidilla saadaan selainpalkitkin pois; iOS jättää tämän huomiotta.
@@ -2430,6 +2457,7 @@ function closeBoard() {
   if (!boardRoot) return;
   boardRoot.remove();
   boardRoot = null;
+  unlockZoom();
   document.documentElement.classList.remove('board-open');
   window.removeEventListener('hashchange', closeBoard);
   document.removeEventListener('keydown', onKey);
@@ -2508,6 +2536,35 @@ function toolSample(id) {
   svg.append(line);
   if (t.arrow) svg.append(el('polygon', { points: '32,6 22,11 22,1', fill: 'currentColor' }));
   return svg;
+}
+
+/* ---------- Selaimen eleiden estäminen piirtoalustalla ---------- */
+
+/**
+ * touch-action ei yksin riitä: iOS:n Safari zoomaa kaksoisnapautuksesta
+ * siitä huolimatta. Toinen napautus estetään siksi tapahtumatasolla, ja
+ * samalla Safarin omat nipistyseleet piirtoalustan päällä.
+ */
+function blockBrowserGestures(el) {
+  let lastTouchEnd = 0;
+
+  el.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 400) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // Piirtäessä ei myöskään haluta tekstin valintaa tai suurennuslasia.
+  el.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
+  el.addEventListener('dblclick', (e) => e.preventDefault());
+
+  // Safarin epästandardit nipistyseleet.
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+    el.addEventListener(type, (e) => e.preventDefault());
+  }
 }
 
 /* ---------- Piirtäminen ---------- */
@@ -2720,7 +2777,7 @@ function autoFill(lineup) {
   toast(empties ? `${empties} paikkaa jäi tyhjäksi` : 'Kokoonpano täytetty');
 }
 
-return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls };
+return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls, blockBrowserGestures };
 };
 
 __mods['playtime'] = () => {

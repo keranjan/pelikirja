@@ -466,7 +466,10 @@ a.btn { text-decoration: none; }
 
 /* ---------- Taktiikkataulu ---------- */
 
-.pitch.drawing { touch-action: none; cursor: crosshair; }
+.pitch.drawing {
+  touch-action: none; cursor: crosshair;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
 /* Kavennetaan upotettua kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
 .pitch-wrap .pitch.drawing {
   max-width: calc(46dvh * 68 / 95);
@@ -530,6 +533,7 @@ html.board-open, html.board-open body { overflow: hidden; }
   flex: 1; min-height: 0; position: relative;
   display: grid; place-items: center; padding: 10px;
   touch-action: none;      /* piirtoalustalla ei vieritetä eikä zoomata */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .board-pitch .pitch { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
 .board-close { position: absolute; top: 14px; right: 14px; z-index: 5; box-shadow: var(--shadow-md); }

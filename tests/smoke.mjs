@@ -300,6 +300,12 @@ const view = page.viewportSize();
 if (board.height < view.height * 0.55) {
   console.error('Taulun kenttä jäi pieneksi: ' + JSON.stringify(board)); process.exit(1);
 }
+const viewportLocked = await page.evaluate(() =>
+  document.querySelector('meta[name="viewport"]').content);
+if (!/user-scalable=no/.test(viewportLocked)) {
+  console.error('Koko ruudun taulu ei lukinnut zoomausta: ' + viewportLocked);
+  process.exit(1);
+}
 await shot('13-taktiikkataulu');
 await page.mouse.move(board.x + board.width * 0.3, board.y + board.height * 0.7);
 await page.mouse.down();
@@ -314,6 +320,12 @@ if ((await drawings()).length !== 4) {
 await page.locator('.board .board-close').click();
 await page.waitForTimeout(300);
 if (await page.locator('.board').count()) { console.error('Taulu ei sulkeutunut'); process.exit(1); }
+const viewportRestored = await page.evaluate(() =>
+  document.querySelector('meta[name="viewport"]').content);
+if (/user-scalable=no/.test(viewportRestored)) {
+  console.error('Zoomaus jäi lukituksi taulun sulkemisen jälkeen: ' + viewportRestored);
+  process.exit(1);
+}
 console.log('koko ruudun taulu: kenttä ' + Math.round(board.height) + 'px, piirto tallentui');
 await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
 await page.waitForTimeout(200);
@@ -616,6 +628,27 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
   for (let i = 1; i <= 8; i++) await touch('touchMove', x0 + i * 6, y0 - i * 9);
   await touch('touchEnd', x0 + 48, y0 - 72);
   await tp.waitForTimeout(300);
+
+  // Kaksoisnapautus: toisen napautuksen oletustoiminto (zoomaus) estetään
+  await tp.evaluate(() => {
+    window.__tapDefaults = [];
+    document.querySelector('#view .pitch')
+      .addEventListener('touchend', (e) => window.__tapDefaults.push(e.defaultPrevented));
+  });
+  const tapAt = async (x, y) => {
+    await touch('touchStart', x, y);
+    await touch('touchEnd', x, y);
+  };
+  await tapAt(start.x, start.y);
+  await tp.waitForTimeout(120);
+  await tapAt(start.x, start.y);
+  await tp.waitForTimeout(200);
+  const defaults = await tp.evaluate(() => window.__tapDefaults);
+  if (defaults.length < 2 || defaults[0] !== false || defaults[1] !== true) {
+    console.error('Kaksoisnapautusta ei estetty piirtoalustalla: ' + JSON.stringify(defaults));
+    process.exit(1);
+  }
+  console.log('kaksoisnapautus estetty piirtoalustalla (1. napautus sallittu, 2. estetty)');
 
   const touchStrokes = await tp.evaluate(() =>
     JSON.parse(localStorage.getItem('pelikirja.v1')).lineups[0].lineup.drawings);
