@@ -14,6 +14,9 @@ const PATHS = {
   note: '<path d="M6 3.6h8.5L19 8.1v12.3H6z"/><path d="M14.2 3.8v4.4h4.4M9 12.5h6M9 16h4"/>',
   trophy: '<path d="M7.5 4h9v4.5a4.5 4.5 0 01-9 0z"/><path d="M7.5 5.5H5a2.5 2.5 0 002.5 2.5M16.5 5.5H19a2.5 2.5 0 01-2.5 2.5M12 13v3.5M8.5 20h7M9.5 20v-1.4c0-1.2 1-2.1 2.5-2.1s2.5.9 2.5 2.1V20"/>',
   play: '<path d="M8.5 5.5l9 6.5-9 6.5z"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  expand: '<path d="M9.5 4H4v5.5M14.5 4H20v5.5M14.5 20H20v-5.5M9.5 20H4v-5.5"/>',
+  move: '<path d="M12 3.5v17M3.5 12h17"/><path d="M9 6.5L12 3.5l3 3M9 17.5l3 3 3-3M6.5 9L3.5 12l3 3M17.5 9l3 3-3 3"/>',
 };
 
 export function icon(name, size = 22) {

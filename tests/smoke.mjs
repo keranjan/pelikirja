@@ -172,7 +172,8 @@ const drawings = () => page.evaluate(() =>
   JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.drawings);
 
 // Syöttö mustalla (oletustyökalu)
-await drawStroke(await freeStart(0), 90, -70);
+const onPlayer = await page.locator('#view .slot').nth(4).boundingBox();
+await drawStroke({ x: onPlayer.x + onPlayer.width / 2, y: onPlayer.y + 18 }, 90, -70);
 let strokes = await drawings();
 if (strokes.length !== 1 || strokes[0].tool !== 'pass' || strokes[0].color !== 'black' || strokes[0].points.length < 3) {
   console.error('Syöttöviiva ei tallentunut: ' + JSON.stringify(strokes)); process.exit(1);
@@ -200,7 +201,9 @@ if (strokes[2].tool !== 'dribble') { console.error('Kuljetusviiva puuttuu'); pro
 const dashed = await page.locator('#view .tactics-layer path[stroke-dasharray]').count();
 if (dashed < 2) { console.error('Katkoviivaa ei piirretty'); process.exit(1); }
 
-// Pelaajan siirto vetämällä
+// Pelaajan siirto onnistuu vain Siirrä-työkalulla
+await page.locator('#view .toolbtn', { hasText: 'Siirrä' }).click();
+await page.waitForTimeout(200);
 const token = page.locator('#view .slot').nth(5);
 const tb = await token.boundingBox();
 await page.mouse.move(tb.x + tb.width / 2, tb.y + 20);
@@ -211,15 +214,46 @@ await page.waitForTimeout(250);
 const positions = await page.evaluate(() =>
   JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.positions);
 if (!Object.keys(positions).length) { console.error('Pelaajan siirto ei tallentunut'); process.exit(1); }
-console.log('taktiikka: 3 vetoa, siirretty pelaaja', Object.keys(positions)[0]);
+if ((await drawings()).length !== 3) { console.error('Siirto lisäsi ylimääräisen vedon'); process.exit(1); }
+console.log('taktiikka: 3 vetoa (yksi aloitettu pelaajan päältä), siirretty pelaaja', Object.keys(positions)[0]);
+
+// Takaisin piirtotyökaluun
+await page.locator('#view .toolbtn', { hasText: 'Syöttö' }).click();
+await page.waitForTimeout(200);
 
 await shot('12-taktiikka');
+
+// --- Koko ruudun taktiikkataulu ---
+await page.locator('#view .btn', { hasText: 'Koko ruutu' }).click();
+await page.waitForTimeout(400);
+const board = await page.locator('.board .pitch').boundingBox();
+const view = page.viewportSize();
+if (board.height < view.height * 0.55) {
+  console.error('Taulun kenttä jäi pieneksi: ' + JSON.stringify(board)); process.exit(1);
+}
+await shot('13-taktiikkataulu');
+await page.mouse.move(board.x + board.width * 0.3, board.y + board.height * 0.7);
+await page.mouse.down();
+for (let i = 1; i <= 6; i++) {
+  await page.mouse.move(board.x + board.width * (0.3 + i * 0.05), board.y + board.height * (0.7 - i * 0.05));
+}
+await page.mouse.up();
+await page.waitForTimeout(250);
+if ((await drawings()).length !== 4) {
+  console.error('Koko ruudun taululla piirtäminen ei tallentunut'); process.exit(1);
+}
+await page.locator('.board .board-close').click();
+await page.waitForTimeout(300);
+if (await page.locator('.board').count()) { console.error('Taulu ei sulkeutunut'); process.exit(1); }
+console.log('koko ruudun taulu: kenttä ' + Math.round(board.height) + 'px, piirto tallentui');
+await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
+await page.waitForTimeout(200);
 
 // Kumoa ja tyhjennä
 await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
 await page.waitForTimeout(200);
 if ((await drawings()).length !== 2) { console.error('Kumoa ei toiminut'); process.exit(1); }
-await page.locator('#view .btn', { hasText: 'Tyhjennä piirrokset' }).click();
+await page.locator('#view .btn', { hasText: 'Tyhjennä' }).click();
 await page.waitForTimeout(200);
 if ((await drawings()).length !== 0) { console.error('Tyhjennys ei toiminut'); process.exit(1); }
 await page.locator('#view .btn', { hasText: 'Palauta paikat' }).click();

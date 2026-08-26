@@ -492,26 +492,32 @@ a.btn { text-decoration: none; }
 
 /* ---------- Taktiikkataulu ---------- */
 
-.pitch.drawing {
-  touch-action: none; cursor: crosshair;
-  /* Kavennetaan kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
-  max-width: calc(52dvh * 68 / 95);
+.pitch.drawing { touch-action: none; cursor: crosshair; }
+/* Kavennetaan upotettua kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
+.pitch-wrap .pitch.drawing {
+  max-width: calc(46dvh * 68 / 95);
   margin-left: auto; margin-right: auto;
 }
+/* Piirtotilassa kosketus menee pelaajien läpi kentälle; siirtotilassa ei. */
+.pitch.drawing .slot { pointer-events: none; }
+.pitch.drawing.moving { cursor: default; }
+.pitch.drawing.moving .slot { pointer-events: auto; }
 .tactics-layer { position: absolute; inset: 0; pointer-events: none; }
 
-.pitch.drawing .slot { cursor: grab; touch-action: none; }
+.pitch.drawing.moving .slot { cursor: grab; touch-action: none; }
+.pitch.drawing.moving .slot .disc { box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 6px rgba(0,0,0,.25); }
 .pitch.drawing .slot.dragging { cursor: grabbing; z-index: 5; }
 .pitch.drawing .slot.dragging .disc { transform: scale(1.12); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
 
-.toolrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.toolrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .toolbtn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  min-height: 56px; padding: 8px 4px; border-radius: 12px; cursor: pointer;
+  min-height: 54px; padding: 8px 2px; border-radius: 12px; cursor: pointer;
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
 }
 .toolbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.toolbtn .sample { display: block; height: 12px; }
+.toolbtn .sample { display: grid; place-items: center; height: 18px; }
+.toolbtn .tiny { font-size: 11px; }
 
 .swatch {
   width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer;
@@ -520,6 +526,37 @@ a.btn { text-decoration: none; }
 .swatch.on {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.swatch:disabled { opacity: .35; }
+
+/* ---------- Koko ruudun taktiikkataulu ---------- */
+
+html.board-open, html.board-open body { overflow: hidden; }
+.board {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  padding-top: var(--safe-t);
+}
+.board-pitch {
+  flex: 1; min-height: 0; position: relative;
+  display: grid; place-items: center; padding: 10px;
+}
+.board-pitch .pitch { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
+.board-close { position: absolute; top: 14px; right: 14px; z-index: 5; box-shadow: var(--shadow-md); }
+.board-tools {
+  flex: none; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px calc(12px + var(--safe-b));
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+@media (orientation: landscape) {
+  .board { flex-direction: row; padding-left: env(safe-area-inset-left, 0px); }
+  .board-tools {
+    width: 200px; overflow-y: auto;
+    border-top: 0; border-left: 1px solid var(--line);
+    padding-bottom: calc(12px + var(--safe-b));
+  }
+  .board .toolrow { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ---------- Alapaneeli ---------- */
@@ -642,6 +679,9 @@ const PATHS = {
   note: '<path d="M6 3.6h8.5L19 8.1v12.3H6z"/><path d="M14.2 3.8v4.4h4.4M9 12.5h6M9 16h4"/>',
   trophy: '<path d="M7.5 4h9v4.5a4.5 4.5 0 01-9 0z"/><path d="M7.5 5.5H5a2.5 2.5 0 002.5 2.5M16.5 5.5H19a2.5 2.5 0 01-2.5 2.5M12 13v3.5M8.5 20h7M9.5 20v-1.4c0-1.2 1-2.1 2.5-2.1s2.5.9 2.5 2.1V20"/>',
   play: '<path d="M8.5 5.5l9 6.5-9 6.5z"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  expand: '<path d="M9.5 4H4v5.5M14.5 4H20v5.5M14.5 20H20v-5.5M9.5 20H4v-5.5"/>',
+  move: '<path d="M12 3.5v17M3.5 12h17"/><path d="M9 6.5L12 3.5l3 3M9 17.5l3 3 3-3M6.5 9L3.5 12l3 3M17.5 9l3 3-3 3"/>',
 };
 
 function icon(name, size = 22) {
@@ -1336,11 +1376,12 @@ return { h, $, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortD
 __mods['pitch'] = () => {
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja poissaolot.
 const { h, sheet, toast, shortName, initials } = __req('ui');
+const { icon } = __req('icons');
 const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('formations');
 const {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
   toggleBench, toggleUnavailable, lineupRole,
-  addStroke, undoStroke, clearDrawings, movePlayer, resetPositions,
+  addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
 } = __req('store');
 const {
   TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
@@ -1439,45 +1480,11 @@ function renderLineupEditor(lineup, commit) {
 
   /* --- Kenttä --- */
   const drawing = mode === 'taktiikka';
-  const pitch = h('div', { class: `pitch${drawing ? ' drawing' : ''}` }, pitchLines());
-
-  // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
-  const layer = el('svg', {
-    class: 'tactics-layer',
-    viewBox: `0 0 ${PITCH_W} ${PITCH_H}`,
-    preserveAspectRatio: 'none',
-  });
-  const strokes = el('g', {});
-  const live = el('g', {});
-  layer.append(strokes, live);
-  (lineup.drawings || []).forEach((stroke) => renderStroke(strokes, stroke));
-  pitch.append(layer);
-
-  const posOf = (i) => (lineup.positions || {})[i] || formation.slots[i];
-
-  formation.slots.forEach((slot, i) => {
-    const pid = lineup.slots[i];
-    const p = pid ? playerById(pid) : null;
-    const at = posOf(i);
-    const token = h('button', {
-      class: `slot${p ? '' : ' empty'}${slot.pos === 'MV' ? ' gk' : ''}`,
-      style: `left:${at.x}%;top:${at.y}%`,
-      title: POSITIONS[slot.pos] || slot.pos,
-      onclick: drawing ? null : () => openPicker(lineup, i, commit),
-    },
-      h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
-      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
-      p ? h('span', { class: 'pos', text: slot.pos }) : null);
-
-    if (drawing) dragToken(token, pitch, lineup, i, commit);
-    pitch.append(token);
-  });
-
-  if (drawing) drawOnPitch(pitch, live, lineup, commit);
+  const pitch = buildPitch(lineup, commit, { drawing });
   wrap.append(h('div', { class: 'pitch-wrap' }, pitch));
 
   if (drawing) {
-    wrap.append(tacticsToolbar(lineup, commit));
+    wrap.append(tacticsControls(lineup, commit, { onFullscreen: () => openBoard(lineup) }));
     return wrap;
   }
 
@@ -1524,51 +1531,147 @@ function renderLineupEditor(lineup, commit) {
   return wrap;
 }
 
+/* ---------- Kenttäkuvan rakentaminen ---------- */
+
+/**
+ * @param {object}  lineup
+ * @param {function} commit
+ * @param {boolean} opts.drawing  taktiikkatila: piirto ja pelaajien siirto käytössä
+ */
+function buildPitch(lineup, commit, { drawing = false } = {}) {
+  const formation = getFormation(lineup.formation);
+  const moving = drawing && tool === 'move';
+  const pitch = h('div', {
+    class: `pitch${drawing ? ' drawing' : ''}${moving ? ' moving' : ''}`,
+  }, pitchLines());
+
+  // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
+  const layer = el('svg', {
+    class: 'tactics-layer',
+    viewBox: `0 0 ${PITCH_W} ${PITCH_H}`,
+    preserveAspectRatio: 'none',
+  });
+  const strokes = el('g', {});
+  const live = el('g', {});
+  layer.append(strokes, live);
+  (lineup.drawings || []).forEach((stroke) => renderStroke(strokes, stroke));
+  pitch.append(layer);
+
+  const posOf = (i) => (lineup.positions || {})[i] || formation.slots[i];
+
+  formation.slots.forEach((slot, i) => {
+    const pid = lineup.slots[i];
+    const p = pid ? playerById(pid) : null;
+    const at = posOf(i);
+    const token = h('button', {
+      class: `slot${p ? '' : ' empty'}${slot.pos === 'MV' ? ' gk' : ''}`,
+      style: `left:${at.x}%;top:${at.y}%`,
+      title: POSITIONS[slot.pos] || slot.pos,
+      onclick: drawing ? null : () => openPicker(lineup, i, commit),
+    },
+      h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
+      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
+      p ? h('span', { class: 'pos', text: slot.pos }) : null);
+
+    if (moving) dragToken(token, pitch, lineup, i, commit);
+    pitch.append(token);
+  });
+
+  if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
+  return pitch;
+}
+
+/* ---------- Koko ruudun taktiikkataulu ---------- */
+
+let boardRoot = null;
+
+/** Avaa kentän koko ruudun kokoiseksi piirtoalustaksi. */
+function openBoard(lineup) {
+  closeBoard();
+  boardRoot = h('div', { class: 'board', role: 'dialog', 'aria-label': 'Taktiikkataulu' });
+  document.body.append(boardRoot);
+  document.documentElement.classList.add('board-open');
+
+  const commit = (fn) => { update(fn); draw(); };
+
+  function draw() {
+    boardRoot.replaceChildren(
+      h('div', { class: 'board-pitch' },
+        buildPitch(lineup, commit, { drawing: true }),
+        h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20))),
+      h('div', { class: 'board-tools' }, tacticsControls(lineup, commit)));
+  }
+
+  draw();
+  window.addEventListener('hashchange', closeBoard);
+  document.addEventListener('keydown', onKey);
+  // Androidilla saadaan selainpalkitkin pois; iOS jättää tämän huomiotta.
+  document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+function closeBoard() {
+  if (!boardRoot) return;
+  boardRoot.remove();
+  boardRoot = null;
+  document.documentElement.classList.remove('board-open');
+  window.removeEventListener('hashchange', closeBoard);
+  document.removeEventListener('keydown', onKey);
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
+const onKey = (e) => { if (e.key === 'Escape') closeBoard(); };
+
 /* ---------- Taktiikkatyökalut ---------- */
 
-function tacticsToolbar(lineup, commit) {
-  const bar = h('div', { class: 'stack', style: 'margin-top:4px' });
+function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
+  const bar = h('div', { class: 'stack', style: 'gap:8px' });
 
   const tools = h('div', { class: 'toolrow' });
-  for (const [id, t] of Object.entries(TOOLS)) {
-    tools.append(h('button', {
-      class: `toolbtn${tool === id ? ' on' : ''}`,
-      onclick: () => { tool = id; commit(() => {}); },
-    },
-      h('span', { class: 'sample' }, toolSample(id)),
-      h('span', { class: 'tiny bold', text: t.name })));
-  }
+  const toolButton = (id, label, sample) => h('button', {
+    class: `toolbtn${tool === id ? ' on' : ''}`,
+    onclick: () => { tool = id; commit(() => {}); },
+  }, h('span', { class: 'sample' }, sample), h('span', { class: 'tiny bold', text: label }));
+
+  for (const [id, t] of Object.entries(TOOLS)) tools.append(toolButton(id, t.name, toolSample(id)));
+  tools.append(toolButton('move', 'Siirrä', icon('move', 18)));
   bar.append(tools);
 
-  const colors = h('div', { class: 'row', style: 'gap:10px' });
+  const colors = h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' });
   for (const [id, c] of Object.entries(COLORS)) {
     colors.append(h('button', {
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
       title: c.name,
+      disabled: tool === 'move',
       onclick: () => { color = id; commit(() => {}); },
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', {
-    class: 'btn sm ghost',
-    onclick: () => commit(() => undoStroke(lineup)),
-  }, 'Kumoa'));
+  colors.append(h('button', { class: 'btn sm ghost', onclick: () => commit(() => undoStroke(lineup)) }, 'Kumoa'));
   bar.append(colors);
 
-  bar.append(h('p', { class: 'tiny muted', style: 'margin:2px 0 0',
-    text: 'Piirrä sormella kentälle. Pelaajaa voi siirtää vetämällä sitä.' }));
+  bar.append(h('p', { class: 'tiny muted', style: 'margin:0' , text: tool === 'move'
+    ? 'Siirrä pelaajia vetämällä. Vaihda työkalua, kun haluat piirtää.'
+    : 'Piirrä sormella kentälle – myös pelaajien yli.' }));
 
   bar.append(h('div', { class: 'btn-row' },
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
       onclick: () => commit(() => clearDrawings(lineup)),
-    }, 'Tyhjennä piirrokset'),
+    }, 'Tyhjennä'),
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
       onclick: () => commit(() => resetPositions(lineup)),
     }, 'Palauta paikat')));
+
+  if (onFullscreen) {
+    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
+      icon('expand', 17), 'Koko ruutu'));
+  }
+  if (onClose) {
+    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
+  }
 
   return bar;
 }
@@ -1769,7 +1872,7 @@ function autoFill(lineup) {
   toast(empties ? `${empties} paikkaa jäi tyhjäksi` : 'Kokoonpano täytetty');
 }
 
-return { renderLineupEditor };
+return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls };
 };
 
 __mods['players'] = () => {

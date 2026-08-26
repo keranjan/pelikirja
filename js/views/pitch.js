@@ -1,10 +1,11 @@
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja poissaolot.
 import { h, sheet, toast, shortName, initials } from '../ui.js';
+import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
   toggleBench, toggleUnavailable, lineupRole,
-  addStroke, undoStroke, clearDrawings, movePlayer, resetPositions,
+  addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
 } from '../store.js';
 import {
   TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
@@ -104,45 +105,11 @@ export function renderLineupEditor(lineup, commit) {
 
   /* --- Kenttä --- */
   const drawing = mode === 'taktiikka';
-  const pitch = h('div', { class: `pitch${drawing ? ' drawing' : ''}` }, pitchLines());
-
-  // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
-  const layer = el('svg', {
-    class: 'tactics-layer',
-    viewBox: `0 0 ${PITCH_W} ${PITCH_H}`,
-    preserveAspectRatio: 'none',
-  });
-  const strokes = el('g', {});
-  const live = el('g', {});
-  layer.append(strokes, live);
-  (lineup.drawings || []).forEach((stroke) => renderStroke(strokes, stroke));
-  pitch.append(layer);
-
-  const posOf = (i) => (lineup.positions || {})[i] || formation.slots[i];
-
-  formation.slots.forEach((slot, i) => {
-    const pid = lineup.slots[i];
-    const p = pid ? playerById(pid) : null;
-    const at = posOf(i);
-    const token = h('button', {
-      class: `slot${p ? '' : ' empty'}${slot.pos === 'MV' ? ' gk' : ''}`,
-      style: `left:${at.x}%;top:${at.y}%`,
-      title: POSITIONS[slot.pos] || slot.pos,
-      onclick: drawing ? null : () => openPicker(lineup, i, commit),
-    },
-      h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
-      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
-      p ? h('span', { class: 'pos', text: slot.pos }) : null);
-
-    if (drawing) dragToken(token, pitch, lineup, i, commit);
-    pitch.append(token);
-  });
-
-  if (drawing) drawOnPitch(pitch, live, lineup, commit);
+  const pitch = buildPitch(lineup, commit, { drawing });
   wrap.append(h('div', { class: 'pitch-wrap' }, pitch));
 
   if (drawing) {
-    wrap.append(tacticsToolbar(lineup, commit));
+    wrap.append(tacticsControls(lineup, commit, { onFullscreen: () => openBoard(lineup) }));
     return wrap;
   }
 
@@ -189,51 +156,147 @@ export function renderLineupEditor(lineup, commit) {
   return wrap;
 }
 
+/* ---------- Kenttäkuvan rakentaminen ---------- */
+
+/**
+ * @param {object}  lineup
+ * @param {function} commit
+ * @param {boolean} opts.drawing  taktiikkatila: piirto ja pelaajien siirto käytössä
+ */
+export function buildPitch(lineup, commit, { drawing = false } = {}) {
+  const formation = getFormation(lineup.formation);
+  const moving = drawing && tool === 'move';
+  const pitch = h('div', {
+    class: `pitch${drawing ? ' drawing' : ''}${moving ? ' moving' : ''}`,
+  }, pitchLines());
+
+  // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
+  const layer = el('svg', {
+    class: 'tactics-layer',
+    viewBox: `0 0 ${PITCH_W} ${PITCH_H}`,
+    preserveAspectRatio: 'none',
+  });
+  const strokes = el('g', {});
+  const live = el('g', {});
+  layer.append(strokes, live);
+  (lineup.drawings || []).forEach((stroke) => renderStroke(strokes, stroke));
+  pitch.append(layer);
+
+  const posOf = (i) => (lineup.positions || {})[i] || formation.slots[i];
+
+  formation.slots.forEach((slot, i) => {
+    const pid = lineup.slots[i];
+    const p = pid ? playerById(pid) : null;
+    const at = posOf(i);
+    const token = h('button', {
+      class: `slot${p ? '' : ' empty'}${slot.pos === 'MV' ? ' gk' : ''}`,
+      style: `left:${at.x}%;top:${at.y}%`,
+      title: POSITIONS[slot.pos] || slot.pos,
+      onclick: drawing ? null : () => openPicker(lineup, i, commit),
+    },
+      h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
+      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
+      p ? h('span', { class: 'pos', text: slot.pos }) : null);
+
+    if (moving) dragToken(token, pitch, lineup, i, commit);
+    pitch.append(token);
+  });
+
+  if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
+  return pitch;
+}
+
+/* ---------- Koko ruudun taktiikkataulu ---------- */
+
+let boardRoot = null;
+
+/** Avaa kentän koko ruudun kokoiseksi piirtoalustaksi. */
+export function openBoard(lineup) {
+  closeBoard();
+  boardRoot = h('div', { class: 'board', role: 'dialog', 'aria-label': 'Taktiikkataulu' });
+  document.body.append(boardRoot);
+  document.documentElement.classList.add('board-open');
+
+  const commit = (fn) => { update(fn); draw(); };
+
+  function draw() {
+    boardRoot.replaceChildren(
+      h('div', { class: 'board-pitch' },
+        buildPitch(lineup, commit, { drawing: true }),
+        h('button', { class: 'iconbtn board-close', 'aria-label': 'Sulje', onclick: closeBoard }, icon('close', 20))),
+      h('div', { class: 'board-tools' }, tacticsControls(lineup, commit)));
+  }
+
+  draw();
+  window.addEventListener('hashchange', closeBoard);
+  document.addEventListener('keydown', onKey);
+  // Androidilla saadaan selainpalkitkin pois; iOS jättää tämän huomiotta.
+  document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
+export function closeBoard() {
+  if (!boardRoot) return;
+  boardRoot.remove();
+  boardRoot = null;
+  document.documentElement.classList.remove('board-open');
+  window.removeEventListener('hashchange', closeBoard);
+  document.removeEventListener('keydown', onKey);
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
+const onKey = (e) => { if (e.key === 'Escape') closeBoard(); };
+
 /* ---------- Taktiikkatyökalut ---------- */
 
-function tacticsToolbar(lineup, commit) {
-  const bar = h('div', { class: 'stack', style: 'margin-top:4px' });
+export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
+  const bar = h('div', { class: 'stack', style: 'gap:8px' });
 
   const tools = h('div', { class: 'toolrow' });
-  for (const [id, t] of Object.entries(TOOLS)) {
-    tools.append(h('button', {
-      class: `toolbtn${tool === id ? ' on' : ''}`,
-      onclick: () => { tool = id; commit(() => {}); },
-    },
-      h('span', { class: 'sample' }, toolSample(id)),
-      h('span', { class: 'tiny bold', text: t.name })));
-  }
+  const toolButton = (id, label, sample) => h('button', {
+    class: `toolbtn${tool === id ? ' on' : ''}`,
+    onclick: () => { tool = id; commit(() => {}); },
+  }, h('span', { class: 'sample' }, sample), h('span', { class: 'tiny bold', text: label }));
+
+  for (const [id, t] of Object.entries(TOOLS)) tools.append(toolButton(id, t.name, toolSample(id)));
+  tools.append(toolButton('move', 'Siirrä', icon('move', 18)));
   bar.append(tools);
 
-  const colors = h('div', { class: 'row', style: 'gap:10px' });
+  const colors = h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' });
   for (const [id, c] of Object.entries(COLORS)) {
     colors.append(h('button', {
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
       title: c.name,
+      disabled: tool === 'move',
       onclick: () => { color = id; commit(() => {}); },
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', {
-    class: 'btn sm ghost',
-    onclick: () => commit(() => undoStroke(lineup)),
-  }, 'Kumoa'));
+  colors.append(h('button', { class: 'btn sm ghost', onclick: () => commit(() => undoStroke(lineup)) }, 'Kumoa'));
   bar.append(colors);
 
-  bar.append(h('p', { class: 'tiny muted', style: 'margin:2px 0 0',
-    text: 'Piirrä sormella kentälle. Pelaajaa voi siirtää vetämällä sitä.' }));
+  bar.append(h('p', { class: 'tiny muted', style: 'margin:0' , text: tool === 'move'
+    ? 'Siirrä pelaajia vetämällä. Vaihda työkalua, kun haluat piirtää.'
+    : 'Piirrä sormella kentälle – myös pelaajien yli.' }));
 
   bar.append(h('div', { class: 'btn-row' },
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
       onclick: () => commit(() => clearDrawings(lineup)),
-    }, 'Tyhjennä piirrokset'),
+    }, 'Tyhjennä'),
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
       onclick: () => commit(() => resetPositions(lineup)),
     }, 'Palauta paikat')));
+
+  if (onFullscreen) {
+    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
+      icon('expand', 17), 'Koko ruutu'));
+  }
+  if (onClose) {
+    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
+  }
 
   return bar;
 }

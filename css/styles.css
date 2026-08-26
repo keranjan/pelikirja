@@ -442,26 +442,32 @@ a.btn { text-decoration: none; }
 
 /* ---------- Taktiikkataulu ---------- */
 
-.pitch.drawing {
-  touch-action: none; cursor: crosshair;
-  /* Kavennetaan kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
-  max-width: calc(52dvh * 68 / 95);
+.pitch.drawing { touch-action: none; cursor: crosshair; }
+/* Kavennetaan upotettua kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
+.pitch-wrap .pitch.drawing {
+  max-width: calc(46dvh * 68 / 95);
   margin-left: auto; margin-right: auto;
 }
+/* Piirtotilassa kosketus menee pelaajien läpi kentälle; siirtotilassa ei. */
+.pitch.drawing .slot { pointer-events: none; }
+.pitch.drawing.moving { cursor: default; }
+.pitch.drawing.moving .slot { pointer-events: auto; }
 .tactics-layer { position: absolute; inset: 0; pointer-events: none; }
 
-.pitch.drawing .slot { cursor: grab; touch-action: none; }
+.pitch.drawing.moving .slot { cursor: grab; touch-action: none; }
+.pitch.drawing.moving .slot .disc { box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 6px rgba(0,0,0,.25); }
 .pitch.drawing .slot.dragging { cursor: grabbing; z-index: 5; }
 .pitch.drawing .slot.dragging .disc { transform: scale(1.12); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
 
-.toolrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.toolrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .toolbtn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  min-height: 56px; padding: 8px 4px; border-radius: 12px; cursor: pointer;
+  min-height: 54px; padding: 8px 2px; border-radius: 12px; cursor: pointer;
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
 }
 .toolbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.toolbtn .sample { display: block; height: 12px; }
+.toolbtn .sample { display: grid; place-items: center; height: 18px; }
+.toolbtn .tiny { font-size: 11px; }
 
 .swatch {
   width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer;
@@ -470,6 +476,37 @@ a.btn { text-decoration: none; }
 .swatch.on {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.swatch:disabled { opacity: .35; }
+
+/* ---------- Koko ruudun taktiikkataulu ---------- */
+
+html.board-open, html.board-open body { overflow: hidden; }
+.board {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  padding-top: var(--safe-t);
+}
+.board-pitch {
+  flex: 1; min-height: 0; position: relative;
+  display: grid; place-items: center; padding: 10px;
+}
+.board-pitch .pitch { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
+.board-close { position: absolute; top: 14px; right: 14px; z-index: 5; box-shadow: var(--shadow-md); }
+.board-tools {
+  flex: none; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px calc(12px + var(--safe-b));
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+@media (orientation: landscape) {
+  .board { flex-direction: row; padding-left: env(safe-area-inset-left, 0px); }
+  .board-tools {
+    width: 200px; overflow-y: auto;
+    border-top: 0; border-left: 1px solid var(--line);
+    padding-bottom: calc(12px + var(--safe-b));
+  }
+  .board .toolrow { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ---------- Alapaneeli ---------- */

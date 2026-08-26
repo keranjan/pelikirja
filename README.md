@@ -43,10 +43,12 @@ ja kauden luvut. Muut näkymät ovat omina välilehtinään.
 
 **Taktiikkataulu**
 - Sama kenttäkuva vaihtuu Taktiikka-tilaan, jossa voi piirtää sormella ottelun aikana
-- Kolme työkalua: syöttö (viiva), kuljetus (katkoviiva) ja laukaus (paksu nuoli)
+- Koko ruudun taulu, jossa kenttä täyttää puhelimen näytön – toimii sekä pysty- että vaaka-asennossa
+- Neljä työkalua: syöttö (viiva), kuljetus (katkoviiva), laukaus (paksu nuoli) ja siirto
 - Neljä väriä: musta, valkoinen, punainen ja keltainen; jokaisessa vedossa on
   kevyt reunus, joten viivat erottuvat sekä vaalealta että tummalta nurmelta
-- Pelaajia voi siirtää kentällä vetämällä; "Palauta paikat" palauttaa pelisysteemin mukaiset paikat
+- Piirtotyökaluilla veto saa alkaa myös pelaajan päältä: kosketus menee pelaajamerkkien läpi
+- Siirto-työkalulla pelaajia raahataan kentällä; "Palauta paikat" palauttaa pelisysteemin mukaiset paikat
 - Kumoa viimeisin veto tai tyhjennä koko piirros
 - Piirrokset ja siirretyt paikat tallentuvat ottelun tai kokoonpanopohjan mukana ja
   näkyvät myös kokoonpanotilassa
