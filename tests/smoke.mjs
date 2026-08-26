@@ -35,6 +35,18 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
 const VEO = 'https://app.veo.co/matches/20260824-ilves-keltainen-vs-pjk-v40f1ec0/';
+/** Etsii ruudulta irrallisen "null"- tai "undefined"-tekstin (DOM:n append-ansa). */
+const strayText = (where) => page.evaluate((sel) => {
+  const root = document.querySelector(sel);
+  if (!root) return null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent.trim();
+    if (text === 'null' || text === 'undefined' || text === 'false') return text;
+  }
+  return null;
+}, where);
+
 const shot = (n) => page.screenshot({ path: `${SHOT}/${n}.png` });
 const tap = async (sel) => { await page.locator(sel).first().click(); await page.waitForTimeout(120); };
 const tapText = async (t) => { await page.getByText(t, { exact: false }).first().click(); await page.waitForTimeout(120); };
@@ -66,6 +78,8 @@ const players = [
 ];
 for (const [name, num, role] of players) {
   await tap('#topbar .iconbtn[aria-label="Lisää pelaaja"], .empty .btn.primary');
+  const strayNew = await strayText('#overlay');
+  if (strayNew) { console.error(`Uusi pelaaja -lomakkeella lukee "${strayNew}"`); process.exit(1); }
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet input[type=number]').fill(num);
   if (name === players[0][0]) {
@@ -87,6 +101,18 @@ for (const [name, num, role] of players) {
   await page.waitForTimeout(80);
 }
 await shot('01-pelaajat');
+
+// Muokkausnäkymässä on poistopainike eikä irrallista tekstiä
+await page.locator('#view .card').first().click();
+await page.waitForTimeout(250);
+const strayEdit = await strayText('#overlay');
+if (strayEdit) { console.error(`Pelaajan muokkauksessa lukee "${strayEdit}"`); process.exit(1); }
+if (!(await page.locator('#overlay .btn.danger', { hasText: 'Poista pelaaja' }).count())) {
+  console.error('Poista pelaaja -painike puuttuu muokkauksesta'); process.exit(1);
+}
+await page.locator('#overlay .iconbtn').first().click();
+await page.waitForTimeout(200);
+console.log('lomakkeissa ei irrallisia null-tekstejä');
 
 // --- Ottelu ---
 await tap('#tabbar a[href="#/ottelut"]');
@@ -286,6 +312,8 @@ await page.waitForTimeout(200);
 // Veo-videolinkki
 await tapText('Lisää videolinkki');
 await page.waitForTimeout(200);
+const strayVideo = await strayText('#overlay');
+if (strayVideo) { console.error(`Videolinkki-ikkunassa lukee "${strayVideo}"`); process.exit(1); }
 await page.locator('.sheet input[type=text]').fill('ei-mikaan-osoite');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(200);

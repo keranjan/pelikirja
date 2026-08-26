@@ -1,6 +1,6 @@
 // Yksittäisen ottelun näkymä: kokoonpano, tulos ja tiedot.
 import { icon } from '../icons.js';
-import { h, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js';
+import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js';
 import {
   getState, matchById, updateMatch, removeMatch, update, uid,
   sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
@@ -131,7 +131,7 @@ function openVideoSheet(m) {
       placeholder: 'https://app.veo.co/matches/...',
     });
 
-    body.append(
+    add(body,
       h('p', { class: 'small muted', text: 'Liitä ottelun tallenteen osoite, esimerkiksi Veosta. Linkki avautuu uuteen välilehteen – video toistetaan palvelun omassa sovelluksessa.' }),
       h('label', { class: 'field' }, h('span', { text: 'Videolinkki' }), input),
       h('button', {

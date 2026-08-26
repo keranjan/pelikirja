@@ -1,6 +1,6 @@
 // Pelaajaluettelo ja pelaajakortin muokkaus.
 import { icon } from '../icons.js';
-import { h, sheet, toast, confirmSheet } from '../ui.js';
+import { h, add, sheet, toast, confirmSheet } from '../ui.js';
 import { ROLES, ROLE_NAMES } from '../formations.js';
 import { getState, sortedPlayers, addPlayer, updatePlayer, removePlayer } from '../store.js';
 
@@ -89,7 +89,7 @@ export function openPlayerSheet(player) {
       e.currentTarget.classList.add('on');
     }
 
-    body.append(
+    add(body,
       h('label', { class: 'field' }, h('span', { text: 'Nimi' }), nameInput),
       h('div', { class: 'field-row' },
         h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Pelinumero' }), numInput),

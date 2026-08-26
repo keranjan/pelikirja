@@ -21,6 +21,18 @@ export function h(tag, props = {}, ...children) {
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
+/**
+ * Kuten append, mutta ohittaa null-, undefined- ja false-arvot.
+ * DOM:n oma append muuttaisi ne tekstiksi ("null" ruudulla).
+ */
+export function add(parent, ...children) {
+  for (const child of children.flat(Infinity)) {
+    if (child === null || child === undefined || child === false) continue;
+    parent.append(child);
+  }
+  return parent;
+}
+
 export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
 /* ---------- Ilmoitus ---------- */

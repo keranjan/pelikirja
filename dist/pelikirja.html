@@ -1647,6 +1647,18 @@ function h(tag, props = {}, ...children) {
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
+/**
+ * Kuten append, mutta ohittaa null-, undefined- ja false-arvot.
+ * DOM:n oma append muuttaisi ne tekstiksi ("null" ruudulla).
+ */
+function add(parent, ...children) {
+  for (const child of children.flat(Infinity)) {
+    if (child === null || child === undefined || child === false) continue;
+    parent.append(child);
+  }
+  return parent;
+}
+
 const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
 /* ---------- Ilmoitus ---------- */
@@ -1787,7 +1799,7 @@ function videoInfo(raw) {
   return { url: url.href, host, service: service || host, known: !!service };
 }
 
-return { h, $, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, timeAgo, initials, shortName, videoInfo };
+return { h, $, add, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, timeAgo, initials, shortName, videoInfo };
 };
 
 __mods['pitch'] = () => {
@@ -2295,7 +2307,7 @@ return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls 
 __mods['players'] = () => {
 // Pelaajaluettelo ja pelaajakortin muokkaus.
 const { icon } = __req('icons');
-const { h, sheet, toast, confirmSheet } = __req('ui');
+const { h, add, sheet, toast, confirmSheet } = __req('ui');
 const { ROLES, ROLE_NAMES } = __req('formations');
 const { getState, sortedPlayers, addPlayer, updatePlayer, removePlayer } = __req('store');
 function playersView() {
@@ -2383,7 +2395,7 @@ function openPlayerSheet(player) {
       e.currentTarget.classList.add('on');
     }
 
-    body.append(
+    add(body,
       h('label', { class: 'field' }, h('span', { text: 'Nimi' }), nameInput),
       h('div', { class: 'field-row' },
         h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Pelinumero' }), numInput),
@@ -2787,7 +2799,7 @@ return { homeView };
 __mods['match'] = () => {
 // Yksittäisen ottelun näkymä: kokoonpano, tulos ja tiedot.
 const { icon } = __req('icons');
-const { h, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
+const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update, uid,
   sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
@@ -2917,7 +2929,7 @@ function openVideoSheet(m) {
       placeholder: 'https://app.veo.co/matches/...',
     });
 
-    body.append(
+    add(body,
       h('p', { class: 'small muted', text: 'Liitä ottelun tallenteen osoite, esimerkiksi Veosta. Linkki avautuu uuteen välilehteen – video toistetaan palvelun omassa sovelluksessa.' }),
       h('label', { class: 'field' }, h('span', { text: 'Videolinkki' }), input),
       h('button', {
