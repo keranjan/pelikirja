@@ -1,0 +1,151 @@
+// Muuntaa Torneopalin (esim. spl.torneopal.fi) otteluohjelman Pelikirjan muotoon.
+//
+// Käyttö:
+//   node tools/import-torneopal.mjs matches.json --team "Ilves Beta"
+//   curl -s "<torneopal getMatches -osoite>" | node tools/import-torneopal.mjs --team "Ilves Beta"
+//
+// Valinnat:
+//   --team <nimi>       oma joukkue: ratkaisee koti/vieras ja rajaa ottelut (pakollinen)
+//   --formation <id>    kokoonpanon pelisysteemi, oletus 8-2-3-2 (8 vs 8)
+//   --all               ota mukaan myös jo pelatut ottelut (oletus: vain tulevat)
+//   --sql               tulosta SQL, joka lisää ottelut Supabase-riville
+//   --user <uuid>       käyttäjätunnus SQL-lauseeseen (oletus: auth.uid())
+
+import fs from 'node:fs';
+
+const args = process.argv.slice(2);
+const flag = (name, fallback = null) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? (args[i + 1] ?? true) : fallback;
+};
+const has = (name) => args.includes(`--${name}`);
+
+const team = flag('team');
+const formation = flag('formation', '8-2-3-2');
+const file = args.find((a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'));
+
+if (!team) {
+  console.error('Anna oma joukkue: --team "Ilves Beta"');
+  process.exit(1);
+}
+
+const raw = file ? fs.readFileSync(file, 'utf8') : fs.readFileSync(0, 'utf8');
+
+/* ---------- Lähdemuodon tulkinta ---------- */
+
+let parsed;
+try {
+  parsed = JSON.parse(raw);
+} catch {
+  console.error('Syöte ei ole JSON:ia. Anna Torneopalin getMatches-vastaus sellaisenaan.');
+  process.exit(1);
+}
+
+const rows = Array.isArray(parsed) ? parsed
+  : parsed.matches || parsed.data?.matches || parsed.result?.matches || [];
+
+if (!rows.length) {
+  console.error('Otteluita ei löytynyt. Odotettiin { "matches": [...] } tai taulukkoa.');
+  process.exit(1);
+}
+
+// Torneopalin kenttänimet vaihtelevat rajapinnan version mukaan.
+const pick = (row, ...names) => {
+  for (const n of names) {
+    const v = row[n];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+  }
+  return '';
+};
+
+const normalize = (row) => ({
+  date: pick(row, 'date', 'match_date', 'day').slice(0, 10),
+  time: (pick(row, 'time', 'match_time', 'start_time') || '18:00').slice(0, 5),
+  homeTeam: pick(row, 'team_A_name', 'home_team', 'team_home', 'teamA'),
+  awayTeam: pick(row, 'team_B_name', 'away_team', 'team_away', 'teamB'),
+  venue: pick(row, 'venue_name', 'field_name', 'venue', 'location'),
+  status: pick(row, 'status'),
+  played: !!pick(row, 'fs_A') || /played|ended|result/i.test(pick(row, 'status')),
+});
+
+/* ---------- Muunnos ---------- */
+
+const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+const isUs = (name) => norm(name) === norm(team) || norm(name).startsWith(norm(team));
+
+const uid = () =>
+  Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
+
+const emptyLineup = () => ({
+  formation,
+  slots: Array(slotCount(formation)).fill(null),
+  bench: [],
+  unavailable: [],
+  positions: {},
+  drawings: [],
+});
+
+function slotCount(id) {
+  const m = String(id).match(/^(\d+)-/);
+  const size = m && Number(m[1]) <= 9 ? Number(m[1]) : null;   // 8-2-3-2, 9-3-3-2, 7-2-3-1, 5-1-2-1
+  if (size) return size;
+  return 11;
+}
+
+const today = new Date().toISOString().slice(0, 10);
+const seen = new Set();
+const matches = [];
+const skipped = [];
+
+for (const row of rows) {
+  const r = normalize(row);
+  if (!r.date || (!r.homeTeam && !r.awayTeam)) { skipped.push({ syy: 'puutteelliset tiedot', row }); continue; }
+
+  const home = isUs(r.homeTeam);
+  const away = isUs(r.awayTeam);
+  if (!home && !away) { skipped.push({ syy: `ei ${team}:n ottelu`, ottelu: `${r.homeTeam} – ${r.awayTeam}` }); continue; }
+  if (!has('all') && (r.date < today || r.played)) { skipped.push({ syy: 'jo pelattu', ottelu: `${r.date} ${r.homeTeam} – ${r.awayTeam}` }); continue; }
+
+  const key = `${r.date}|${r.time}|${r.homeTeam}|${r.awayTeam}`;
+  if (seen.has(key)) continue;
+  seen.add(key);
+
+  matches.push({
+    id: uid(),
+    date: r.date,
+    time: r.time,
+    opponent: home ? r.awayTeam : r.homeTeam,
+    home,
+    venue: r.venue,
+    type: 'ottelu',
+    videoUrl: '',
+    notes: '',
+    lineup: emptyLineup(),
+    result: null,
+  });
+}
+
+matches.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+
+/* ---------- Tuloste ---------- */
+
+if (has('sql')) {
+  const user = flag('user');
+  const where = user ? `user_id = '${user}'` : 'user_id = auth.uid()';
+  const json = JSON.stringify(matches).replace(/'/g, "''");
+  console.log(`-- ${matches.length} ottelua joukkueelle ${team}
+update public.pelikirja
+set data = jsonb_set(
+      data,
+      '{matches}',
+      coalesce(data->'matches', '[]'::jsonb) || '${json}'::jsonb
+    ),
+    rev = rev + 1,
+    updated_at = now()
+where ${where};`);
+} else {
+  console.log(JSON.stringify(matches, null, 2));
+}
+
+console.error(`\n${matches.length} ottelua muunnettu, ${skipped.length} ohitettu.`);
+for (const s of skipped.slice(0, 8)) console.error(`  ohitettu: ${s.syy}${s.ottelu ? ' – ' + s.ottelu : ''}`);

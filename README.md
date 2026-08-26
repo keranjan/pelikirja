@@ -125,6 +125,24 @@ Sovellus toimii tämän jälkeen myös lentokonetilassa – kentän laidalla ei 
 `dist/pelikirja.html` on koko sovellus yhtenä tiedostona: sen voi avata suoraan puhelimessa
 tai laittaa mihin tahansa web-hotelliin ilman muita tiedostoja. Rakennus: `npm run build`.
 
+## Otteluohjelman tuonti
+
+`tools/import-torneopal.mjs` muuntaa Torneopalin (esim. `spl.torneopal.fi`)
+otteluohjelman suoraan Pelikirjan muotoon:
+
+```bash
+# Ottelut sovelluksen muodossa
+curl -s "<torneopalin getMatches -osoite>" | node tools/import-torneopal.mjs --team "Ilves Beta"
+
+# Valmis SQL, joka lisää ottelut Supabase-riville muuta dataa rikkomatta
+node tools/import-torneopal.mjs ohjelma.json --team "Ilves Beta" --sql
+```
+
+Oma joukkue (`--team`) ratkaisee koti- ja vierasottelut ja rajaa muut sarjan
+ottelut pois. Oletuksena mukaan tulevat vain tulevat ottelut; `--all` ottaa
+myös pelatut. Kokoonpanon pelisysteemi on oletuksena `8-2-3-2`, jonka voi
+vaihtaa valinnalla `--formation`.
+
 ## Kehitys
 
 ```bash
@@ -154,6 +172,7 @@ js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
 js/views/               näkymät: ottelupäivä, ottelut, ottelu, kokoonpanot, pelaajat,
                         kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
+tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
 tests/smoke.mjs         päävirran savutesti
 tests/sync.test.mjs     kahden laitteen synkronointitesti
 tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta
