@@ -8,6 +8,7 @@ import {
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { renderLineupEditor } from './pitch.js';
+import { playtimeTab } from './playtime.js';
 import { openMatchSheet } from './matches.js';
 import { navigate } from '../router.js';
 
@@ -24,11 +25,12 @@ export function matchView(id) {
   }
 
   const body = h('div', { class: 'stack' });
-  body.append(h('div', { class: 'segmented' },
-    ...[['kokoonpano', 'Kokoonpano'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
+  body.append(h('div', { class: 'segmented four' },
+    ...[['kokoonpano', 'Kokoonpano'], ['peliaika', 'Peliaika'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
       h('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; navigate(`#/ottelu/${id}`); } }, label))));
 
   if (tab === 'kokoonpano') body.append(lineupTab(m));
+  else if (tab === 'peliaika') body.append(playtimeTab(m));
   else if (tab === 'tulos') body.append(resultTab(m));
   else body.append(infoTab(m));
 

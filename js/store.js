@@ -1,6 +1,7 @@
 // Tilanhallinta ja tallennus (localStorage).
 import { getFormation } from './formations.js';
 import { DEFAULT_TEAM_NAME } from './merge.js';
+import { emptyTiming, clockSeconds, onField } from './timing.js';
 
 const KEY = 'pelikirja.v1';
 const listeners = new Set();
@@ -234,6 +235,7 @@ export function addMatch(data) {
     videoUrl: '',             // esim. Veo-tallenne ottelusta
     notes: '',
     lineup: emptyLineup(),
+    timing: null,             // peliaikaseuranta, ks. js/timing.js
     result: null,             // { gf, ga, events:[{id, scorerId, assistId, minute}], notes }
     ...data,
   };
@@ -251,6 +253,69 @@ export function updateMatch(id, data) {
 export function removeMatch(id) {
   update((st) => { st.matches = st.matches.filter((m) => m.id !== id); });
 }
+
+/* ---------- Peliaikaseuranta ---------- */
+
+/** Varmistaa että ottelulla on seurantaolio, ja palauttaa sen. */
+export function ensureTiming(match) {
+  if (!match.timing) match.timing = emptyTiming();
+  return match.timing;
+}
+
+/** Käynnistää kellon. Ensimmäisellä kerralla avauskokoonpano merkitään kentälle. */
+export function startTiming(match) {
+  const t = ensureTiming(match);
+  if (t.status === 'idle' && !t.events.length) {
+    t.events = match.lineup.slots
+      .filter(Boolean)
+      .map((playerId) => ({ id: uid(), at: 0, type: 'in', playerId }));
+  }
+  if (t.status !== 'running') {
+    t.startedAt = Date.now();
+    t.status = 'running';
+  }
+}
+
+export function pauseTiming(match) {
+  const t = ensureTiming(match);
+  if (t.status !== 'running') return;
+  t.elapsed = clockSeconds(t);
+  t.startedAt = null;
+  t.status = 'paused';
+}
+
+export function endTiming(match) {
+  pauseTiming(match);
+  ensureTiming(match).status = 'ended';
+}
+
+export function resetTiming(match) {
+  const t = ensureTiming(match);
+  match.timing = emptyTiming(t.periods, t.periodMinutes);
+}
+
+/** Vaihto: toinen ulos, toinen sisään. Kumpikin voi olla null. */
+export function substitute(match, outId, inId, at) {
+  const t = ensureTiming(match);
+  const moment = at ?? clockSeconds(t);
+  if (outId) t.events.push({ id: uid(), at: moment, type: 'out', playerId: outId });
+  if (inId) t.events.push({ id: uid(), at: moment, type: 'in', playerId: inId });
+}
+
+/** Poistaa vaihdon (molemmat tapahtumat) esimerkiksi virhekirjauksen jälkeen. */
+export function removeTimingEvents(match, ids) {
+  const t = ensureTiming(match);
+  t.events = t.events.filter((e) => !ids.includes(e.id));
+}
+
+/** Siirtää vaihdon toiseen hetkeen, kun kirjaus tehtiin myöhässä. */
+export function moveTimingEvents(match, ids, at) {
+  const t = ensureTiming(match);
+  const moment = Math.max(0, Math.round(at));
+  t.events = t.events.map((e) => (ids.includes(e.id) ? { ...e, at: moment } : e));
+}
+
+export const playersOnField = (match) => onField(match.timing);
 
 export const matchKickoff = (m) => new Date(`${m.date}T${m.time || '00:00'}`);
 export const isPlayed = (m) => !!m.result;

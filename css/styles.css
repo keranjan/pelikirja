@@ -400,6 +400,18 @@ a.btn { text-decoration: none; }
 }
 .segmented button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 
+/* ---------- Ottelukello ---------- */
+
+.clock {
+  font-family: var(--display); font-size: 54px; font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1;
+}
+.segmented.four button { font-size: 12.5px; padding-left: 2px; padding-right: 2px; }
+@media (min-width: 720px) {
+  .clock { font-size: 64px; }
+  .segmented.four button { font-size: 14px; }
+}
+
 /* ---------- Kenttä ---------- */
 
 .pitch-wrap { position: relative; }

@@ -78,9 +78,21 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
   tallenne avautuu Tulos-välilehdeltä yhdellä napautuksella palvelun omaan sovellukseen
 - Pelatut ottelut omalla välilehdellään voitto/tasapeli/tappio-merkinnöin
 
+**Peliaika**
+- Ottelukello, joka käynnistetään alkuvihellyksestä; avauskokoonpano merkitään
+  automaattisesti kentälle
+- Vaihdot kirjataan napauttamalla: pelaaja ulos ja tilalle tuleva sisään
+- Jokaisen pelaajan peliaika kertyy reaaliajassa, myös taustalla ja
+  sovelluksen ollessa kiinni
+- Vaihtopenkki järjestyy vähiten pelanneen mukaan ja vähiten peliaikaa saanut
+  on merkitty erikseen
+- Vaihdon minuuttia voi korjata jälkikäteen tai vaihdon voi poistaa
+- Jaksojen määrä ja pituus asetetaan ottelukohtaisesti
+
 **Tilastot**
 - Joukkue: ottelut, voitot, tasapelit, tappiot, maalit ja pisteet
-- Pelaajat: avauskokoonpanot, vaihtopenkki, maalit ja syötöt
+- Pelaajat: avauskokoonpanot, vaihtopenkki, peliaikaminuutit, maalit ja syötöt
+- Peliajan vaihteluväli kertoo yhdellä silmäyksellä, jakautuuko peliaika tasan
 
 **Tiedot**
 - Toimii ilman tiliä: kaikki tallentuu laitteen selaimeen (localStorage)
@@ -178,6 +190,7 @@ css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
 css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
 js/tactics.js           taktiikkapiirrosten työkalut ja polut
+js/timing.js            peliajan laskenta (kello, vaihdot, pelaaja-ajat)
 js/sync.js              pilvitallennus (Supabasen REST-rajapinta)
 js/merge.js             kolmen version yhdistäminen laitteiden välillä
 supabase/schema.sql     pilvitallennuksen taulu ja käyttöoikeudet
@@ -185,10 +198,11 @@ js/app.js               reititys ja näkymien piirto
 js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
-js/views/               näkymät: ottelupäivä, ottelut, ottelu, kokoonpanot, pelaajat,
-                        kenttä, tilastot, asetukset
+js/views/               näkymät: ottelupäivä, ottelut, ottelu, peliaika, kokoonpanot,
+                        ryhmä, kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
+tests/timing.test.mjs   peliajan laskennan yksikkötestit
 tests/smoke.mjs         päävirran savutesti
 tests/sync.test.mjs     kahden laitteen synkronointitesti
 tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta

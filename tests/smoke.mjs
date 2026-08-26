@@ -337,6 +337,73 @@ await tapText('Tallenna pohjaksi');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(200);
 
+// --- Peliaikaseuranta ---
+await page.locator('#view .segmented.four button', { hasText: 'Peliaika' }).click();
+await page.waitForTimeout(300);
+await page.locator('#view input#periods').fill('2');
+await page.locator('#view input#plen').fill('25');
+await page.locator('#view .btn.primary', { hasText: 'Käynnistä ottelukello' }).click();
+await page.waitForTimeout(300);
+
+const timing = () => page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].timing);
+let t = await timing();
+const starters = t.events.filter((e) => e.type === 'in' && e.at === 0).length;
+if (t.status !== 'running' || starters < 5) {
+  console.error('Kello ei käynnistynyt oikein: ' + JSON.stringify({ status: t.status, starters }));
+  process.exit(1);
+}
+
+// Kello etenee
+const firstClock = await page.locator('#view .clock').textContent();
+await page.waitForTimeout(2200);
+const laterClock = await page.locator('#view .clock').textContent();
+if (firstClock === laterClock) { console.error(`Kello ei edennyt (${firstClock})`); process.exit(1); }
+
+// Peliaika karttuu kentällä olevalle
+const fieldRowTime = await page.locator('#view .card.row .tnum').first().textContent();
+
+// Vaihto: ensimmäinen kentältä ulos, penkiltä tilalle
+await page.locator('#view .btn', { hasText: 'Vaihda' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .list-item').first().click();
+await page.waitForTimeout(400);
+t = await timing();
+const subs = t.events.filter((e) => e.at > 0);
+if (subs.length !== 2 || !subs.some((e) => e.type === 'out') || !subs.some((e) => e.type === 'in')) {
+  console.error('Vaihtoa ei kirjattu: ' + JSON.stringify(subs));
+  process.exit(1);
+}
+
+// Tauko pysäyttää kellon
+await page.locator('#view .btn', { hasText: 'Tauko' }).click();
+await page.waitForTimeout(300);
+t = await timing();
+if (t.status !== 'paused' || !(t.elapsed > 0)) {
+  console.error('Tauko ei pysäyttänyt kelloa: ' + JSON.stringify({ status: t.status, elapsed: t.elapsed }));
+  process.exit(1);
+}
+const pausedClock = await page.locator('#view .clock').textContent();
+await page.waitForTimeout(1500);
+if ((await page.locator('#view .clock').textContent()) !== pausedClock) {
+  console.error('Kello jatkoi käyntiä tauolla'); process.exit(1);
+}
+
+await shot('14-peliaika');
+
+// Vaihdon minuutin korjaus
+await page.locator('#view .card.row', { hasText: '▲' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay input[type=number]').fill('12');
+await page.locator('#overlay .btn.primary').click();
+await page.waitForTimeout(300);
+t = await timing();
+if (!t.events.some((e) => e.at === 720)) {
+  console.error('Vaihdon ajan korjaus ei tallentunut: ' + JSON.stringify(t.events.map((e) => e.at)));
+  process.exit(1);
+}
+console.log(`peliaika: kello ${firstClock} -> ${laterClock}, ensimmäinen pelaaja ${fieldRowTime}, vaihto korjattu 12. minuutille`);
+
 // --- Tulos ---
 await page.locator('#view .segmented button', { hasText: 'Tulos' }).click();
 await page.waitForTimeout(150);
@@ -370,6 +437,12 @@ await shot('06-tulos');
 
 // --- Tilastot / kokoonpanot / asetukset ---
 await tap('#tabbar a[href="#/tilastot"]');
+await page.waitForTimeout(300);
+const statHeaders = await page.locator('#view table.stats th').allTextContents();
+if (!statHeaders.includes('Min')) {
+  console.error('Peliaikasarake puuttuu tilastoista: ' + statHeaders.join(', '));
+  process.exit(1);
+}
 await shot('07-tilastot');
 await tap('#tabbar a[href="#/kokoonpanot"]');
 await shot('08-kokoonpanot');
