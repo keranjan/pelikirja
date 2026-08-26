@@ -260,6 +260,36 @@ console.log('taktiikka: 3 vetoa (yksi aloitettu pelaajan päältä), siirretty p
 await page.locator('#view .toolbtn', { hasText: 'Syöttö' }).click();
 await page.waitForTimeout(200);
 
+// Kaksoisnapautuksen zoomaus on estetty ja valittu työkalu erottuu selvästi
+const touchRules = await page.evaluate(() => {
+  const style = (sel) => getComputedStyle(document.querySelector(sel)).touchAction;
+  const bg = (sel) => getComputedStyle(document.querySelector(sel)).backgroundColor;
+  const tools = [...document.querySelectorAll('#view .toolbtn')];
+  const on = tools.find((t) => t.classList.contains('on'));
+  const off = tools.find((t) => !t.classList.contains('on'));
+  return {
+    body: style('body'),
+    button: style('#view .toolbtn'),
+    pitch: style('#view .pitch'),
+    onBg: bg('#view .toolbtn.on'),
+    offBg: off ? getComputedStyle(off).backgroundColor : '',
+    pressed: on?.getAttribute('aria-pressed'),
+  };
+});
+if (touchRules.body !== 'manipulation' || touchRules.button !== 'manipulation') {
+  console.error('Kaksoisnapautuksen zoomausta ei ole estetty: ' + JSON.stringify(touchRules));
+  process.exit(1);
+}
+if (touchRules.pitch !== 'none') {
+  console.error('Piirtoalustalla on yhä selaimen eleet käytössä: ' + touchRules.pitch);
+  process.exit(1);
+}
+if (touchRules.onBg === touchRules.offBg || touchRules.pressed !== 'true') {
+  console.error('Valittu työkalu ei erotu: ' + JSON.stringify(touchRules));
+  process.exit(1);
+}
+console.log(`eleet: body=${touchRules.body}, kenttä=${touchRules.pitch}; valittu työkalu ${touchRules.onBg}`);
+
 await shot('12-taktiikka');
 
 // --- Koko ruudun taktiikkataulu ---

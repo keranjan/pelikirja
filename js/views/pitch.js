@@ -275,6 +275,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
   const tools = h('div', { class: 'toolrow' });
   const toolButton = (id, label, sample) => h('button', {
     class: `toolbtn${tool === id ? ' on' : ''}`,
+    'aria-pressed': tool === id ? 'true' : 'false',
     onclick: () => { tool = id; commit(() => {}); },
   }, h('span', { class: 'sample' }, sample), h('span', { class: 'tiny bold', text: label }));
 
@@ -288,6 +289,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
+      'aria-pressed': color === id ? 'true' : 'false',
       title: c.name,
       disabled: tool === 'move',
       onclick: () => { color = id; commit(() => {}); },

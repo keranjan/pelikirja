@@ -180,7 +180,11 @@
 /* ---------- Perusta ---------- */
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; }
+/* manipulation poistaa kaksoisnapautuksen zoomauksen ja napautusviiveen,
+   mutta jättää vierityksen ja nipistyszoomauksen ennalleen. */
+html, body { height: 100%; touch-action: manipulation; }
+button, a, label, input, select, textarea,
+.card, .list-item, .chip, .swatch, .toolbtn, .slot, #tabbar a { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--paper);
@@ -238,7 +242,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--surface); border: 1px solid var(--line); color: var(--ink);
   font-size: 18px; cursor: pointer;
 }
-.iconbtn:active { background: var(--surface-2); }
+.iconbtn { transition: transform .08s ease, background-color .12s ease; }
+.iconbtn:active { background: var(--surface-2); transform: scale(.94); }
 .iconbtn.wide { width: auto; padding: 0 14px; font-size: 14px; font-weight: 600; gap: 6px; }
 
 /* ---------- Sisältöalue ---------- */
@@ -421,7 +426,10 @@ select {
   font-weight: 600; cursor: pointer;
 }
 a.btn { text-decoration: none; }
-.btn:active { transform: scale(.99); }
+.btn { transition: transform .08s ease, background-color .12s ease, filter .12s ease; }
+.btn:active { transform: scale(.97); background: var(--surface-2); }
+.btn.primary:active, .btn.danger:active { background: var(--accent); filter: brightness(.9); }
+.btn.danger:active { background: var(--red-soft); }
 .btn.primary {
   background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
   box-shadow: var(--shadow-accent);
@@ -439,6 +447,7 @@ a.btn { text-decoration: none; }
   font-size: 13.5px; font-weight: 600; cursor: pointer;
 }
 .chip.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.chip:active { transform: scale(.96); background: var(--surface-2); }
 
 .segmented {
   display: flex; gap: 3px; padding: 3px; border-radius: 12px;
@@ -529,19 +538,33 @@ a.btn { text-decoration: none; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   min-height: 54px; padding: 8px 2px; border-radius: 12px; cursor: pointer;
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
+  transition: transform .08s ease, background-color .12s ease, color .12s ease;
 }
-.toolbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+/* Valittu työkalu täytetään, jotta sen näkee myös auringossa. */
+.toolbtn.on {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  box-shadow: var(--shadow-accent);
+}
+.toolbtn:active { transform: scale(.95); background: var(--surface-2); }
+.toolbtn.on:active { background: var(--accent); filter: brightness(.9); }
 .toolbtn .sample { display: grid; place-items: center; height: 18px; }
 .toolbtn .tiny { font-size: 11px; }
 
 .swatch {
   width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer;
   background: var(--swatch); border: 2px solid var(--line-strong);
+  /* Ohut sisäreuna erottaa tumman värin tummasta taustasta. */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
+  transition: transform .1s ease, box-shadow .12s ease;
 }
+/* Valittu väri nousee esiin renkaalla, jotta valinta erottuu väristä riippumatta. */
 .swatch.on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--surface);
+  transform: scale(1.1);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.3), 0 0 0 3px var(--accent);
 }
+.swatch:active { transform: scale(.92); }
+.swatch.on:active { transform: scale(1.02); }
 .swatch:disabled { opacity: .35; }
 
 /* ---------- Koko ruudun taktiikkataulu ---------- */
@@ -556,6 +579,7 @@ html.board-open, html.board-open body { overflow: hidden; }
 .board-pitch {
   flex: 1; min-height: 0; position: relative;
   display: grid; place-items: center; padding: 10px;
+  touch-action: none;      /* piirtoalustalla ei vieritetä eikä zoomata */
 }
 .board-pitch .pitch { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
 .board-close { position: absolute; top: 14px; right: 14px; z-index: 5; box-shadow: var(--shadow-md); }
@@ -2422,6 +2446,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
   const tools = h('div', { class: 'toolrow' });
   const toolButton = (id, label, sample) => h('button', {
     class: `toolbtn${tool === id ? ' on' : ''}`,
+    'aria-pressed': tool === id ? 'true' : 'false',
     onclick: () => { tool = id; commit(() => {}); },
   }, h('span', { class: 'sample' }, sample), h('span', { class: 'tiny bold', text: label }));
 
@@ -2435,6 +2460,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
+      'aria-pressed': color === id ? 'true' : 'false',
       title: c.name,
       disabled: tool === 'move',
       onclick: () => { color = id; commit(() => {}); },
