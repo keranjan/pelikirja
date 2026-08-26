@@ -135,6 +135,102 @@ await page.locator('#overlay .iconbtn').first().click();
 await page.waitForTimeout(200);
 await shot('05-penkki');
 
+// --- Taktiikkataulu ---
+await page.locator('#view .segmented button', { hasText: 'Taktiikka' }).click();
+await page.waitForTimeout(250);
+
+// Veto pitää aloittaa kohdasta, jossa ei ole pelaajaa – muuten se on siirto.
+const freeStartOn = (target, skip = 0) => target.evaluate((n) => {
+  const pitch = document.querySelector('#view .pitch');
+  const r = pitch.getBoundingClientRect();
+  const taken = [...pitch.querySelectorAll('.slot')].map((el) => el.getBoundingClientRect());
+  const found = [];
+  for (let y = 8; y < 92; y += 3) {
+    for (let x = 8; x < 92; x += 3) {
+      const px = r.left + (r.width * x) / 100;
+      const py = r.top + (r.height * y) / 100;
+      const hit = taken.some((b) => px > b.left - 8 && px < b.right + 8 && py > b.top - 8 && py < b.bottom + 8);
+      if (!hit) found.push({ x: px, y: py });
+    }
+  }
+  return found[Math.min(n * 7, found.length - 1)];
+}, skip);
+const freeStart = (skip = 0) => freeStartOn(page, skip);
+
+const drawStroke = async (start, dx, dy) => {
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  const steps = 6;
+  for (let i = 1; i <= steps; i++) {
+    await page.mouse.move(start.x + (dx * i) / steps, start.y + (dy * i) / steps);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+};
+
+const drawings = () => page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.drawings);
+
+// Syöttö mustalla (oletustyökalu)
+await drawStroke(await freeStart(0), 90, -70);
+let strokes = await drawings();
+if (strokes.length !== 1 || strokes[0].tool !== 'pass' || strokes[0].color !== 'black' || strokes[0].points.length < 3) {
+  console.error('Syöttöviiva ei tallentunut: ' + JSON.stringify(strokes)); process.exit(1);
+}
+
+// Laukaus punaisella
+await page.locator('#view .toolbtn', { hasText: 'Laukaus' }).click();
+await page.locator('#view .swatch[aria-label="Punainen"]').click();
+await page.waitForTimeout(200);
+await drawStroke(await freeStart(3), 60, -90);
+strokes = await drawings();
+if (strokes.length !== 2 || strokes[1].tool !== 'shot' || strokes[1].color !== 'red') {
+  console.error('Laukausnuoli ei tallentunut: ' + JSON.stringify(strokes[1])); process.exit(1);
+}
+if (!(await page.locator('#view .tactics-layer polygon').count())) {
+  console.error('Laukauksen nuolenkärki puuttuu'); process.exit(1);
+}
+
+// Kuljetus on katkoviiva
+await page.locator('#view .toolbtn', { hasText: 'Kuljetus' }).click();
+await page.waitForTimeout(150);
+await drawStroke(await freeStart(6), -40, -80);
+strokes = await drawings();
+if (strokes[2].tool !== 'dribble') { console.error('Kuljetusviiva puuttuu'); process.exit(1); }
+const dashed = await page.locator('#view .tactics-layer path[stroke-dasharray]').count();
+if (dashed < 2) { console.error('Katkoviivaa ei piirretty'); process.exit(1); }
+
+// Pelaajan siirto vetämällä
+const token = page.locator('#view .slot').nth(5);
+const tb = await token.boundingBox();
+await page.mouse.move(tb.x + tb.width / 2, tb.y + 20);
+await page.mouse.down();
+await page.mouse.move(tb.x + tb.width / 2 + 40, tb.y - 30, { steps: 5 });
+await page.mouse.up();
+await page.waitForTimeout(250);
+const positions = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.positions);
+if (!Object.keys(positions).length) { console.error('Pelaajan siirto ei tallentunut'); process.exit(1); }
+console.log('taktiikka: 3 vetoa, siirretty pelaaja', Object.keys(positions)[0]);
+
+await shot('12-taktiikka');
+
+// Kumoa ja tyhjennä
+await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
+await page.waitForTimeout(200);
+if ((await drawings()).length !== 2) { console.error('Kumoa ei toiminut'); process.exit(1); }
+await page.locator('#view .btn', { hasText: 'Tyhjennä piirrokset' }).click();
+await page.waitForTimeout(200);
+if ((await drawings()).length !== 0) { console.error('Tyhjennys ei toiminut'); process.exit(1); }
+await page.locator('#view .btn', { hasText: 'Palauta paikat' }).click();
+await page.waitForTimeout(200);
+const cleared = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.positions);
+if (Object.keys(cleared).length) { console.error('Paikkojen palautus ei toiminut'); process.exit(1); }
+
+await page.locator('#view .segmented button', { hasText: 'Kokoonpano' }).first().click();
+await page.waitForTimeout(200);
+
 // Tallenna pohjaksi
 await tapText('Tallenna pohjaksi');
 await page.locator('.sheet .btn.primary').click();
@@ -220,6 +316,52 @@ console.log('videolinkki tallessa:', persisted.matches[0].videoUrl === VEO);
 console.log('pelaajia:', persisted.players.length, '| otteluita:', persisted.matches.length,
   '| pohjia:', persisted.lineups.length, '| tulos:', JSON.stringify(persisted.matches[0].result?.gf) + '-' + persisted.matches[0].result?.ga,
   '| kentällä:', persisted.matches[0].lineup.slots.filter(Boolean).length);
+
+// --- Sormella piirtäminen kosketusnäytöllä ---
+{
+  const touchCtx = await browser.newContext({
+    viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+  });
+  const tp = await touchCtx.newPage();
+  tp.on('pageerror', (e) => errors.push('touch pageerror: ' + e.message));
+  await tp.goto('http://localhost:8777/index.html');
+  await tp.evaluate(() => localStorage.setItem('pelikirja.v1', JSON.stringify({
+    version: 1, team: { name: 'Kosketus', season: '2026', theme: 'light' }, players: [], matches: [],
+    lineups: [{ id: 'tl', name: 'Taktiikka', lineup: {
+      formation: '4-3-3', slots: Array(11).fill(null), bench: [], unavailable: [], positions: {}, drawings: [] } }],
+  })));
+  // Hash-navigointi ei lataa sivua uudelleen, joten tila luetaan reloadilla.
+  await tp.reload();
+  await tp.waitForTimeout(400);
+  await tp.evaluate(() => { location.hash = '#/kokoonpano/tl'; });
+  await tp.waitForTimeout(400);
+  await tp.locator('#view .segmented button', { hasText: 'Taktiikka' }).click();
+  await tp.waitForTimeout(300);
+
+  const start = await freeStartOn(tp, 2);
+  const cdp = await touchCtx.newCDPSession(tp);
+  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', {
+    type,
+    touchPoints: type === 'touchEnd' ? [] : [{ x, y, radiusX: 8, radiusY: 8, force: 1 }],
+  });
+  const x0 = start.x;
+  const y0 = start.y;
+  await touch('touchStart', x0, y0);
+  for (let i = 1; i <= 8; i++) await touch('touchMove', x0 + i * 6, y0 - i * 9);
+  await touch('touchEnd', x0 + 48, y0 - 72);
+  await tp.waitForTimeout(300);
+
+  const touchStrokes = await tp.evaluate(() =>
+    JSON.parse(localStorage.getItem('pelikirja.v1')).lineups[0].lineup.drawings);
+  if (touchStrokes.length !== 1 || touchStrokes[0].points.length < 3) {
+    console.error('Sormella piirtäminen ei tallentunut: ' + JSON.stringify(touchStrokes));
+    process.exit(1);
+  }
+  const scrolled = await tp.evaluate(() => document.getElementById('view').scrollTop);
+  if (scrolled !== 0) { console.error('Piirtäminen vieritti näkymää'); process.exit(1); }
+  console.log('sormipiirto: ' + touchStrokes[0].points.length + ' pistettä, näkymä ei vierinyt');
+  await touchCtx.close();
+}
 
 await browser.close();
 server.close();

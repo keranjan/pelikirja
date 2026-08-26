@@ -41,6 +41,16 @@ ja kauden luvut. Muut näkymät ovat omina välilehtinään.
 - Kokoonpanopohjat: tallenna vakioasetelmat ja hae ne otteluun yhdellä napautuksella
 - Kokoonpanon jakaminen tekstinä esimerkiksi joukkueen WhatsApp-ryhmään
 
+**Taktiikkataulu**
+- Sama kenttäkuva vaihtuu Taktiikka-tilaan, jossa voi piirtää sormella ottelun aikana
+- Kolme työkalua: syöttö (viiva), kuljetus (katkoviiva) ja laukaus (paksu nuoli)
+- Neljä väriä: musta, valkoinen, punainen ja keltainen; jokaisessa vedossa on
+  kevyt reunus, joten viivat erottuvat sekä vaalealta että tummalta nurmelta
+- Pelaajia voi siirtää kentällä vetämällä; "Palauta paikat" palauttaa pelisysteemin mukaiset paikat
+- Kumoa viimeisin veto tai tyhjennä koko piirros
+- Piirrokset ja siirretyt paikat tallentuvat ottelun tai kokoonpanopohjan mukana ja
+  näkyvät myös kokoonpanotilassa
+
 **Ottelut ja tapahtumat**
 - Ottelut, turnaukset ja harjoituspelit: päivä, aika, vastustaja, paikka, koti/vieras, muistiinpanot
 - Tulevat tapahtumat aikajärjestyksessä, mukana lähtölaskenta ja kokoonpanon täyttöaste
@@ -94,6 +104,7 @@ sw.js                   service worker (offline-välimuisti)
 css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
 css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
+js/tactics.js           taktiikkapiirrosten työkalut ja polut
 js/app.js               reititys ja näkymien piirto
 js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat

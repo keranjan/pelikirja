@@ -17,7 +17,14 @@ const emptyState = () => ({
 
 export function emptyLineup(formationId = '4-4-2') {
   const f = getFormation(formationId);
-  return { formation: f.id, slots: f.slots.map(() => null), bench: [], unavailable: [] };
+  return {
+    formation: f.id,
+    slots: f.slots.map(() => null),
+    bench: [],
+    unavailable: [],
+    positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
+    drawings: [],    // taktiikkapiirrokset
+  };
 }
 
 function migrate(data) {
@@ -37,6 +44,11 @@ function migrate(data) {
     if (!m.lineup) m.lineup = emptyLineup();
     if (!Array.isArray(m.lineup.unavailable)) m.lineup.unavailable = [];
     if (!Array.isArray(m.lineup.bench)) m.lineup.bench = [];
+  }
+  for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
+    if (!l) continue;
+    if (!Array.isArray(l.drawings)) l.drawings = [];
+    if (!l.positions || typeof l.positions !== 'object') l.positions = {};
   }
   return st;
 }
@@ -206,6 +218,7 @@ export function setFormation(lineup, formationId) {
   const dropped = old.slice(f.slots.length).filter(Boolean);
   lineup.formation = f.id;
   lineup.slots = next;
+  lineup.positions = {};   // paikat vaihtuvat, joten siirrot nollataan
   for (const id of dropped) if (!lineup.bench.includes(id)) lineup.bench.push(id);
 }
 
@@ -249,6 +262,32 @@ export const lineupRole = (lineup, playerId) => {
 };
 
 export const cloneLineup = (lu) => JSON.parse(JSON.stringify(lu));
+
+/* ---------- Taktiikkapiirrokset ---------- */
+
+export function addStroke(lineup, stroke) {
+  if (!Array.isArray(lineup.drawings)) lineup.drawings = [];
+  lineup.drawings.push({ id: uid(), ...stroke });
+}
+
+export const undoStroke = (lineup) => { (lineup.drawings || []).pop(); };
+
+export const clearDrawings = (lineup) => { lineup.drawings = []; };
+
+/** Pelaajan siirto kentällä. Koordinaatit ovat prosentteja kentän mitoista. */
+export function movePlayer(lineup, slotIndex, x, y) {
+  if (!lineup.positions || typeof lineup.positions !== 'object') lineup.positions = {};
+  lineup.positions[slotIndex] = {
+    x: Math.round(Math.min(97, Math.max(3, x)) * 10) / 10,
+    y: Math.round(Math.min(97, Math.max(3, y)) * 10) / 10,
+  };
+}
+
+export const resetPositions = (lineup) => { lineup.positions = {}; };
+
+/** Onko kokoonpanossa jotain taktiikkatauluun kuuluvaa? */
+export const hasTactics = (lineup) =>
+  (lineup.drawings || []).length > 0 || Object.keys(lineup.positions || {}).length > 0;
 
 /* ---------- Vienti ja tuonti ---------- */
 

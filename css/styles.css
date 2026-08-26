@@ -440,6 +440,38 @@ a.btn { text-decoration: none; }
   color: var(--pitch-chip-ink); opacity: .75;
 }
 
+/* ---------- Taktiikkataulu ---------- */
+
+.pitch.drawing {
+  touch-action: none; cursor: crosshair;
+  /* Kavennetaan kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
+  max-width: calc(52dvh * 68 / 95);
+  margin-left: auto; margin-right: auto;
+}
+.tactics-layer { position: absolute; inset: 0; pointer-events: none; }
+
+.pitch.drawing .slot { cursor: grab; touch-action: none; }
+.pitch.drawing .slot.dragging { cursor: grabbing; z-index: 5; }
+.pitch.drawing .slot.dragging .disc { transform: scale(1.12); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+
+.toolrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.toolbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 56px; padding: 8px 4px; border-radius: 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
+}
+.toolbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.toolbtn .sample { display: block; height: 12px; }
+
+.swatch {
+  width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: var(--swatch); border: 2px solid var(--line-strong);
+}
+.swatch.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 /* ---------- Alapaneeli ---------- */
 
 #overlay:empty { display: none; }

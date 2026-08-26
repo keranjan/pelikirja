@@ -490,6 +490,38 @@ a.btn { text-decoration: none; }
   color: var(--pitch-chip-ink); opacity: .75;
 }
 
+/* ---------- Taktiikkataulu ---------- */
+
+.pitch.drawing {
+  touch-action: none; cursor: crosshair;
+  /* Kavennetaan kenttää sen verran, että työkalut mahtuvat samaan ruutuun. */
+  max-width: calc(52dvh * 68 / 95);
+  margin-left: auto; margin-right: auto;
+}
+.tactics-layer { position: absolute; inset: 0; pointer-events: none; }
+
+.pitch.drawing .slot { cursor: grab; touch-action: none; }
+.pitch.drawing .slot.dragging { cursor: grabbing; z-index: 5; }
+.pitch.drawing .slot.dragging .disc { transform: scale(1.12); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+
+.toolrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.toolbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 56px; padding: 8px 4px; border-radius: 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
+}
+.toolbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.toolbtn .sample { display: block; height: 12px; }
+
+.swatch {
+  width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: var(--swatch); border: 2px solid var(--line-strong);
+}
+.swatch.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 /* ---------- Alapaneeli ---------- */
 
 #overlay:empty { display: none; }
@@ -756,6 +788,91 @@ const roleForPosition = (pos) => POS_TO_ROLE[pos] || 'KK';
 return { POSITIONS, ROLES, ROLE_NAMES, FORMATIONS, getFormation, formationsBySize, roleForPosition };
 };
 
+__mods['tactics'] = () => {
+// Taktiikkapiirrosten työkalut, värit ja polkujen laskenta.
+// Piste tallennetaan normalisoituna (0–100) kentän leveydestä ja korkeudesta,
+// joten piirros skaalautuu minkä kokoiseen kenttäkuvaan tahansa.
+
+const PITCH_W = 68;
+const PITCH_H = 95;
+
+const TOOLS = {
+  pass:    { name: 'Syöttö',   width: 0.85, dash: null,        arrow: false },
+  dribble: { name: 'Kuljetus', width: 0.85, dash: '2.6 1.9',   arrow: false },
+  shot:    { name: 'Laukaus',  width: 1.9,  dash: null,        arrow: true  },
+};
+
+const COLORS = {
+  black:  { name: 'Musta',     value: '#141A16', halo: 'rgba(255,255,255,.45)' },
+  white:  { name: 'Valkoinen', value: '#FFFFFF', halo: 'rgba(0,0,0,.35)' },
+  red:    { name: 'Punainen',  value: '#E03131', halo: 'rgba(255,255,255,.4)' },
+  yellow: { name: 'Keltainen', value: '#FFD43B', halo: 'rgba(0,0,0,.35)' },
+};
+
+const toolOf = (id) => TOOLS[id] || TOOLS.pass;
+const colorOf = (id) => COLORS[id] || COLORS.black;
+
+const sx = (x) => (x / 100) * PITCH_W;
+const sy = (y) => (y / 100) * PITCH_H;
+
+/** Pehmennetty polku sormella piirretystä pistejonosta. */
+function strokePath(points) {
+  if (!points || points.length === 0) return '';
+  const p = points.map(([x, y]) => [sx(x), sy(y)]);
+  if (p.length === 1) return `M ${p[0][0]} ${p[0][1]} l 0.01 0`;
+  if (p.length === 2) return `M ${p[0][0]} ${p[0][1]} L ${p[1][0]} ${p[1][1]}`;
+
+  let d = `M ${p[0][0]} ${p[0][1]}`;
+  for (let i = 1; i < p.length - 1; i++) {
+    const mx = (p[i][0] + p[i + 1][0]) / 2;
+    const my = (p[i][1] + p[i + 1][1]) / 2;
+    d += ` Q ${p[i][0]} ${p[i][1]} ${mx} ${my}`;
+  }
+  const last = p[p.length - 1];
+  d += ` L ${last[0]} ${last[1]}`;
+  return d;
+}
+
+/** Nuolenkärki viimeisen liikesuunnan mukaan; null jos suuntaa ei saada. */
+function arrowHead(points, size = 3.4) {
+  if (!points || points.length < 2) return null;
+  const p = points.map(([x, y]) => [sx(x), sy(y)]);
+  const tip = p[p.length - 1];
+
+  // Etsi riittävän kaukaa edellinen piste, jotta suunta ei heittele.
+  let prev = p[0];
+  for (let i = p.length - 2; i >= 0; i--) {
+    const dx = tip[0] - p[i][0], dy = tip[1] - p[i][1];
+    if (Math.hypot(dx, dy) >= size * 0.7) { prev = p[i]; break; }
+  }
+  const dx = tip[0] - prev[0], dy = tip[1] - prev[1];
+  const len = Math.hypot(dx, dy);
+  if (len < 0.4) return null;
+
+  const ux = dx / len, uy = dy / len;
+  const bx = tip[0] - ux * size, by = tip[1] - uy * size;
+  const w = size * 0.5;
+  return [
+    `${tip[0]},${tip[1]}`,
+    `${bx - uy * w},${by + ux * w}`,
+    `${bx + uy * w},${by - ux * w}`,
+  ].join(' ');
+}
+
+/** Kentän mitat huomioiva pisteen normalisointi kosketuksen sijainnista. */
+function normalize(event, element) {
+  const r = element.getBoundingClientRect();
+  const x = ((event.clientX - r.left) / r.width) * 100;
+  const y = ((event.clientY - r.top) / r.height) * 100;
+  return [
+    Math.round(Math.min(100, Math.max(0, x)) * 10) / 10,
+    Math.round(Math.min(100, Math.max(0, y)) * 10) / 10,
+  ];
+}
+
+return { PITCH_W, PITCH_H, TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize };
+};
+
 __mods['store'] = () => {
 // Tilanhallinta ja tallennus (localStorage).
 const { getFormation } = __req('formations');
@@ -775,7 +892,14 @@ const emptyState = () => ({
 
 function emptyLineup(formationId = '4-4-2') {
   const f = getFormation(formationId);
-  return { formation: f.id, slots: f.slots.map(() => null), bench: [], unavailable: [] };
+  return {
+    formation: f.id,
+    slots: f.slots.map(() => null),
+    bench: [],
+    unavailable: [],
+    positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
+    drawings: [],    // taktiikkapiirrokset
+  };
 }
 
 function migrate(data) {
@@ -795,6 +919,11 @@ function migrate(data) {
     if (!m.lineup) m.lineup = emptyLineup();
     if (!Array.isArray(m.lineup.unavailable)) m.lineup.unavailable = [];
     if (!Array.isArray(m.lineup.bench)) m.lineup.bench = [];
+  }
+  for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
+    if (!l) continue;
+    if (!Array.isArray(l.drawings)) l.drawings = [];
+    if (!l.positions || typeof l.positions !== 'object') l.positions = {};
   }
   return st;
 }
@@ -964,6 +1093,7 @@ function setFormation(lineup, formationId) {
   const dropped = old.slice(f.slots.length).filter(Boolean);
   lineup.formation = f.id;
   lineup.slots = next;
+  lineup.positions = {};   // paikat vaihtuvat, joten siirrot nollataan
   for (const id of dropped) if (!lineup.bench.includes(id)) lineup.bench.push(id);
 }
 
@@ -1008,6 +1138,32 @@ const lineupRole = (lineup, playerId) => {
 
 const cloneLineup = (lu) => JSON.parse(JSON.stringify(lu));
 
+/* ---------- Taktiikkapiirrokset ---------- */
+
+function addStroke(lineup, stroke) {
+  if (!Array.isArray(lineup.drawings)) lineup.drawings = [];
+  lineup.drawings.push({ id: uid(), ...stroke });
+}
+
+const undoStroke = (lineup) => { (lineup.drawings || []).pop(); };
+
+const clearDrawings = (lineup) => { lineup.drawings = []; };
+
+/** Pelaajan siirto kentällä. Koordinaatit ovat prosentteja kentän mitoista. */
+function movePlayer(lineup, slotIndex, x, y) {
+  if (!lineup.positions || typeof lineup.positions !== 'object') lineup.positions = {};
+  lineup.positions[slotIndex] = {
+    x: Math.round(Math.min(97, Math.max(3, x)) * 10) / 10,
+    y: Math.round(Math.min(97, Math.max(3, y)) * 10) / 10,
+  };
+}
+
+const resetPositions = (lineup) => { lineup.positions = {}; };
+
+/** Onko kokoonpanossa jotain taktiikkatauluun kuuluvaa? */
+const hasTactics = (lineup) =>
+  (lineup.drawings || []).length > 0 || Object.keys(lineup.positions || {}).length > 0;
+
 /* ---------- Vienti ja tuonti ---------- */
 
 const exportJSON = () => JSON.stringify(state, null, 2);
@@ -1020,7 +1176,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, exportJSON, importJSON };
+return { uid, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['ui'] = () => {
@@ -1184,7 +1340,50 @@ const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('fo
 const {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
   toggleBench, toggleUnavailable, lineupRole,
+  addStroke, undoStroke, clearDrawings, movePlayer, resetPositions,
 } = __req('store');
+const {
+  TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
+  PITCH_W, PITCH_H,
+} = __req('tactics');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs) => {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+};
+
+// Piirtotila säilyy näkymän uudelleenpiirron yli.
+let mode = 'kokoonpano';
+let tool = 'pass';
+let color = 'black';
+
+/** Piirtää yhden vedon: ensin haaleampi reunus, sitten itse viiva. */
+function renderStroke(group, stroke) {
+  const t = toolOf(stroke.tool);
+  const c = colorOf(stroke.color);
+  const d = strokePath(stroke.points);
+  if (!d) return;
+
+  const base = { fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+  group.append(el('path', {
+    ...base, d, stroke: c.halo, 'stroke-width': t.width + 0.55,
+    ...(t.dash ? { 'stroke-dasharray': t.dash } : {}),
+  }));
+  group.append(el('path', {
+    ...base, d, stroke: c.value, 'stroke-width': t.width,
+    ...(t.dash ? { 'stroke-dasharray': t.dash } : {}),
+  }));
+
+  if (t.arrow) {
+    const head = arrowHead(stroke.points);
+    if (head) {
+      group.append(el('polygon', { points: head, fill: c.halo, stroke: c.halo, 'stroke-width': 0.55, 'stroke-linejoin': 'round' }));
+      group.append(el('polygon', { points: head, fill: c.value }));
+    }
+  }
+}
+
 const pitchLines = () => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'lines');
@@ -1209,6 +1408,12 @@ function renderLineupEditor(lineup, commit) {
   const formation = getFormation(lineup.formation);
   const wrap = h('div', { class: 'stack' });
 
+  /* --- Tila: kokoonpano vai taktiikka --- */
+  const setMode = (value) => { mode = value; commit(() => {}); };
+  wrap.append(h('div', { class: 'segmented' },
+    h('button', { class: mode === 'kokoonpano' ? 'on' : '', onclick: () => setMode('kokoonpano') }, 'Kokoonpano'),
+    h('button', { class: mode === 'taktiikka' ? 'on' : '', onclick: () => setMode('taktiikka') }, 'Taktiikka')));
+
   /* --- Systeemin valinta --- */
   const select = h('select', {
     onchange: (e) => commit(() => setFormation(lineup, e.target.value)),
@@ -1222,30 +1427,59 @@ function renderLineupEditor(lineup, commit) {
   }
 
   const filled = lineup.slots.filter(Boolean).length;
-  wrap.append(h('div', { class: 'row' },
-    h('div', { class: 'grow' },
-      h('div', { class: 'tiny muted bold', text: 'PELISYSTEEMI' }), select),
-    h('div', { class: 'center' },
-      h('div', { class: 'tiny muted bold', text: 'KENTÄLLÄ' }),
-      h('div', { class: 'bold', style: 'font-size:20px;padding-top:6px',
-        text: `${filled}/${formation.slots.length}` }))));
+  if (mode === 'kokoonpano') {
+    wrap.append(h('div', { class: 'row' },
+      h('div', { class: 'grow' },
+        h('div', { class: 'tiny muted bold', text: 'PELISYSTEEMI' }), select),
+      h('div', { class: 'center' },
+        h('div', { class: 'tiny muted bold', text: 'KENTÄLLÄ' }),
+        h('div', { class: 'bold', style: 'font-size:20px;padding-top:6px',
+          text: `${filled}/${formation.slots.length}` }))));
+  }
 
   /* --- Kenttä --- */
-  const pitch = h('div', { class: 'pitch' }, pitchLines());
+  const drawing = mode === 'taktiikka';
+  const pitch = h('div', { class: `pitch${drawing ? ' drawing' : ''}` }, pitchLines());
+
+  // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
+  const layer = el('svg', {
+    class: 'tactics-layer',
+    viewBox: `0 0 ${PITCH_W} ${PITCH_H}`,
+    preserveAspectRatio: 'none',
+  });
+  const strokes = el('g', {});
+  const live = el('g', {});
+  layer.append(strokes, live);
+  (lineup.drawings || []).forEach((stroke) => renderStroke(strokes, stroke));
+  pitch.append(layer);
+
+  const posOf = (i) => (lineup.positions || {})[i] || formation.slots[i];
+
   formation.slots.forEach((slot, i) => {
     const pid = lineup.slots[i];
     const p = pid ? playerById(pid) : null;
-    pitch.append(h('button', {
+    const at = posOf(i);
+    const token = h('button', {
       class: `slot${p ? '' : ' empty'}${slot.pos === 'MV' ? ' gk' : ''}`,
-      style: `left:${slot.x}%;top:${slot.y}%`,
+      style: `left:${at.x}%;top:${at.y}%`,
       title: POSITIONS[slot.pos] || slot.pos,
-      onclick: () => openPicker(lineup, i, commit),
+      onclick: drawing ? null : () => openPicker(lineup, i, commit),
     },
       h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
       p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
-      p ? h('span', { class: 'pos', text: slot.pos }) : null));
+      p ? h('span', { class: 'pos', text: slot.pos }) : null);
+
+    if (drawing) dragToken(token, pitch, lineup, i, commit);
+    pitch.append(token);
   });
+
+  if (drawing) drawOnPitch(pitch, live, lineup, commit);
   wrap.append(h('div', { class: 'pitch-wrap' }, pitch));
+
+  if (drawing) {
+    wrap.append(tacticsToolbar(lineup, commit));
+    return wrap;
+  }
 
   wrap.append(h('div', { class: 'btn-row' },
     h('button', { class: 'btn sm', style: 'flex:1', onclick: () => commit(() => autoFill(lineup)) }, 'Automaattitäyttö'),
@@ -1288,6 +1522,143 @@ function renderLineupEditor(lineup, commit) {
   }, 'Hallitse ryhmää'));
 
   return wrap;
+}
+
+/* ---------- Taktiikkatyökalut ---------- */
+
+function tacticsToolbar(lineup, commit) {
+  const bar = h('div', { class: 'stack', style: 'margin-top:4px' });
+
+  const tools = h('div', { class: 'toolrow' });
+  for (const [id, t] of Object.entries(TOOLS)) {
+    tools.append(h('button', {
+      class: `toolbtn${tool === id ? ' on' : ''}`,
+      onclick: () => { tool = id; commit(() => {}); },
+    },
+      h('span', { class: 'sample' }, toolSample(id)),
+      h('span', { class: 'tiny bold', text: t.name })));
+  }
+  bar.append(tools);
+
+  const colors = h('div', { class: 'row', style: 'gap:10px' });
+  for (const [id, c] of Object.entries(COLORS)) {
+    colors.append(h('button', {
+      class: `swatch${color === id ? ' on' : ''}`,
+      style: `--swatch:${c.value}`,
+      'aria-label': c.name,
+      title: c.name,
+      onclick: () => { color = id; commit(() => {}); },
+    }));
+  }
+  colors.append(h('span', { class: 'grow' }));
+  colors.append(h('button', {
+    class: 'btn sm ghost',
+    onclick: () => commit(() => undoStroke(lineup)),
+  }, 'Kumoa'));
+  bar.append(colors);
+
+  bar.append(h('p', { class: 'tiny muted', style: 'margin:2px 0 0',
+    text: 'Piirrä sormella kentälle. Pelaajaa voi siirtää vetämällä sitä.' }));
+
+  bar.append(h('div', { class: 'btn-row' },
+    h('button', {
+      class: 'btn sm ghost', style: 'flex:1',
+      onclick: () => commit(() => clearDrawings(lineup)),
+    }, 'Tyhjennä piirrokset'),
+    h('button', {
+      class: 'btn sm ghost', style: 'flex:1',
+      onclick: () => commit(() => resetPositions(lineup)),
+    }, 'Palauta paikat')));
+
+  return bar;
+}
+
+/** Pieni esimerkkiviiva työkalupainikkeeseen. */
+function toolSample(id) {
+  const t = toolOf(id);
+  const svg = el('svg', { viewBox: '0 0 34 12', width: '34', height: '12' });
+  const line = el('path', {
+    d: t.arrow ? 'M2 6 H23' : 'M2 6 H31',
+    stroke: 'currentColor', 'stroke-width': t.arrow ? 3 : 1.8,
+    'stroke-linecap': 'round', fill: 'none',
+  });
+  if (t.dash) line.setAttribute('stroke-dasharray', '5 3.5');
+  svg.append(line);
+  if (t.arrow) svg.append(el('polygon', { points: '32,6 22,11 22,1', fill: 'currentColor' }));
+  return svg;
+}
+
+/* ---------- Piirtäminen ---------- */
+
+function drawOnPitch(pitch, liveGroup, lineup, commit) {
+  let points = null;
+
+  const redraw = () => {
+    liveGroup.replaceChildren();
+    if (points && points.length) renderStroke(liveGroup, { tool, color, points });
+  };
+
+  pitch.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.slot')) return;      // pelaajan veto hoituu erikseen
+    e.preventDefault();
+    pitch.setPointerCapture(e.pointerId);
+    points = [normalize(e, pitch)];
+    redraw();
+  });
+
+  pitch.addEventListener('pointermove', (e) => {
+    if (!points) return;
+    const next = normalize(e, pitch);
+    const last = points[points.length - 1];
+    if (Math.hypot(next[0] - last[0], next[1] - last[1]) < 0.7) return;
+    points.push(next);
+    redraw();
+  });
+
+  const finish = () => {
+    if (!points) return;
+    const drawn = points;
+    points = null;
+    liveGroup.replaceChildren();
+    // Yksittäinen napautus ei jätä jälkeä.
+    if (drawn.length < 2) return;
+    commit(() => addStroke(lineup, { tool, color, points: drawn }));
+  };
+
+  pitch.addEventListener('pointerup', finish);
+  pitch.addEventListener('pointercancel', () => { points = null; liveGroup.replaceChildren(); });
+}
+
+/* ---------- Pelaajan siirto ---------- */
+
+function dragToken(token, pitch, lineup, slotIndex, commit) {
+  let dragging = false;
+
+  token.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = true;
+    token.setPointerCapture(e.pointerId);
+    token.classList.add('dragging');
+  });
+
+  token.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const [x, y] = normalize(e, pitch);
+    token.style.left = `${x}%`;
+    token.style.top = `${y}%`;
+  });
+
+  const drop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    token.classList.remove('dragging');
+    const [x, y] = normalize(e, pitch);
+    commit(() => movePlayer(lineup, slotIndex, x, y));
+  };
+
+  token.addEventListener('pointerup', drop);
+  token.addEventListener('pointercancel', () => { dragging = false; token.classList.remove('dragging'); });
 }
 
 /* ---------- Pelaajan valinta paikkaan ---------- */

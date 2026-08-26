@@ -8,7 +8,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const r = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 const MODULES = [
-  'js/router.js', 'js/icons.js', 'js/formations.js', 'js/store.js', 'js/ui.js',
+  'js/router.js', 'js/icons.js', 'js/formations.js', 'js/tactics.js', 'js/store.js', 'js/ui.js',
   'js/views/pitch.js', 'js/views/players.js', 'js/views/matches.js', 'js/views/home.js',
   'js/views/match.js', 'js/views/lineups.js', 'js/views/stats.js',
   'js/views/settings.js', 'js/app.js',
