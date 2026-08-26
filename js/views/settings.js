@@ -1,6 +1,10 @@
 // Joukkueen tiedot, varmuuskopiot ja tietojen tyhjennys.
-import { h, sheet, toast, confirmSheet } from '../ui.js';
+import { h, sheet, toast, confirmSheet, timeAgo } from '../ui.js';
 import { getState, update, exportJSON, importJSON, resetAll, applyTheme } from '../store.js';
+import {
+  getConfig, getSession, getStatus, onStatus, setConfig, forgetConfig,
+  signIn, signUp, signOut, syncNow, isConnected,
+} from '../sync.js';
 
 export function settingsView() {
   const st = getState();
@@ -36,6 +40,9 @@ export function settingsView() {
     themeSeg,
     h('p', { class: 'tiny muted', text: 'Vaalea ulkoasu erottuu parhaiten auringossa, tumma iltapeleissä. Järjestelmä seuraa puhelimen asetusta.' })));
 
+  body.append(h('div', { class: 'section-title', text: 'Pilvitallennus' }));
+  body.append(cloudCard());
+
   body.append(h('div', { class: 'section-title', text: 'Varmuuskopio' }));
   body.append(h('div', { class: 'card stack' },
     h('p', { class: 'small muted', text: 'Kaikki tiedot tallentuvat vain tähän laitteeseen. Ota varmuuskopio ennen selaimen tietojen tyhjennystä tai kun vaihdat puhelinta.' }),
@@ -66,6 +73,111 @@ export function settingsView() {
   body.append(h('p', { class: 'tiny muted center', style: 'margin-top:18px', text: 'Pelikirja · kokoonpanot, pelipaikat ja ottelut yhdessä paikassa' }));
 
   return { title: 'Asetukset', back: '#/ottelupaiva', body };
+}
+
+/* ---------- Pilvitallennus ---------- */
+
+let stopStatus = null;
+
+function statusLine() {
+  const st = getStatus();
+  const line = h('div', { class: 'row', style: 'gap:8px' });
+  const texts = {
+    syncing: ['badge', 'Synkronoidaan…'],
+    idle: ['badge win', `Synkronoitu ${timeAgo(st.lastSync)}`],
+    offline: ['badge draw', 'Ei verkkoyhteyttä'],
+    error: ['badge loss', 'Synkronointi epäonnistui'],
+    off: ['badge', 'Ei käytössä'],
+  };
+  const [cls, text] = texts[st.state] || texts.off;
+  line.append(h('span', { class: cls, text }));
+  if (st.state === 'error' && st.message) {
+    line.append(h('span', { class: 'tiny muted grow ellip', text: st.message }));
+  }
+  return line;
+}
+
+function cloudCard() {
+  stopStatus?.();
+  const card = h('div', { class: 'card stack' });
+
+  const draw = () => {
+    card.replaceChildren();
+    const cfg = getConfig();
+    const session = getSession();
+
+    if (!cfg) {
+      const urlI = h('input', { type: 'text', placeholder: 'https://xxxx.supabase.co', autocomplete: 'off', inputmode: 'url' });
+      const keyI = h('input', { type: 'text', placeholder: 'Julkinen anon-avain', autocomplete: 'off' });
+      card.append(
+        h('p', { class: 'small muted', text: 'Tallenna tiedot pilveen, niin voit muokata samaa joukkuetta useammalla laitteella. Tarvitset oman ilmaisen Supabase-projektin – ohjeet ovat README-tiedostossa.' }),
+        h('label', { class: 'field' }, h('span', { text: 'Projektin osoite' }), urlI),
+        h('label', { class: 'field' }, h('span', { text: 'Julkinen avain (anon)' }), keyI),
+        h('button', {
+          class: 'btn primary',
+          onclick: () => {
+            try {
+              setConfig(urlI.value, keyI.value);
+              toast('Yhteys tallennettu');
+              draw();
+            } catch (e) {
+              toast(e.message);
+            }
+          },
+        }, 'Ota käyttöön'));
+      return;
+    }
+
+    if (!session) {
+      const emailI = h('input', { type: 'text', placeholder: 'sähköposti', autocomplete: 'username', inputmode: 'email' });
+      const passI = h('input', { type: 'password', placeholder: 'salasana', autocomplete: 'current-password' });
+      const run = async (fn, label) => {
+        toast(label);
+        try {
+          await fn(emailI.value.trim(), passI.value);
+          toast('Kirjauduttu sisään');
+          draw();
+        } catch (e) {
+          toast(e.message);
+        }
+      };
+      card.append(
+        h('p', { class: 'small muted', text: `Projekti: ${cfg.url.replace(/^https?:\/\//, '')}` }),
+        h('label', { class: 'field' }, h('span', { text: 'Sähköposti' }), emailI),
+        h('label', { class: 'field' }, h('span', { text: 'Salasana' }), passI),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', onclick: () => run(signIn, 'Kirjaudutaan…') }, 'Kirjaudu'),
+          h('button', { class: 'btn', onclick: () => run(signUp, 'Luodaan tunnusta…') }, 'Luo tunnus')),
+        h('button', { class: 'btn sm ghost', style: 'width:100%', onclick: () => { forgetConfig(); draw(); } }, 'Unohda yhteysasetukset'));
+      return;
+    }
+
+    card.append(
+      h('div', { class: 'row between' },
+        h('span', { class: 'small muted', text: 'Tunnus' }),
+        h('span', { class: 'bold ellip', text: session.email || '–' })),
+      statusLine(),
+      h('div', { class: 'btn-row' },
+        h('button', {
+          class: 'btn',
+          onclick: async () => {
+            const r = await syncNow();
+            if (r.ok) toast(r.conflicts ? `Synkronoitu, ${r.conflicts} ristiriitaa ratkaistiin tämän laitteen hyväksi` : 'Synkronoitu');
+            else if (r.reason === 'offline') toast('Ei verkkoyhteyttä');
+            else if (r.reason !== 'busy') toast('Synkronointi epäonnistui');
+            draw();
+          },
+        }, 'Synkronoi nyt'),
+        h('button', {
+          class: 'btn ghost',
+          onclick: async () => { await signOut(); toast('Kirjauduttu ulos'); draw(); },
+        }, 'Kirjaudu ulos')),
+      h('p', { class: 'tiny muted', style: 'margin:0', text: 'Muutokset lähtevät pilveen automaattisesti, ja pilven muutokset haetaan kun palaat sovellukseen. Tiedot säilyvät laitteella myös offline-tilassa.' }));
+  };
+
+  draw();
+  stopStatus = onStatus(() => { if (document.body.contains(card)) draw(); else stopStatus?.(); });
+  return card;
 }
 
 function doExport() {

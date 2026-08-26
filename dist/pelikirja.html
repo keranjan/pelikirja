@@ -632,7 +632,6 @@ table.stats th {
 }
 
 </style>
-<link rel="stylesheet" href="./css/styles.css">
 <title>Pelikirja</title>
 </head>
 <body>
@@ -1219,6 +1218,404 @@ function importJSON(text) {
 return { uid, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
+__mods['merge'] = () => {
+// Kolmen version yhdistäminen: perusta (viimeksi synkronoitu), tämä laite ja pilvi.
+// Näin kahdella laitteella tehdyt muutokset säilyvät molemmat, kunhan ne
+// koskevat eri pelaajia, otteluita tai kokoonpanoja.
+
+/** Vakaa esitysmuoto vertailua varten: avainten järjestys ei vaikuta. */
+function stable(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
+}
+
+const byId = (list = []) => new Map(list.map((item) => [item.id, item]));
+
+/**
+ * Yhdistää yhden listan (pelaajat, ottelut tai kokoonpanot).
+ * Palauttaa myös ristiriitojen määrän: kohteet, joita on muokattu
+ * molemmilla puolilla – niistä säilytetään tämän laitteen versio.
+ */
+function mergeList(baseList, localList, remoteList) {
+  const base = byId(baseList);
+  const local = byId(localList);
+  const remote = byId(remoteList);
+  const ids = new Set([...local.keys(), ...remote.keys()]);
+
+  const result = [];
+  let conflicts = 0;
+
+  for (const id of ids) {
+    const b = base.get(id);
+    const l = local.get(id);
+    const r = remote.get(id);
+
+    if (l && r) {
+      const localChanged = !b || stable(l) !== stable(b);
+      const remoteChanged = !b || stable(r) !== stable(b);
+      if (localChanged && remoteChanged && stable(l) !== stable(r)) {
+        conflicts++;
+        result.push(l);                 // tämän laitteen muokkaus voittaa
+      } else {
+        result.push(localChanged ? l : r);
+      }
+      continue;
+    }
+
+    // Kohde puuttuu toiselta puolelta: poistettu vai juuri lisätty?
+    const only = l || r;
+    const missingSide = l ? 'remote' : 'local';
+    if (!b) {
+      result.push(only);                // uusi kohde, ei ollut vielä synkassa
+      continue;
+    }
+    const changedOnKeptSide = stable(only) !== stable(b);
+    if (changedOnKeptSide) {
+      // Toinen poisti, toinen muokkasi – muokkaus säilytetään, jottei työ katoa.
+      conflicts++;
+      result.push(only);
+    }
+    // muuten: poisto hyväksytään (kohdetta ei lisätä tulokseen)
+    void missingSide;
+  }
+
+  return { list: result, conflicts };
+}
+
+/** Järjestää ottelut ja pelaajat vakaasti, jotta vertailu ei heilu turhaan. */
+const sortById = (list) => [...list].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+/**
+ * @returns {{ state: object, conflicts: number, changed: boolean }}
+ */
+function mergeStates(base, local, remote) {
+  const b = base || { players: [], matches: [], lineups: [], team: {} };
+  let conflicts = 0;
+
+  const players = mergeList(b.players, local.players, remote.players);
+  const matches = mergeList(b.matches, local.matches, remote.matches);
+  const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
+  conflicts += players.conflicts + matches.conflicts + lineups.conflicts;
+
+  // Uudella laitteella ei ole vielä omaa dataa, joten pilven tiedot otetaan
+  // sellaisenaan – muuten laitteen oletusnimi ylikirjoittaisi joukkueen nimen.
+  const localIsFresh = !(local.players || []).length
+    && !(local.matches || []).length
+    && !(local.lineups || []).length;
+
+  // Joukkueen tiedot ovat yksi kokonaisuus: uusin muutos voittaa.
+  const teamBase = stable(withoutTheme(b.team || {}));
+  const teamLocal = stable(withoutTheme(local.team || {}));
+  const teamRemote = stable(withoutTheme(remote.team || {}));
+  let team = local.team;
+  if (localIsFresh && remote.team) {
+    team = { ...remote.team };
+  } else if (teamLocal === teamBase && teamRemote !== teamBase) {
+    team = { ...remote.team };
+  } else if (teamLocal !== teamBase && teamRemote !== teamBase && teamLocal !== teamRemote) {
+    conflicts++;
+  }
+  // Ulkoasu on laitekohtainen valinta, joten se ei kulje mukana.
+  team = { ...team, theme: local.team?.theme || 'system' };
+
+  const state = {
+    version: 1,
+    team,
+    players: sortById(players.list),
+    matches: sortById(matches.list),
+    lineups: sortById(lineups.list),
+  };
+
+  return {
+    state,
+    conflicts,
+    changed: stable(payload(state)) !== stable(payload(remote)),
+  };
+}
+
+const withoutTheme = ({ theme, ...rest }) => rest;
+
+/** Pilveen tallennettava osa: ulkoasuvalinta jätetään pois. */
+function payload(state) {
+  return {
+    version: 1,
+    team: withoutTheme(state.team || {}),
+    players: sortById(state.players || []),
+    matches: sortById(state.matches || []),
+    lineups: sortById(state.lineups || []),
+  };
+}
+
+return { stable, mergeStates, payload };
+};
+
+__mods['sync'] = () => {
+// Pilvitallennus Supabaseen. Käytetään suoraan REST-rajapintaa, joten
+// sovellus pysyy riippumattomana eikä offline-tuki tai yhden tiedoston
+// versio riko mitään.
+const { getState, replaceState, subscribe } = __req('store');
+const { mergeStates, payload, stable } = __req('merge');
+const CONFIG_KEY = 'pelikirja.cloud';
+const SESSION_KEY = 'pelikirja.session';
+const BASE_KEY = 'pelikirja.syncbase';
+const TABLE = 'pelikirja';
+
+const listeners = new Set();
+let status = { state: 'off', lastSync: null, message: '' };
+let syncing = false;
+let pushTimer = null;
+let started = false;
+
+const read = (key, fallback = null) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const write = (key, value) => {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn('Tallennus epäonnistui:', e);
+  }
+};
+
+/* ---------- Tila ---------- */
+
+const getStatus = () => status;
+const onStatus = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+
+function setStatus(next) {
+  status = { ...status, ...next };
+  listeners.forEach((fn) => fn(status));
+}
+
+/* ---------- Asetukset ja istunto ---------- */
+
+const getConfig = () => read(CONFIG_KEY);
+const getSession = () => read(SESSION_KEY);
+const isConnected = () => !!(getConfig() && getSession());
+
+function setConfig(url, anonKey) {
+  const clean = String(url || '').trim().replace(/\/+$/, '');
+  if (!clean || !anonKey) throw new Error('Anna projektin osoite ja julkinen avain.');
+  if (!/^https?:\/\//.test(clean)) throw new Error('Osoitteen pitää alkaa https://');
+  write(CONFIG_KEY, { url: clean, anonKey: String(anonKey).trim() });
+}
+
+function forgetConfig() {
+  write(CONFIG_KEY, null);
+  write(SESSION_KEY, null);
+  write(BASE_KEY, null);
+  setStatus({ state: 'off', message: '', lastSync: null });
+}
+
+/* ---------- Verkkokutsut ---------- */
+
+async function call(path, { method = 'GET', body, token, headers = {} } = {}) {
+  const cfg = getConfig();
+  if (!cfg) throw new Error('Pilvitallennusta ei ole otettu käyttöön.');
+
+  const res = await fetch(cfg.url + path, {
+    method,
+    cache: 'no-store',      // rajapinnan vastauksia ei saa lukea välimuistista
+    headers: {
+      apikey: cfg.anonKey,
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const msg = data?.error_description || data?.msg || data?.message || data?.error || `Virhe ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function storeSession(session) {
+  if (!session?.access_token) throw new Error('Kirjautuminen ei palauttanut istuntoa.');
+  write(SESSION_KEY, {
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_at: Date.now() + (session.expires_in || 3600) * 1000,
+    user_id: session.user?.id,
+    email: session.user?.email,
+  });
+  return getSession();
+}
+
+async function validToken() {
+  const session = getSession();
+  if (!session) throw new Error('Et ole kirjautunut.');
+  if (session.expires_at - 60000 > Date.now()) return session;
+
+  const fresh = await call('/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    body: { refresh_token: session.refresh_token },
+  });
+  return storeSession(fresh);
+}
+
+/* ---------- Kirjautuminen ---------- */
+
+async function signUp(email, password) {
+  const result = await call('/auth/v1/signup', { method: 'POST', body: { email, password } });
+  if (!result?.access_token) {
+    // Projektissa on sähköpostivarmistus päällä.
+    throw new Error('Tili luotiin. Vahvista sähköpostiosoite ja kirjaudu sitten sisään.');
+  }
+  storeSession(result);
+  await syncNow();
+  return getSession();
+}
+
+async function signIn(email, password) {
+  const result = await call('/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    body: { email, password },
+  });
+  storeSession(result);
+  await syncNow();
+  return getSession();
+}
+
+async function signOut() {
+  const session = getSession();
+  try {
+    if (session) await call('/auth/v1/logout', { method: 'POST', token: session.access_token });
+  } catch {
+    // Uloskirjautuminen onnistuu paikallisesti vaikka verkko ei vastaisi.
+  }
+  write(SESSION_KEY, null);
+  write(BASE_KEY, null);
+  setStatus({ state: 'off', message: '', lastSync: null });
+}
+
+/* ---------- Synkronointi ---------- */
+
+const rowPath = (uid, extra = '') =>
+  `/rest/v1/${TABLE}?user_id=eq.${encodeURIComponent(uid)}${extra}`;
+
+async function fetchRow(session) {
+  const rows = await call(rowPath(session.user_id, '&select=data,rev'), { token: session.access_token });
+  return rows?.[0] || null;
+}
+
+/**
+ * Hakee pilven version, yhdistää sen paikalliseen ja tallentaa tuloksen
+ * molempiin suuntiin. Turvallinen kutsua koska tahansa.
+ */
+async function syncNow({ silent = false } = {}) {
+  if (!isConnected()) return { ok: false, reason: 'off' };
+  if (syncing) return { ok: false, reason: 'busy' };
+  if (navigator.onLine === false) {
+    setStatus({ state: 'offline', message: 'Ei verkkoyhteyttä' });
+    return { ok: false, reason: 'offline' };
+  }
+
+  syncing = true;
+  if (!silent) setStatus({ state: 'syncing', message: '' });
+
+  try {
+    const session = await validToken();
+    const local = payload(getState());
+    const base = read(BASE_KEY);
+
+    let row = await fetchRow(session);
+    if (!row) {
+      await call(`/rest/v1/${TABLE}`, {
+        method: 'POST',
+        token: session.access_token,
+        headers: { Prefer: 'return=representation' },
+        body: { user_id: session.user_id, data: local, rev: 1 },
+      });
+      write(BASE_KEY, local);
+      setStatus({ state: 'idle', lastSync: new Date().toISOString(), message: '' });
+      return { ok: true, conflicts: 0, created: true };
+    }
+
+    const merged = mergeStates(base, getState(), row.data || { players: [], matches: [], lineups: [], team: {} });
+
+    // Paikallinen tila päivitetään vain jos se todella muuttui.
+    if (stable(payload(getState())) !== stable(payload(merged.state))) {
+      replaceState({ ...merged.state, version: 1 });
+    }
+
+    const next = payload(getState());
+    if (stable(next) !== stable(row.data)) {
+      let saved = await call(rowPath(session.user_id, `&rev=eq.${row.rev}`), {
+        method: 'PATCH',
+        token: session.access_token,
+        headers: { Prefer: 'return=representation' },
+        body: { data: next, rev: row.rev + 1, updated_at: new Date().toISOString() },
+      });
+      if (!saved?.length) {
+        // Toinen laite ehti tallentaa välissä – haetaan uudestaan ja yritetään kerran.
+        row = await fetchRow(session);
+        const again = mergeStates(read(BASE_KEY), getState(), row.data);
+        replaceState({ ...again.state, version: 1 });
+        saved = await call(rowPath(session.user_id, `&rev=eq.${row.rev}`), {
+          method: 'PATCH',
+          token: session.access_token,
+          headers: { Prefer: 'return=representation' },
+          body: { data: payload(getState()), rev: row.rev + 1, updated_at: new Date().toISOString() },
+        });
+        if (!saved?.length) throw new Error('Pilven tiedot muuttuivat kesken tallennuksen. Yritä uudelleen.');
+      }
+    }
+
+    write(BASE_KEY, payload(getState()));
+    setStatus({ state: 'idle', lastSync: new Date().toISOString(), message: '' });
+    return { ok: true, conflicts: merged.conflicts };
+  } catch (e) {
+    setStatus({ state: 'error', message: e.message || String(e) });
+    return { ok: false, reason: 'error', error: e };
+  } finally {
+    syncing = false;
+  }
+}
+
+/* ---------- Automaattinen synkronointi ---------- */
+
+const schedulePush = () => {
+  if (syncing) return;          // synkronointi muuttaa tilaa itse
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => syncNow({ silent: true }), 2500);
+};
+
+function startAutoSync() {
+  if (started) return;
+  started = true;
+
+  if (isConnected()) {
+    setStatus({ state: 'idle' });
+    syncNow({ silent: true });
+  }
+
+  subscribe(() => { if (isConnected()) schedulePush(); });
+
+  window.addEventListener('online', () => { if (isConnected()) syncNow({ silent: true }); });
+  window.addEventListener('offline', () => {
+    if (isConnected()) setStatus({ state: 'offline', message: 'Ei verkkoyhteyttä' });
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isConnected()) syncNow({ silent: true });
+  });
+}
+
+return { getStatus, onStatus, getConfig, getSession, isConnected, setConfig, forgetConfig, signUp, signIn, signOut, syncNow, startAutoSync };
+};
+
 __mods['ui'] = () => {
 // Pienet UI-apurit: elementtien luonti, alapaneelit, ilmoitukset, päivämäärät.
 
@@ -1326,6 +1723,19 @@ function countdownText(m) {
   return '';
 }
 
+/** "juuri nyt", "5 min sitten", "eilen klo 18:30" */
+function timeAgo(iso) {
+  if (!iso) return 'ei koskaan';
+  const then = new Date(iso);
+  if (isNaN(then)) return 'ei koskaan';
+  const mins = Math.round((Date.now() - then.getTime()) / 60000);
+  if (mins < 1) return 'juuri nyt';
+  if (mins < 60) return `${mins} min sitten`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h sitten`;
+  return `${fmtShortDate(then.toISOString().slice(0, 10))} klo ${String(then.getHours()).padStart(2, '0')}:${String(then.getMinutes()).padStart(2, '0')}`;
+}
+
 const initials = (name) =>
   name.trim().split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
 
@@ -1370,7 +1780,7 @@ function videoInfo(raw) {
   return { url: url.href, host, service: service || host, known: !!service };
 }
 
-return { h, $, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, initials, shortName, videoInfo };
+return { h, $, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, timeAgo, initials, shortName, videoInfo };
 };
 
 __mods['pitch'] = () => {
@@ -2168,12 +2578,13 @@ return { matchesView, openMatchSheet };
 
 __mods['home'] = () => {
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
-const { h, fmtDate, daysUntil, videoInfo } = __req('ui');
+const { h, fmtDate, daysUntil, videoInfo, timeAgo } = __req('ui');
 const {
   getState, upcomingMatches, pastMatches, isPlayed, playerName,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
+const { getStatus, isConnected } = __req('sync');
 const { icon } = __req('icons');
 const { openMatchSheet } = __req('matches');
 function homeView() {
@@ -2203,6 +2614,7 @@ function homeView() {
   }
 
   if (played.length) body.append(seasonStrip(played));
+  if (isConnected()) body.append(syncLine());
 
   return {
     title: st.team.name || 'Pelikirja',
@@ -2338,6 +2750,23 @@ function seasonStrip(played) {
       cell(String(played.length), 'Ottelua'),
       cell(`${w}–${d}–${l}`, 'V–T–H'),
       cell(`${gf}–${ga}`, 'Maalit')));
+}
+
+/** Hienovarainen tieto siitä, onko data ajan tasalla muilla laitteilla. */
+function syncLine() {
+  const st = getStatus();
+  const text = {
+    syncing: 'Synkronoidaan…',
+    idle: `Synkronoitu ${timeAgo(st.lastSync)}`,
+    offline: 'Ei verkkoyhteyttä – muutokset lähtevät myöhemmin',
+    error: 'Synkronointi epäonnistui – katso asetukset',
+  }[st.state] || '';
+  if (!text) return null;
+  return h('button', {
+    class: 'tiny muted center',
+    style: 'background:none;border:0;padding:12px 0 0;width:100%;cursor:pointer',
+    onclick: () => navigate('#/asetukset'),
+  }, text);
 }
 
 const shortDay = (dateStr) => {
@@ -2902,8 +3331,12 @@ return { statsView };
 
 __mods['settings'] = () => {
 // Joukkueen tiedot, varmuuskopiot ja tietojen tyhjennys.
-const { h, sheet, toast, confirmSheet } = __req('ui');
+const { h, sheet, toast, confirmSheet, timeAgo } = __req('ui');
 const { getState, update, exportJSON, importJSON, resetAll, applyTheme } = __req('store');
+const {
+  getConfig, getSession, getStatus, onStatus, setConfig, forgetConfig,
+  signIn, signUp, signOut, syncNow, isConnected,
+} = __req('sync');
 function settingsView() {
   const st = getState();
   const body = h('div', { class: 'stack' });
@@ -2938,6 +3371,9 @@ function settingsView() {
     themeSeg,
     h('p', { class: 'tiny muted', text: 'Vaalea ulkoasu erottuu parhaiten auringossa, tumma iltapeleissä. Järjestelmä seuraa puhelimen asetusta.' })));
 
+  body.append(h('div', { class: 'section-title', text: 'Pilvitallennus' }));
+  body.append(cloudCard());
+
   body.append(h('div', { class: 'section-title', text: 'Varmuuskopio' }));
   body.append(h('div', { class: 'card stack' },
     h('p', { class: 'small muted', text: 'Kaikki tiedot tallentuvat vain tähän laitteeseen. Ota varmuuskopio ennen selaimen tietojen tyhjennystä tai kun vaihdat puhelinta.' }),
@@ -2968,6 +3404,111 @@ function settingsView() {
   body.append(h('p', { class: 'tiny muted center', style: 'margin-top:18px', text: 'Pelikirja · kokoonpanot, pelipaikat ja ottelut yhdessä paikassa' }));
 
   return { title: 'Asetukset', back: '#/ottelupaiva', body };
+}
+
+/* ---------- Pilvitallennus ---------- */
+
+let stopStatus = null;
+
+function statusLine() {
+  const st = getStatus();
+  const line = h('div', { class: 'row', style: 'gap:8px' });
+  const texts = {
+    syncing: ['badge', 'Synkronoidaan…'],
+    idle: ['badge win', `Synkronoitu ${timeAgo(st.lastSync)}`],
+    offline: ['badge draw', 'Ei verkkoyhteyttä'],
+    error: ['badge loss', 'Synkronointi epäonnistui'],
+    off: ['badge', 'Ei käytössä'],
+  };
+  const [cls, text] = texts[st.state] || texts.off;
+  line.append(h('span', { class: cls, text }));
+  if (st.state === 'error' && st.message) {
+    line.append(h('span', { class: 'tiny muted grow ellip', text: st.message }));
+  }
+  return line;
+}
+
+function cloudCard() {
+  stopStatus?.();
+  const card = h('div', { class: 'card stack' });
+
+  const draw = () => {
+    card.replaceChildren();
+    const cfg = getConfig();
+    const session = getSession();
+
+    if (!cfg) {
+      const urlI = h('input', { type: 'text', placeholder: 'https://xxxx.supabase.co', autocomplete: 'off', inputmode: 'url' });
+      const keyI = h('input', { type: 'text', placeholder: 'Julkinen anon-avain', autocomplete: 'off' });
+      card.append(
+        h('p', { class: 'small muted', text: 'Tallenna tiedot pilveen, niin voit muokata samaa joukkuetta useammalla laitteella. Tarvitset oman ilmaisen Supabase-projektin – ohjeet ovat README-tiedostossa.' }),
+        h('label', { class: 'field' }, h('span', { text: 'Projektin osoite' }), urlI),
+        h('label', { class: 'field' }, h('span', { text: 'Julkinen avain (anon)' }), keyI),
+        h('button', {
+          class: 'btn primary',
+          onclick: () => {
+            try {
+              setConfig(urlI.value, keyI.value);
+              toast('Yhteys tallennettu');
+              draw();
+            } catch (e) {
+              toast(e.message);
+            }
+          },
+        }, 'Ota käyttöön'));
+      return;
+    }
+
+    if (!session) {
+      const emailI = h('input', { type: 'text', placeholder: 'sähköposti', autocomplete: 'username', inputmode: 'email' });
+      const passI = h('input', { type: 'password', placeholder: 'salasana', autocomplete: 'current-password' });
+      const run = async (fn, label) => {
+        toast(label);
+        try {
+          await fn(emailI.value.trim(), passI.value);
+          toast('Kirjauduttu sisään');
+          draw();
+        } catch (e) {
+          toast(e.message);
+        }
+      };
+      card.append(
+        h('p', { class: 'small muted', text: `Projekti: ${cfg.url.replace(/^https?:\/\//, '')}` }),
+        h('label', { class: 'field' }, h('span', { text: 'Sähköposti' }), emailI),
+        h('label', { class: 'field' }, h('span', { text: 'Salasana' }), passI),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', onclick: () => run(signIn, 'Kirjaudutaan…') }, 'Kirjaudu'),
+          h('button', { class: 'btn', onclick: () => run(signUp, 'Luodaan tunnusta…') }, 'Luo tunnus')),
+        h('button', { class: 'btn sm ghost', style: 'width:100%', onclick: () => { forgetConfig(); draw(); } }, 'Unohda yhteysasetukset'));
+      return;
+    }
+
+    card.append(
+      h('div', { class: 'row between' },
+        h('span', { class: 'small muted', text: 'Tunnus' }),
+        h('span', { class: 'bold ellip', text: session.email || '–' })),
+      statusLine(),
+      h('div', { class: 'btn-row' },
+        h('button', {
+          class: 'btn',
+          onclick: async () => {
+            const r = await syncNow();
+            if (r.ok) toast(r.conflicts ? `Synkronoitu, ${r.conflicts} ristiriitaa ratkaistiin tämän laitteen hyväksi` : 'Synkronoitu');
+            else if (r.reason === 'offline') toast('Ei verkkoyhteyttä');
+            else if (r.reason !== 'busy') toast('Synkronointi epäonnistui');
+            draw();
+          },
+        }, 'Synkronoi nyt'),
+        h('button', {
+          class: 'btn ghost',
+          onclick: async () => { await signOut(); toast('Kirjauduttu ulos'); draw(); },
+        }, 'Kirjaudu ulos')),
+      h('p', { class: 'tiny muted', style: 'margin:0', text: 'Muutokset lähtevät pilveen automaattisesti, ja pilven muutokset haetaan kun palaat sovellukseen. Tiedot säilyvät laitteella myös offline-tilassa.' }));
+  };
+
+  draw();
+  stopStatus = onStatus(() => { if (document.body.contains(card)) draw(); else stopStatus?.(); });
+  return card;
 }
 
 function doExport() {
@@ -3057,6 +3598,7 @@ const { playersView } = __req('players');
 const { statsView } = __req('stats');
 const { settingsView } = __req('settings');
 const { navigate } = __req('router');
+const { startAutoSync } = __req('sync');
 const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
   { href: '#/ottelut', ic: 'calendar', label: 'Ottelut' },
@@ -3132,6 +3674,7 @@ function render() {
 }
 
 setRenderer(render);
+startAutoSync();
 window.addEventListener('hashchange', render);
 subscribe(() => render());
 

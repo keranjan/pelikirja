@@ -1,5 +1,5 @@
 // Offline-tuki: sovelluksen tiedostot välimuistiin, data pysyy localStoragessa.
-const CACHE = 'pelikirja-v2';
+const CACHE = 'pelikirja-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,8 @@ const ASSETS = [
   './js/icons.js',
   './js/store.js',
   './js/tactics.js',
+  './js/merge.js',
+  './js/sync.js',
   './js/ui.js',
   './js/formations.js',
   './js/views/matches.js',
@@ -36,8 +38,15 @@ self.addEventListener('activate', (e) => {
       .then(() => self.clients.claim()));
 });
 
+// Rajapintakutsut eivät kuulu välimuistiin: ne on aina haettava verkosta.
+const isApiCall = (url) =>
+  url.origin !== self.location.origin
+  || url.pathname.includes('/rest/v1/')
+  || url.pathname.includes('/auth/v1/');
+
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (isApiCall(new URL(e.request.url))) return;
   e.respondWith(
     caches.match(e.request).then((hit) => {
       if (hit) {

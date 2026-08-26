@@ -104,6 +104,19 @@ export function countdownText(m) {
   return '';
 }
 
+/** "juuri nyt", "5 min sitten", "eilen klo 18:30" */
+export function timeAgo(iso) {
+  if (!iso) return 'ei koskaan';
+  const then = new Date(iso);
+  if (isNaN(then)) return 'ei koskaan';
+  const mins = Math.round((Date.now() - then.getTime()) / 60000);
+  if (mins < 1) return 'juuri nyt';
+  if (mins < 60) return `${mins} min sitten`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h sitten`;
+  return `${fmtShortDate(then.toISOString().slice(0, 10))} klo ${String(then.getHours()).padStart(2, '0')}:${String(then.getMinutes()).padStart(2, '0')}`;
+}
+
 export const initials = (name) =>
   name.trim().split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
 

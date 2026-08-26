@@ -11,6 +11,7 @@ import { playersView } from './views/players.js';
 import { statsView } from './views/stats.js';
 import { settingsView } from './views/settings.js';
 import { navigate } from './router.js';
+import { startAutoSync } from './sync.js';
 
 const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
@@ -87,6 +88,7 @@ function render() {
 }
 
 setRenderer(render);
+startAutoSync();
 window.addEventListener('hashchange', render);
 subscribe(() => render());
 

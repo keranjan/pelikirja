@@ -1,10 +1,11 @@
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
-import { h, fmtDate, daysUntil, videoInfo } from '../ui.js';
+import { h, fmtDate, daysUntil, videoInfo, timeAgo } from '../ui.js';
 import {
   getState, upcomingMatches, pastMatches, isPlayed, playerName,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
+import { getStatus, isConnected } from '../sync.js';
 import { icon } from '../icons.js';
 import { openMatchSheet } from './matches.js';
 
@@ -35,6 +36,7 @@ export function homeView() {
   }
 
   if (played.length) body.append(seasonStrip(played));
+  if (isConnected()) body.append(syncLine());
 
   return {
     title: st.team.name || 'Pelikirja',
@@ -170,6 +172,23 @@ function seasonStrip(played) {
       cell(String(played.length), 'Ottelua'),
       cell(`${w}–${d}–${l}`, 'V–T–H'),
       cell(`${gf}–${ga}`, 'Maalit')));
+}
+
+/** Hienovarainen tieto siitä, onko data ajan tasalla muilla laitteilla. */
+function syncLine() {
+  const st = getStatus();
+  const text = {
+    syncing: 'Synkronoidaan…',
+    idle: `Synkronoitu ${timeAgo(st.lastSync)}`,
+    offline: 'Ei verkkoyhteyttä – muutokset lähtevät myöhemmin',
+    error: 'Synkronointi epäonnistui – katso asetukset',
+  }[st.state] || '';
+  if (!text) return null;
+  return h('button', {
+    class: 'tiny muted center',
+    style: 'background:none;border:0;padding:12px 0 0;width:100%;cursor:pointer',
+    onclick: () => navigate('#/asetukset'),
+  }, text);
 }
 
 const shortDay = (dateStr) => {

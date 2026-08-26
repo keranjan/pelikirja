@@ -67,8 +67,45 @@ ja kauden luvut. Muut näkymät ovat omina välilehtinään.
 - Pelaajat: avauskokoonpanot, vaihtopenkki, maalit ja syötöt
 
 **Tiedot**
-- Kaikki tallentuu laitteen selaimeen (localStorage), ei tilejä eikä palvelinta
-- Varmuuskopion vienti ja tuonti JSON-tiedostona (Asetukset-välilehti)
+- Toimii ilman tiliä: kaikki tallentuu laitteen selaimeen (localStorage)
+- Valinnainen pilvitallennus, jolla samaa joukkuetta voi muokata useammalla
+  laitteella – ks. alla
+- Varmuuskopion vienti ja tuonti JSON-tiedostona tai leikepöydän kautta
+
+## Pilvitallennus (valinnainen)
+
+Ilman pilveä sovellus toimii täysin, mutta tiedot ovat vain yhdessä laitteessa.
+Pilvitallennus käyttää omaa ilmaista Supabase-projektiasi: sovellus puhuu
+suoraan sen REST-rajapintaan, joten mitään kirjastoa ei ladata eikä offline-tuki
+katoa. Tiedot pysyvät edelleen laitteella, ja pilvi on synkronointipiste.
+
+**Käyttöönotto**
+
+1. Luo ilmainen projekti osoitteessa https://supabase.com (Free-taso riittää).
+2. Avaa projektin **SQL Editor** ja aja `supabase/schema.sql` sellaisenaan.
+   Se luo taulun `pelikirja` ja käyttöoikeussäännöt, joilla jokainen näkee
+   vain oman rivinsä.
+3. Jos et halua vahvistaa sähköpostia, ota **Authentication → Providers → Email**
+   -asetuksista "Confirm email" pois päältä.
+4. Kopioi **Project Settings → API** -sivulta *Project URL* ja *anon public* -avain.
+5. Avaa sovelluksessa **Asetukset → Pilvitallennus**, liitä osoite ja avain,
+   ja luo tunnus sähköpostilla ja salasanalla.
+6. Toista kohdat 4–5 muilla laitteilla ja kirjaudu samalla tunnuksella.
+
+Anon-avain on tarkoitettu julkiseksi: se ei anna pääsyä tietoihin ilman
+kirjautumista, koska taulun käyttöoikeussäännöt rajaavat rivit käyttäjäkohtaisiksi.
+
+**Miten synkronointi toimii**
+
+- Muutokset lähtevät pilveen automaattisesti muutaman sekunnin viiveellä, ja
+  pilven muutokset haetaan kun sovellus avataan tai palaat siihen taustalta.
+- Yhdistäminen tehdään kohde kerrallaan kolmen version vertailuna (viimeksi
+  synkronoitu, tämä laite, pilvi). Jos toinen laite muokkasi eri pelaajaa tai
+  ottelua, molemmat muutokset säilyvät.
+- Jos molemmat muokkasivat samaa kohdetta, myöhemmin synkronoineen laitteen
+  versio jää voimaan ja sovellus kertoo, montako ristiriitaa ratkaistiin.
+- Offline-tilassa muutokset jäävät odottamaan ja lähtevät, kun verkko palaa.
+- Ulkoasuvalinta (vaalea/tumma) on laitekohtainen eikä synkronoidu.
 
 ## Käyttöönotto puhelimessa
 
@@ -107,6 +144,9 @@ css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
 css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
 js/tactics.js           taktiikkapiirrosten työkalut ja polut
+js/sync.js              pilvitallennus (Supabasen REST-rajapinta)
+js/merge.js             kolmen version yhdistäminen laitteiden välillä
+supabase/schema.sql     pilvitallennuksen taulu ja käyttöoikeudet
 js/app.js               reititys ja näkymien piirto
 js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
@@ -115,4 +155,6 @@ js/views/               näkymät: ottelupäivä, ottelut, ottelu, kokoonpanot, 
                         kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tests/smoke.mjs         päävirran savutesti
+tests/sync.test.mjs     kahden laitteen synkronointitesti
+tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta
 ```
