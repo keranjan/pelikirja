@@ -1,7 +1,8 @@
 // Muuntaa Torneopalin (esim. spl.torneopal.fi) otteluohjelman Pelikirjan muotoon.
+// Lukee joko getMatches-rajapinnan JSON:in tai sarjaohjelman HTML-taulukon.
 //
 // Käyttö:
-//   node tools/import-torneopal.mjs matches.json --team "Ilves Beta"
+//   node tools/import-torneopal.mjs otteluohjelma.html --team "Ilves Beta"
 //   curl -s "<torneopal getMatches -osoite>" | node tools/import-torneopal.mjs --team "Ilves Beta"
 //
 // Valinnat:
@@ -33,19 +34,58 @@ const raw = file ? fs.readFileSync(file, 'utf8') : fs.readFileSync(0, 'utf8');
 
 /* ---------- Lähdemuodon tulkinta ---------- */
 
-let parsed;
-try {
-  parsed = JSON.parse(raw);
-} catch {
-  console.error('Syöte ei ole JSON:ia. Anna Torneopalin getMatches-vastaus sellaisenaan.');
-  process.exit(1);
+const decode = (s) => s
+  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+
+const text = (html) => decode(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+
+/** Sarjaohjelman HTML-taulukko: yksi <tr> per ottelu, tiedot solujen luokissa. */
+function parseHtml(html) {
+  const out = [];
+  const rowRe = /<tr\b([^>]*)>([\s\S]*?)<\/tr>/gi;
+  const cellRe = /<td\b[^>]*class=["']([^"']*)["'][^>]*>([\s\S]*?)<\/td>/gi;
+
+  for (const [, attrs, body] of html.matchAll(rowRe)) {
+    const cells = {};
+    for (const [, cls, content] of body.matchAll(cellRe)) {
+      cells[cls.trim().split(/\s+/)[0]] = text(content);
+    }
+    if (!cells.home || !cells.away) continue;           // otsikkorivi
+    out.push({
+      match_number: cells.match || '',
+      match_id: (attrs.match(/matchid_(\d+)/) || [])[1] || '',
+      date: cells.date || '',
+      time: cells.time || '',
+      team_A_name: cells.home,
+      team_B_name: cells.away,
+      venue_name: cells.pitch || '',
+      score: cells.score || '',
+    });
+  }
+  return out;
 }
 
-const rows = Array.isArray(parsed) ? parsed
-  : parsed.matches || parsed.data?.matches || parsed.result?.matches || [];
+const looksLikeHtml = /^\s*</.test(raw) || /<t(able|r)\b/i.test(raw);
+
+let rows;
+if (looksLikeHtml) {
+  rows = parseHtml(raw);
+} else {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.error('Syötettä ei tunnistettu. Anna Torneopalin getMatches-vastaus (JSON) tai sarjaohjelman HTML.');
+    process.exit(1);
+  }
+  rows = Array.isArray(parsed) ? parsed
+    : parsed.matches || parsed.data?.matches || parsed.result?.matches || [];
+}
 
 if (!rows.length) {
-  console.error('Otteluita ei löytynyt. Odotettiin { "matches": [...] } tai taulukkoa.');
+  console.error('Otteluita ei löytynyt syötteestä.');
   process.exit(1);
 }
 
@@ -58,15 +98,27 @@ const pick = (row, ...names) => {
   return '';
 };
 
-const normalize = (row) => ({
-  date: pick(row, 'date', 'match_date', 'day').slice(0, 10),
-  time: (pick(row, 'time', 'match_time', 'start_time') || '18:00').slice(0, 5),
-  homeTeam: pick(row, 'team_A_name', 'home_team', 'team_home', 'teamA'),
-  awayTeam: pick(row, 'team_B_name', 'away_team', 'team_away', 'teamB'),
-  venue: pick(row, 'venue_name', 'field_name', 'venue', 'location'),
-  status: pick(row, 'status'),
-  played: !!pick(row, 'fs_A') || /played|ended|result/i.test(pick(row, 'status')),
-});
+/** Torneopal käyttää HTML:ssä muotoa 28.08.2026, rajapinnassa 2026-08-28. */
+function isoDate(value) {
+  const fi = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (fi) return `${fi[3]}-${fi[2].padStart(2, '0')}-${fi[1].padStart(2, '0')}`;
+  return value.slice(0, 10);
+}
+
+const normalize = (row) => {
+  const score = pick(row, 'score');
+  const goals = score.match(/(\d+)\s*[-–]\s*(\d+)/);
+  return {
+    id: pick(row, 'match_number', 'match_id'),
+    date: isoDate(pick(row, 'date', 'match_date', 'day')),
+    time: (pick(row, 'time', 'match_time', 'start_time') || '18:00').slice(0, 5),
+    homeTeam: pick(row, 'team_A_name', 'home_team', 'team_home', 'teamA'),
+    awayTeam: pick(row, 'team_B_name', 'away_team', 'team_away', 'teamB'),
+    venue: pick(row, 'venue_name', 'field_name', 'venue', 'location'),
+    goals: goals ? { home: Number(goals[1]), away: Number(goals[2]) } : null,
+    played: !!goals || !!pick(row, 'fs_A') || /played|ended|result/i.test(pick(row, 'status')),
+  };
+};
 
 /* ---------- Muunnos ---------- */
 
@@ -111,7 +163,8 @@ for (const row of rows) {
   seen.add(key);
 
   matches.push({
-    id: uid(),
+    // Torneopalin ottelunumero pitää tunnisteen vakaana, jos tuonti ajetaan uudestaan.
+    id: r.id ? `tp${r.id}` : uid(),
     date: r.date,
     time: r.time,
     opponent: home ? r.awayTeam : r.homeTeam,
@@ -121,7 +174,9 @@ for (const row of rows) {
     videoUrl: '',
     notes: '',
     lineup: emptyLineup(),
-    result: null,
+    result: r.goals
+      ? { gf: home ? r.goals.home : r.goals.away, ga: home ? r.goals.away : r.goals.home, events: [], notes: '' }
+      : null,
   });
 }
 
