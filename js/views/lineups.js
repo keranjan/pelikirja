@@ -1,4 +1,5 @@
 // Tallennetut kokoonpanopohjat.
+import { icon } from '../icons.js';
 import { h, sheet, toast, confirmSheet } from '../ui.js';
 import { getState, lineupById, addLineup, removeLineup, update } from '../store.js';
 import { getFormation, formationsBySize } from '../formations.js';
@@ -11,7 +12,7 @@ export function lineupsView() {
 
   if (!lineups.length) {
     body.append(h('div', { class: 'empty' },
-      h('span', { class: 'big', text: '📋' }),
+      h('span', { class: 'big' }, icon('lineup', 30)),
       h('p', { text: 'Ei tallennettuja kokoonpanoja.' }),
       h('p', { class: 'small', text: 'Tee valmiita pohjia eri pelisysteemeille ja hae ne otteluun yhdellä napautuksella.' }),
       h('button', { class: 'btn primary', style: 'margin-top:14px;max-width:260px', onclick: openNewLineup }, '＋ Uusi kokoonpano')));
@@ -85,7 +86,7 @@ export function lineupView(id) {
     title: l.name,
     subtitle: getFormation(l.lineup.formation).name,
     back: '#/kokoonpanot',
-    actions: [{ icon: '✏️', aria: 'Nimeä uudelleen', onClick: () => renameLineup(l) }],
+    actions: [{ label: 'Nimeä', aria: 'Nimeä uudelleen', onClick: () => renameLineup(l) }],
     body,
   };
 }

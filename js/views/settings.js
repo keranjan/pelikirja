@@ -1,6 +1,6 @@
 // Joukkueen tiedot, varmuuskopiot ja tietojen tyhjennys.
 import { h, sheet, toast, confirmSheet } from '../ui.js';
-import { getState, update, exportJSON, importJSON, resetAll } from '../store.js';
+import { getState, update, exportJSON, importJSON, resetAll, applyTheme } from '../store.js';
 
 export function settingsView() {
   const st = getState();
@@ -21,11 +21,26 @@ export function settingsView() {
       },
     }, 'Tallenna')));
 
+  body.append(h('div', { class: 'section-title', text: 'Ulkoasu' }));
+  const theme = st.team.theme || 'system';
+  const themeSeg = h('div', { class: 'segmented' },
+    ...[['system', 'Järjestelmä'], ['light', 'Vaalea'], ['dark', 'Tumma']].map(([value, label]) =>
+      h('button', {
+        class: theme === value ? 'on' : '',
+        onclick: () => {
+          update((s) => { s.team.theme = value; });
+          applyTheme(value);
+        },
+      }, label)));
+  body.append(h('div', { class: 'card stack' },
+    themeSeg,
+    h('p', { class: 'tiny muted', text: 'Vaalea ulkoasu erottuu parhaiten auringossa, tumma iltapeleissä. Järjestelmä seuraa puhelimen asetusta.' })));
+
   body.append(h('div', { class: 'section-title', text: 'Varmuuskopio' }));
   body.append(h('div', { class: 'card stack' },
     h('p', { class: 'small muted', text: 'Kaikki tiedot tallentuvat vain tähän laitteeseen. Ota varmuuskopio ennen selaimen tietojen tyhjennystä tai kun vaihdat puhelinta.' }),
-    h('button', { class: 'btn', onclick: doExport }, '⬇️ Vie tiedot'),
-    h('button', { class: 'btn', onclick: doImport }, '⬆️ Tuo tiedot')));
+    h('button', { class: 'btn', onclick: doExport }, 'Vie tiedot'),
+    h('button', { class: 'btn', onclick: doImport }, 'Tuo tiedot')));
 
   body.append(h('div', { class: 'section-title', text: 'Sovellus' }));
   body.append(h('div', { class: 'card stack' },
@@ -50,7 +65,7 @@ export function settingsView() {
 
   body.append(h('p', { class: 'tiny muted center', style: 'margin-top:18px', text: 'Pelikirja · kokoonpanot, pelipaikat ja ottelut yhdessä paikassa' }));
 
-  return { title: 'Asetukset', body };
+  return { title: 'Asetukset', back: '#/ottelupaiva', body };
 }
 
 function doExport() {
@@ -71,7 +86,7 @@ function doExport() {
           setTimeout(() => URL.revokeObjectURL(url), 1000);
           toast('Tiedosto tallennettu');
         },
-      }, `⬇️ Lataa ${name}`),
+      }, 'Lataa varmuuskopio'),
       h('button', {
         class: 'btn', style: 'margin-bottom:14px',
         onclick: async () => {
@@ -84,7 +99,7 @@ function doExport() {
             toast('Kopioi teksti alta');
           }
         },
-      }, '📋 Kopioi leikepöydälle'));
+      }, 'Kopioi leikepöydälle'));
     const ta = h('textarea', { style: 'min-height:160px;font-family:ui-monospace,monospace;font-size:12px', text: json });
     body.append(ta);
   });
@@ -116,7 +131,7 @@ function doImport() {
     body.append(
       h('p', { class: 'small muted', text: 'Nykyiset tiedot korvautuvat varmuuskopion sisällöllä.' }),
       file,
-      h('button', { class: 'btn primary', style: 'margin-bottom:10px', onclick: () => file.click() }, '📂 Valitse tiedosto'),
+      h('button', { class: 'btn primary', style: 'margin-bottom:10px', onclick: () => file.click() }, 'Valitse tiedosto'),
       h('div', { class: 'section-title', text: 'Tai liitä teksti' }),
       ta,
       h('button', { class: 'btn', style: 'margin-top:10px', onclick: () => load(ta.value) }, 'Tuo liitetty teksti'));

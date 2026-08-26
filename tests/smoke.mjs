@@ -135,7 +135,8 @@ await tap('#tabbar a[href="#/tilastot"]');
 await shot('07-tilastot');
 await tap('#tabbar a[href="#/kokoonpanot"]');
 await shot('08-kokoonpanot');
-await tap('#tabbar a[href="#/asetukset"]');
+await page.evaluate(() => { location.hash = '#/asetukset'; });
+await page.waitForTimeout(300);
 await shot('09-asetukset');
 
 // --- Varmuuskopion vienti ja tuonti ---
@@ -162,6 +163,15 @@ await tap('#tabbar a[href="#/ottelut"]');
 await page.locator('#view .segmented button', { hasText: 'Pelatut' }).click();
 await page.waitForTimeout(200);
 await shot('10-ottelut-pelatut');
+
+// --- Ottelupäivä-etusivu ---
+await tap('#tabbar a[href="#/ottelupaiva"]');
+await page.waitForTimeout(300);
+await shot('11-ottelupaiva');
+const heroText = await page.locator('#view .hero').first().textContent();
+if (!heroText.includes('FC Naapuri') && !heroText.includes('Ei tulevia')) {
+  console.error('Etusivun ottelukortti puuttuu'); process.exit(1);
+}
 
 // --- Uudelleenlataus: pysyykö data? ---
 await page.reload();

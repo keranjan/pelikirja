@@ -1,4 +1,5 @@
 // Yksittäisen ottelun näkymä: kokoonpano, tulos ja tiedot.
+import { icon } from '../icons.js';
 import { h, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js';
 import {
   getState, matchById, updateMatch, removeMatch, update, uid,
@@ -47,9 +48,9 @@ function lineupTab(m) {
 
   wrap.append(h('hr', { class: 'sep' }));
   wrap.append(h('div', { class: 'btn-row' },
-    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => openTemplatePicker(m) }, '📋 Hae pohjasta'),
-    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => saveAsTemplate(m) }, '💾 Tallenna pohjaksi')));
-  wrap.append(h('button', { class: 'btn', onclick: () => shareLineup(m) }, '📤 Jaa kokoonpano'));
+    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => openTemplatePicker(m) }, 'Hae pohjasta'),
+    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => saveAsTemplate(m) }, 'Tallenna pohjaksi')));
+  wrap.append(h('button', { class: 'btn', onclick: () => shareLineup(m) }, 'Jaa kokoonpano'));
 
   return wrap;
 }
@@ -110,7 +111,7 @@ function videoBlock(m) {
   const wrap = h('div', { class: 'stack', style: 'margin-top:16px' });
 
   if (!video) {
-    wrap.append(h('button', { class: 'btn', onclick: () => openVideoSheet(m) }, '🎬 Lisää videolinkki'));
+    wrap.append(h('button', { class: 'btn', onclick: () => openVideoSheet(m) }, 'Lisää videolinkki'));
     return wrap;
   }
 
@@ -207,7 +208,7 @@ function resultTab(m) {
 
   if (!m.result) {
     wrap.append(h('div', { class: 'empty' },
-      h('span', { class: 'big', text: '📝' }),
+      h('span', { class: 'big' }, icon('note', 30)),
       h('p', { text: 'Ottelua ei ole vielä pelattu.' }),
       h('p', { class: 'small', text: 'Kirjaa lopputulos ja maalintekijät, kun ottelu on pelattu.' })));
     wrap.append(h('button', {
@@ -247,7 +248,7 @@ function resultTab(m) {
       wrap.append(h('div', { class: 'card row' },
         h('span', { class: 'numchip', text: ev.minute != null ? `${ev.minute}'` : '–' }),
         h('span', { class: 'grow' },
-          h('div', { class: 'bold ellip', text: `⚽ ${playerName(ev.scorerId)}` }),
+          h('div', { class: 'bold ellip', text: playerName(ev.scorerId) }),
           ev.assistId ? h('div', { class: 'tiny muted ellip', text: `Syöttö: ${playerName(ev.assistId)}` }) : null),
         h('button', {
           class: 'btn sm ghost',
@@ -345,7 +346,7 @@ function infoTab(m) {
     wrap.append(h('div', { class: 'card small', text: m.notes }));
   }
 
-  wrap.append(h('button', { class: 'btn', style: 'margin-top:10px', onclick: () => openMatchSheet(m) }, '✏️ Muokkaa tapahtumaa'));
+  wrap.append(h('button', { class: 'btn', style: 'margin-top:10px', onclick: () => openMatchSheet(m) }, 'Muokkaa tapahtumaa'));
   wrap.append(h('button', {
     class: 'btn danger',
     onclick: async () => {

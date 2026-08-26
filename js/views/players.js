@@ -1,4 +1,5 @@
 // Pelaajaluettelo ja pelaajakortin muokkaus.
+import { icon } from '../icons.js';
 import { h, sheet, toast, confirmSheet } from '../ui.js';
 import { ROLES, ROLE_NAMES } from '../formations.js';
 import { getState, sortedPlayers, addPlayer, updatePlayer, removePlayer } from '../store.js';
@@ -9,7 +10,7 @@ export function playersView() {
 
   if (!players.length) {
     body.append(h('div', { class: 'empty' },
-      h('span', { class: 'big', text: '👥' }),
+      h('span', { class: 'big' }, icon('players', 30)),
       h('p', { text: 'Ei vielä pelaajia.' }),
       h('p', { class: 'small', text: 'Lisää joukkueesi pelaajat, niin voit rakentaa kokoonpanot.' }),
       h('button', { class: 'btn primary', style: 'margin-top:14px;max-width:260px', onclick: () => openPlayerSheet(null) }, '＋ Lisää ensimmäinen pelaaja')));

@@ -9,7 +9,7 @@ export function statsView() {
 
   if (!played.length) {
     body.append(h('div', { class: 'empty' },
-      h('span', { class: 'big', text: '📊' }),
+      h('span', { class: 'big' }, icon('chart', 30)),
       h('p', { text: 'Ei vielä tilastoja.' }),
       h('p', { class: 'small', text: 'Kirjaa otteluihin tulokset, niin tilastot kertyvät tänne.' })));
     return { title: 'Tilastot', body };

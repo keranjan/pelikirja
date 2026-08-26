@@ -9,7 +9,7 @@ export const uid = () =>
 
 const emptyState = () => ({
   version: 1,
-  team: { name: 'Oma joukkue', season: String(new Date().getFullYear()) },
+  team: { name: 'Oma joukkue', season: String(new Date().getFullYear()), theme: 'system' },
   players: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   matches: [],
@@ -73,6 +73,13 @@ export function replaceState(next) {
 }
 
 export const resetAll = () => replaceState(emptyState());
+
+/** Ulkoasu: 'system' | 'light' | 'dark'. Tumma sopii iltapeleihin. */
+export function applyTheme(theme = state.team.theme) {
+  const root = document.documentElement;
+  if (theme === 'light' || theme === 'dark') root.dataset.theme = theme;
+  else delete root.dataset.theme;
+}
 
 /* ---------- Pelaajat ---------- */
 

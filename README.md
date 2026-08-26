@@ -6,7 +6,24 @@ lisää **tulevat ottelut ja tapahtumat** sekä liitä otteluihin **kokoonpano j
 Sovellus on asennettava web-sovellus (PWA): sen voi lisätä puhelimen kotinäytölle, se toimii
 ilman verkkoyhteyttä ja kaikki tiedot tallentuvat vain omaan laitteeseen.
 
+## Käyttöliittymä
+
+Vaalea ottelupäivä-ilme, joka erottuu myös auringossa – ja tumma vastinpari
+iltapeleihin (Asetukset → Ulkoasu: järjestelmä, vaalea tai tumma).
+Otsikot ja numerot Archivo, leipäteksti Instrument Sans; fontit on upotettu
+sovellukseen, joten ulkoasu on sama myös ilman verkkoyhteyttä.
+
+Sovellus avautuu **Ottelupäivä**-etusivulle, joka näyttää seuraavan ottelun
+isona: lähtölaskenta, kokoonpanon täyttöaste pikkukenttänä, viimeisin tulos
+ja kauden luvut. Muut näkymät ovat omina välilehtinään.
+
 ## Ominaisuudet
+
+**Ottelupäivä (etusivu)**
+- Seuraava ottelu isona: vastustaja, paikka, kellonaika ja lähtölaskenta
+- Kokoonpanon tila mittarina ja pikkukenttänä yhdellä silmäyksellä
+- Viimeisin tulos maalintekijöineen ja videolinkkeineen
+- Kauden luvut: ottelut, voitot–tasapelit–tappiot ja maalit
 
 **Pelaajat**
 - Pelaajakortti: nimi, pelinumero, vahvempi jalka, muistiinpanot
@@ -72,12 +89,15 @@ Sovelluksessa ei ole käännösvaihetta: `index.html` ja ES-moduulit toimivat se
 index.html              käyttöliittymän runko
 manifest.webmanifest    PWA-määrittely
 sw.js                   service worker (offline-välimuisti)
-css/styles.css          tyylit
+css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
+css/styles.css          tyylit ja väriteemat
+js/icons.js             viivakuvakkeet
 js/app.js               reititys ja näkymien piirto
 js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
-js/views/               näkymät: ottelut, ottelu, kokoonpanot, pelaajat, kenttä, tilastot, asetukset
+js/views/               näkymät: ottelupäivä, ottelut, ottelu, kokoonpanot, pelaajat,
+                        kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tests/smoke.mjs         päävirran savutesti
 ```

@@ -1,4 +1,5 @@
 // Otteluluettelo: tulevat tapahtumat ja pelatut ottelut.
+import { icon } from '../icons.js';
 import { h, sheet, toast, fmtShortDate, countdownText, videoInfo } from '../ui.js';
 import { getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff } from '../store.js';
 import { getFormation } from '../formations.js';
@@ -20,7 +21,7 @@ export function matchesView() {
 
   if (!list.length) {
     body.append(h('div', { class: 'empty' },
-      h('span', { class: 'big', text: tab === 'tulevat' ? '📅' : '🏆' }),
+      h('span', { class: 'big' }, icon(tab === 'tulevat' ? 'calendar' : 'trophy', 30)),
       h('p', { text: tab === 'tulevat' ? 'Ei tulevia tapahtumia.' : 'Ei pelattuja otteluita.' }),
       h('p', { class: 'small', text: tab === 'tulevat' ? 'Lisää ottelu, harjoituspeli tai turnaus.' : 'Merkitse otteluun tulos, niin se siirtyy tänne.' }),
       tab === 'tulevat'
@@ -40,8 +41,8 @@ export function matchesView() {
   }
 
   return {
-    title: state.team.name || 'Ottelut',
-    subtitle: `Kausi ${state.team.season || ''}`.trim(),
+    title: 'Ottelut',
+    subtitle: state.team.name || '',
     actions: [{ icon: '＋', aria: 'Lisää tapahtuma', onClick: () => openMatchSheet(null) }],
     body,
   };
@@ -74,7 +75,7 @@ function matchCard(m) {
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
-      videoInfo(m.videoUrl) ? h('span', { class: 'badge', text: '🎬 Video' }) : null));
+      videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }
 
 export function openMatchSheet(match) {

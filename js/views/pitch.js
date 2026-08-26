@@ -69,7 +69,7 @@ export function renderLineupEditor(lineup, commit) {
   wrap.append(h('div', { class: 'pitch-wrap' }, pitch));
 
   wrap.append(h('div', { class: 'btn-row' },
-    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => commit(() => autoFill(lineup)) }, '✨ Automaattitäyttö'),
+    h('button', { class: 'btn sm', style: 'flex:1', onclick: () => commit(() => autoFill(lineup)) }, 'Automaattitäyttö'),
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
       onclick: () => commit(() => { lineup.slots = lineup.slots.map(() => null); }),
@@ -106,7 +106,7 @@ export function renderLineupEditor(lineup, commit) {
   wrap.append(h('button', {
     class: 'btn', style: 'margin-top:10px',
     onclick: () => openSquadSheet(lineup, commit),
-  }, '👥 Hallitse ryhmää'));
+  }, 'Hallitse ryhmää'));
 
   return wrap;
 }

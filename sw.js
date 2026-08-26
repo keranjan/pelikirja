@@ -1,15 +1,18 @@
 // Offline-tuki: sovelluksen tiedostot välimuistiin, data pysyy localStoragessa.
-const CACHE = 'pelikirja-v1';
+const CACHE = 'pelikirja-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './css/fonts.css',
   './css/styles.css',
   './js/app.js',
+  './js/icons.js',
   './js/store.js',
   './js/ui.js',
   './js/formations.js',
   './js/views/matches.js',
+  './js/views/home.js',
   './js/views/match.js',
   './js/views/lineups.js',
   './js/views/players.js',
