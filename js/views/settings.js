@@ -1,6 +1,7 @@
 // Joukkueen tiedot, varmuuskopiot ja tietojen tyhjennys.
 import { h, sheet, toast, confirmSheet, timeAgo } from '../ui.js';
 import { getState, update, exportJSON, importJSON, resetAll, applyTheme } from '../store.js';
+import { DEFAULT_TEAM_NAME } from '../merge.js';
 import {
   getConfig, getSession, getStatus, onStatus, setConfig, forgetConfig,
   signIn, signUp, signOut, syncNow, isConnected,
@@ -20,7 +21,7 @@ export function settingsView() {
     h('button', {
       class: 'btn primary',
       onclick: () => {
-        update((s) => { s.team.name = nameI.value.trim() || 'Oma joukkue'; s.team.season = seasonI.value.trim(); });
+        update((s) => { s.team.name = nameI.value.trim() || DEFAULT_TEAM_NAME; s.team.season = seasonI.value.trim(); });
         toast('Tallennettu');
       },
     }, 'Tallenna')));

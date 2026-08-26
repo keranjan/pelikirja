@@ -1,5 +1,6 @@
 // Tilanhallinta ja tallennus (localStorage).
 import { getFormation } from './formations.js';
+import { DEFAULT_TEAM_NAME } from './merge.js';
 
 const KEY = 'pelikirja.v1';
 const listeners = new Set();
@@ -9,7 +10,7 @@ export const uid = () =>
 
 const emptyState = () => ({
   version: 1,
-  team: { name: 'Oma joukkue', season: String(new Date().getFullYear()), theme: 'system' },
+  team: { name: DEFAULT_TEAM_NAME, season: String(new Date().getFullYear()), theme: 'system' },
   players: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   matches: [],

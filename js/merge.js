@@ -10,6 +10,9 @@ export function stable(value) {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
 }
 
+/** Oletusnimi, jota ei ole vielä muutettu. Sama arvo kuin tyhjässä tilassa. */
+export const DEFAULT_TEAM_NAME = 'Oma joukkue';
+
 const byId = (list = []) => new Map(list.map((item) => [item.id, item]));
 
 /**
@@ -78,11 +81,14 @@ export function mergeStates(base, local, remote) {
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
   conflicts += players.conflicts + matches.conflicts + lineups.conflicts;
 
-  // Uudella laitteella ei ole vielä omaa dataa, joten pilven tiedot otetaan
-  // sellaisenaan – muuten laitteen oletusnimi ylikirjoittaisi joukkueen nimen.
+  // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
+  // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
+  // ylikirjoittaisi joukkueen nimen. Jos nimi on jo annettu, se on
+  // käyttäjän tietoinen valinta ja käsitellään normaalina muutoksena.
   const localIsFresh = !(local.players || []).length
     && !(local.matches || []).length
-    && !(local.lineups || []).length;
+    && !(local.lineups || []).length
+    && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
 
   // Joukkueen tiedot ovat yksi kokonaisuus: uusin muutos voittaa.
   const teamBase = stable(withoutTheme(b.team || {}));

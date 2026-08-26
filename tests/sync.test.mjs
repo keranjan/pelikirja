@@ -163,6 +163,87 @@ const afterDelete = await b.state();
 if (afterDelete.players.some((p) => p.id === 'p1')) fail('poisto ei levinnyt laitteelle B');
 else console.log('poisto levisi laitteelle B');
 
+// --- Joukkueen nimen muuttaminen ---
+await a.edit((st) => { st.team.name = 'Ilves Musta'; st.team.season = '2027'; });
+await a.sync();
+await b.sync();
+let nb = (await b.state()).team;
+if (nb.name !== 'Ilves Musta' || nb.season !== '2027') {
+  fail(`nimenmuutos laitteelta A ei siirtynyt: ${JSON.stringify(nb)}`);
+} else {
+  console.log('nimenmuutos A -> B:', nb.name, nb.season);
+}
+
+await b.edit((st) => { st.team.name = 'Ilves Valkoinen'; });
+await b.sync();
+await a.sync();
+let na = (await a.state()).team;
+if (na.name !== 'Ilves Valkoinen') fail(`nimenmuutos laitteelta B ei siirtynyt: ${na.name}`);
+else console.log('nimenmuutos B -> A:', na.name);
+
+// Molemmat nimeävät uudelleen ilman välisynkronointia
+await a.edit((st) => { st.team.name = 'A:n nimi'; });
+await b.edit((st) => { st.team.name = 'B:n nimi'; });
+await a.sync();
+const rbTeam = await b.sync();
+await a.sync();
+na = (await a.state()).team;
+nb = (await b.state()).team;
+if (na.name !== nb.name) fail(`laitteet eri nimillä: ${na.name} vs ${nb.name}`);
+else if (nb.name !== 'B:n nimi') fail(`ristiriidan piti ratketa B:n hyväksi, tuli: ${nb.name}`);
+else if (!rbTeam.conflicts) fail('nimen ristiriitaa ei raportoitu');
+else console.log(`nimen ristiriita ratkesi: "${nb.name}" (${rbTeam.conflicts} ristiriitaa)`);
+
+// Ulkoasu on laitekohtainen eikä saa kulkea pilven mukana
+await a.edit((st) => { st.team.theme = 'dark'; });
+await a.sync();
+await b.sync();
+if ((await b.state()).team.theme === 'dark') fail('ulkoasuvalinta siirtyi laitteelta toiselle');
+else console.log('ulkoasuvalinta pysyi laitekohtaisena');
+
+// --- Nimeäminen oikeasta käyttöliittymästä, ei suoraan tilaa muokaten ---
+await a.page.evaluate(() => { location.hash = '#/asetukset'; });
+await a.page.waitForTimeout(400);
+await a.page.locator('#view .card input[type=text]').first().fill('Ilves Keltainen 07');
+await a.page.locator('#view .card .btn.primary', { hasText: 'Tallenna' }).first().click();
+await a.page.waitForTimeout(300);
+await a.sync();
+await b.sync();
+const uiName = (await b.state()).team.name;
+if (uiName !== 'Ilves Keltainen 07') {
+  fail(`asetuksista tehty nimeäminen ei siirtynyt: ${uiName}`);
+} else {
+  console.log('asetuksista nimetty joukkue siirtyi toiselle laitteelle:', uiName);
+}
+// Nimi näkyy myös etusivun otsikossa
+await b.page.evaluate(() => { location.hash = '#/ottelupaiva'; });
+await b.page.waitForTimeout(300);
+const heading = (await b.page.locator('#topbar h1').textContent()).trim();
+if (!heading.startsWith('Ilves Keltainen 07')) fail(`etusivun otsikko ei päivittynyt: ${heading}`);
+else console.log('etusivun otsikko laitteella B:', heading);
+
+// --- Uusi laite, jolle on annettu nimi ennen kirjautumista ---
+const c = await device('laite C');
+await c.edit((st) => { st.team.name = 'C:n oma nimi'; });
+await c.connect();
+await c.signIn('valmentaja@example.com');
+await c.page.waitForTimeout(300);
+const nc = (await c.state()).team;
+if (nc.name !== 'C:n oma nimi') {
+  fail(`tyhjällä laitteella annettu nimi hukkui kirjautuessa: ${nc.name}`);
+} else {
+  console.log('tyhjällä laitteella annettu nimi säilyi:', nc.name);
+}
+
+// --- Aivan uusi laite ilman omia muutoksia saa pilven nimen ---
+const d = await device('laite D');
+await d.connect();
+await d.signIn('valmentaja@example.com');
+await d.page.waitForTimeout(300);
+const nd = (await d.state()).team;
+if (nd.name === 'Oma joukkue') fail('uusi laite jäi oletusnimeen');
+else console.log('uusi laite sai pilven nimen:', nd.name);
+
 await browser.close();
 server.close();
 
