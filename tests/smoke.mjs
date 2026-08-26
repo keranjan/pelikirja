@@ -42,12 +42,25 @@ const tapText = async (t) => { await page.getByText(t, { exact: false }).first()
 await page.goto('http://localhost:8777/index.html');
 await page.waitForTimeout(400);
 
+// --- Tyhjä tila: jokainen näkymä piirtyy ilman virheitä ---
+for (const hash of ['#/ottelupaiva', '#/ottelut', '#/kokoonpanot', '#/pelaajat', '#/tilastot', '#/asetukset']) {
+  await page.evaluate((hh) => { location.hash = hh; }, hash);
+  await page.waitForTimeout(180);
+  const title = (await page.locator('#topbar h1').textContent()).trim();
+  const content = (await page.locator('#view').textContent()).trim();
+  if (title.startsWith('Virhe') || !content) {
+    console.error(`Näkymä ${hash} ei piirtynyt (otsikko: ${title})`);
+    process.exit(1);
+  }
+}
+console.log('tyhjät näkymät piirtyvät');
+
 // --- Pelaajat ---
 await tap('#tabbar a[href="#/pelaajat"]');
 const players = [
   ['Aku Ahonen', '1', 'MV'], ['Bertta Broman', '2', 'LP'], ['Cecil Cronberg', '4', 'KP'],
-  ['Daniela Dahl', '5', 'KP'], ['Eemil Eskola', '3', 'LP'], ['Fanni Forsman', '6', 'DKK'],
-  ['Gustav Grönroos', '8', 'KK'], ['Hilla Hakala', '10', 'HKK'], ['Iiro Ilves', '7', 'LH'],
+  ['Daniela Dahl', '5', 'KP'], ['Eemil Eskola', '3', 'LP'], ['Fanni Forsman', '6', 'AKK'],
+  ['Gustav Grönroos', '8', 'KK'], ['Hilla Hakala', '10', 'YKK'], ['Iiro Ilves', '7', 'LH'],
   ['Jonna Järvi', '11', 'LH'], ['Kalle Koski', '9', 'KH'], ['Lumi Laine', '14', 'KK'],
   ['Mikael Mäki', '12', 'MV'],
 ];
@@ -55,6 +68,20 @@ for (const [name, num, role] of players) {
   await tap('#topbar .iconbtn[aria-label="Lisää pelaaja"], .empty .btn.primary');
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet input[type=number]').fill(num);
+  if (name === players[0][0]) {
+    // Pelinumero ja vahvempi jalka ovat samalla rivillä samalta korkeudelta.
+    const boxes = await page.locator('.sheet .field-row > label').evaluateAll(
+      (els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+    if (boxes.length !== 2 || boxes[0] !== boxes[1]) {
+      console.error('Pelinumero ja jalka eivät ole samalla tasolla: ' + JSON.stringify(boxes));
+      process.exit(1);
+    }
+    const chips = await page.locator('.sheet .chip').allTextContents();
+    if (!chips.some((c) => c.startsWith('AKK')) || !chips.some((c) => c.startsWith('YKK'))) {
+      console.error('Pelipaikkoja AKK/YKK ei löydy: ' + chips.join(' | '));
+      process.exit(1);
+    }
+  }
   await page.locator('.sheet .chip', { hasText: new RegExp('^' + role + ' ') }).first().click();
   await page.locator('.sheet .btn.primary').click();
   await page.waitForTimeout(80);
@@ -72,6 +99,18 @@ await page.locator('.sheet input[type=text]').nth(1).fill('Keskuskenttä 2');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(300);
 await shot('02-ottelu-kokoonpano-tyhja');
+
+// 8 vs 8 -systeemit ovat valittavissa
+const formationSelect = page.locator('#view select').first();
+const options = await formationSelect.locator('option').evaluateAll((els) => els.map((e) => e.value));
+for (const id of ['8-2-3-2', '8-2-4-1']) {
+  if (!options.includes(id)) { console.error('Pelisysteemi puuttuu: ' + id); process.exit(1); }
+}
+await formationSelect.selectOption('8-2-3-2');
+await page.waitForTimeout(200);
+const slots8 = await page.locator('#view .slot').count();
+if (slots8 !== 8) { console.error('8 vs 8 -kentällä ' + slots8 + ' paikkaa'); process.exit(1); }
+console.log('8 vs 8 -systeemit kunnossa');
 
 // Systeemi + automaattitäyttö
 await page.locator('#view select').first().selectOption('4-3-3');

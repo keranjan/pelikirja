@@ -26,6 +26,11 @@ function migrate(data) {
   const st = { ...base, ...data };
   st.team = { ...base.team, ...(data.team || {}) };
   st.players = Array.isArray(data.players) ? data.players : [];
+  // Pelipaikkojen nimet muuttuivat: DKK -> AKK, HKK -> YKK.
+  const RENAMED = { DKK: 'AKK', HKK: 'YKK' };
+  for (const p of st.players) {
+    if (Array.isArray(p.roles)) p.roles = p.roles.map((r) => RENAMED[r] || r);
+  }
   st.lineups = Array.isArray(data.lineups) ? data.lineups : [];
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {

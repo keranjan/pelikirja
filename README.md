@@ -27,13 +27,15 @@ ja kauden luvut. Muut näkymät ovat omina välilehtinään.
 
 **Pelaajat**
 - Pelaajakortti: nimi, pelinumero, vahvempi jalka, muistiinpanot
-- Pelipaikat (MV, LP, KP, DKK, KK, HKK, LH, KH) – sovellus ehdottaa niiden perusteella sopivia pelaajia
+- Pelipaikat (MV, LP, KP, AKK, KK, YKK, LH, KH) – sovellus ehdottaa niiden perusteella sopivia pelaajia
 - Merkintä "ei käytettävissä" pidempiaikaisille poissaoloille
 
 **Kokoonpanot ja pelipaikat**
 - Kenttäkuva, jossa pelaajat asetellaan paikoilleen napauttamalla
-- 16 valmista pelisysteemiä: 11 vs 11 (4-4-2, 4-3-3, 4-2-3-1, 4-5-1, 3-5-2, 3-4-3, 5-3-2),
-  9 vs 9, 7 vs 7 ja 5 vs 5 – pelaajat säilyvät systeemiä vaihdettaessa
+- 22 valmista pelisysteemiä – pelaajat säilyvät systeemiä vaihdettaessa:
+  11 vs 11 (4-4-2, 4-3-3, 4-2-3-1, 4-5-1, 3-5-2, 3-4-3, 5-3-2),
+  9 vs 9 (3-3-2, 3-2-3, 2-3-3), 8 vs 8 (2-3-2, 2-4-1, 3-2-2, 3-3-1, 2-2-3, 3-1-3),
+  7 vs 7 (2-3-1, 3-2-1, 2-1-2-1) ja 5 vs 5 (1-2-1, 2-1-1, 1-1-2)
 - Automaattitäyttö, joka sijoittaa pelaajat heidän pelipaikkojensa mukaan
 - Vaihtopenkki ja ottelukohtaiset poissaolot
 - Kokoonpanopohjat: tallenna vakioasetelmat ja hae ne otteluun yhdellä napautuksella

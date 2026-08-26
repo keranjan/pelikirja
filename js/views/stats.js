@@ -1,5 +1,6 @@
 // Kauden tilastot: joukkue ja pelaajat.
 import { h } from '../ui.js';
+import { icon } from '../icons.js';
 import { getState, sortedPlayers, isPlayed } from '../store.js';
 
 export function statsView() {

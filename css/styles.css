@@ -339,6 +339,8 @@ label.field > span {
 }
 label.field + label.field, label.field + .field-row, .field-row + label.field,
 label.field + .btn, label.field + .chips, .field-row + .btn { margin-top: 16px; }
+/* Rinnakkaiset kentät alkavat samalta riviltä. */
+.field-row > label.field + label.field { margin-top: 0; }
 label.field .tiny { margin-top: 6px; text-transform: none; letter-spacing: 0; font-weight: 400; }
 
 input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
