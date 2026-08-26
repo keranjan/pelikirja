@@ -1,7 +1,7 @@
 // Peliaika: ottelukello, vaihdot ja pelaajakohtainen peliaika.
 import { h, add, sheet, toast, confirmSheet } from '../ui.js';
 import {
-  getState, matchById, update, playerById, sortedPlayers,
+  matchById, update, playerById,
   startTiming, pauseTiming, endTiming, resetTiming, substitute,
   removeTimingEvents, moveTimingEvents, ensureTiming,
 } from '../store.js';
@@ -273,7 +273,3 @@ export function seasonPlayingTime(matches, playerId) {
   }
   return seconds;
 }
-
-export { fmtMinutes };
-void getState;
-void sortedPlayers;

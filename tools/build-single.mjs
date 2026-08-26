@@ -24,7 +24,12 @@ function transform(file) {
     .replace(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"];?\s*$/gm,
       (_, names, from) => `const {${names}} = __req('${key(from)}');`)
     .replace(/^export\s+(async\s+)?(const|let|var|function|class)\s+([A-Za-z0-9_$]+)/gm,
-      (_, isAsync, kind, name) => { exported.add(name); return `${isAsync || ''}${kind} ${name}`; });
+      (_, isAsync, kind, name) => { exported.add(name); return `${isAsync || ''}${kind} ${name}`; })
+    // export { a, b };
+    .replace(/^export\s*\{([^}]+)\}\s*;?\s*$/gm, (_, names) => {
+      names.split(',').map((n) => n.trim().split(/\s+as\s+/)[0]).filter(Boolean).forEach((n) => exported.add(n));
+      return '';
+    });
 
   const missing = out.match(/^\s*(import|export)\s/m);
   if (missing) throw new Error(`Tuntematon moduulisyntaksi tiedostossa ${file}: ${missing[0]}`);
