@@ -24,10 +24,41 @@ export const colorOf = (id) => COLORS[id] || COLORS.black;
 const sx = (x) => (x / 100) * PITCH_W;
 const sy = (y) => (y / 100) * PITCH_H;
 
+/** Nuolenkärjen pituus kentän yksikköinä. */
+export const ARROW_SIZE = 3.4;
+
+const toSvg = (points) => (points || []).map(([x, y]) => [sx(x), sy(y)]);
+
+/**
+ * Lyhentää polkua lopusta annetun matkan verran. Nuolellisessa vedossa viiva
+ * päättyy kärjen tyveen, jottei pyöreä viivanpää pilkistä kärjen ohi.
+ */
+function trimEnd(p, distance) {
+  if (p.length < 2 || distance <= 0) return p;
+  const out = [...p];
+  let left = distance;
+
+  while (out.length >= 2 && left > 0) {
+    const last = out[out.length - 1];
+    const prev = out[out.length - 2];
+    const seg = Math.hypot(last[0] - prev[0], last[1] - prev[1]);
+    if (seg > left) {
+      const t = (seg - left) / seg;
+      out[out.length - 1] = [prev[0] + (last[0] - prev[0]) * t, prev[1] + (last[1] - prev[1]) * t];
+      left = 0;
+    } else {
+      out.pop();
+      left -= seg;
+    }
+  }
+  // Hyvin lyhyt veto: jätetään edes lyhyt tynkä, jottei viiva katoa kokonaan.
+  return out.length >= 2 ? out : p.slice(0, 2);
+}
+
 /** Pehmennetty polku sormella piirretystä pistejonosta. */
-export function strokePath(points) {
+export function strokePath(points, trim = 0) {
   if (!points || points.length === 0) return '';
-  const p = points.map(([x, y]) => [sx(x), sy(y)]);
+  const p = trim > 0 ? trimEnd(toSvg(points), trim) : toSvg(points);
   if (p.length === 1) return `M ${p[0][0]} ${p[0][1]} l 0.01 0`;
   if (p.length === 2) return `M ${p[0][0]} ${p[0][1]} L ${p[1][0]} ${p[1][1]}`;
 
@@ -43,7 +74,7 @@ export function strokePath(points) {
 }
 
 /** Nuolenkärki viimeisen liikesuunnan mukaan; null jos suuntaa ei saada. */
-export function arrowHead(points, size = 3.4) {
+export function arrowHead(points, size = ARROW_SIZE) {
   if (!points || points.length < 2) return null;
   const p = points.map(([x, y]) => [sx(x), sy(y)]);
   const tip = p[p.length - 1];

@@ -10,7 +10,7 @@ import {
 } from '../store.js';
 import {
   TOOLS, COLORS, toolOf, colorOf, strokePath, arrowHead, normalize,
-  PITCH_W, PITCH_H,
+  PITCH_W, PITCH_H, ARROW_SIZE,
 } from '../tactics.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -29,7 +29,9 @@ let color = 'black';
 function renderStroke(group, stroke) {
   const t = toolOf(stroke.tool);
   const c = colorOf(stroke.color);
-  const d = strokePath(stroke.points);
+  // Nuolellisessa vedossa viiva katkaistaan kärjen tyveen, jottei pyöreä
+  // viivanpää näy kärjen ohi.
+  const d = strokePath(stroke.points, t.arrow ? ARROW_SIZE - 0.5 : 0);
   if (!d) return;
 
   const base = { fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };

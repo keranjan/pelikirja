@@ -203,6 +203,7 @@ js/views/               näkymät: ottelupäivä, ottelut, ottelu, peliaika, kok
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
 tests/timing.test.mjs   peliajan laskennan yksikkötestit
+tests/tactics.test.mjs  taktiikkapiirrosten polkujen yksikkötestit
 tests/smoke.mjs         päävirran savutesti
 tests/sync.test.mjs     kahden laitteen synkronointitesti
 tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta
