@@ -43,6 +43,7 @@ function resolve() {
 }
 
 let currentTab = '#/ottelupaiva';
+let renderedHash = null;
 
 function renderTabs() {
   const nav = clear(document.getElementById('tabbar'));
@@ -80,9 +81,16 @@ function render() {
     }, a.icon || '', a.label || ''));
   }
 
-  const view = clear(document.getElementById('view'));
+  // Näkymä piirretään uudelleen jokaisesta tilamuutoksesta. Vierityskohta
+  // säilytetään, kun sivu pysyy samana – muuten painikkeen painallus hyppäisi
+  // näkymän alkuun ja vaikuttaisi siltä ettei mitään tapahtunut.
+  const view = document.getElementById('view');
+  const keepScroll = location.hash === renderedHash;
+  const scrollTop = view.scrollTop;
+  clear(view);
   view.append(page.body);
-  view.scrollTop = 0;
+  view.scrollTop = keepScroll ? scrollTop : 0;
+  renderedHash = location.hash;
   renderTabs();
   document.title = `${page.title} · Pelikirja`;
 }

@@ -320,7 +320,14 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', { class: 'btn sm ghost', onclick: () => commit(() => undoStroke(lineup)) }, 'Kumoa'));
+  colors.append(h('button', {
+    class: 'btn sm action',
+    onclick: () => {
+      if (!(lineup.drawings || []).length) { toast('Ei kumottavaa'); return; }
+      commit(() => undoStroke(lineup));
+      toast('Viimeisin veto kumottu');
+    },
+  }, 'Kumoa'));
   bar.append(colors);
 
   bar.append(h('p', { class: 'tiny muted', style: 'margin:0' , text: tool === 'move'
@@ -329,12 +336,20 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
 
   bar.append(h('div', { class: 'btn-row' },
     h('button', {
-      class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => clearDrawings(lineup)),
+      class: 'btn sm action', style: 'flex:1',
+      onclick: () => {
+        if (!(lineup.drawings || []).length) { toast('Ei piirroksia'); return; }
+        commit(() => clearDrawings(lineup));
+        toast('Piirrokset tyhjennetty');
+      },
     }, 'Tyhjennä'),
     h('button', {
-      class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => resetPositions(lineup)),
+      class: 'btn sm action', style: 'flex:1',
+      onclick: () => {
+        if (!Object.keys(lineup.positions || {}).length) { toast('Paikat ovat jo ennallaan'); return; }
+        commit(() => resetPositions(lineup));
+        toast('Paikat palautettu');
+      },
     }, 'Palauta paikat')));
 
   if (onFullscreen) {

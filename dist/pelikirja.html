@@ -435,6 +435,9 @@ a.btn { text-decoration: none; }
   box-shadow: var(--shadow-accent);
 }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--ink-2); box-shadow: none; }
+/* Toimintopainikkeet: selvä reuna ja voimakas painallustila. */
+.btn.action { background: var(--surface); border-color: var(--accent-line); color: var(--accent); }
+.btn.action:active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96); }
 .btn.danger { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
 .btn.sm { width: auto; min-height: 40px; padding: 8px 14px; font-size: 13.5px; border-radius: 10px; }
 .btn-row { display: flex; gap: 12px; }
@@ -2495,7 +2498,14 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', { class: 'btn sm ghost', onclick: () => commit(() => undoStroke(lineup)) }, 'Kumoa'));
+  colors.append(h('button', {
+    class: 'btn sm action',
+    onclick: () => {
+      if (!(lineup.drawings || []).length) { toast('Ei kumottavaa'); return; }
+      commit(() => undoStroke(lineup));
+      toast('Viimeisin veto kumottu');
+    },
+  }, 'Kumoa'));
   bar.append(colors);
 
   bar.append(h('p', { class: 'tiny muted', style: 'margin:0' , text: tool === 'move'
@@ -2504,12 +2514,20 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
 
   bar.append(h('div', { class: 'btn-row' },
     h('button', {
-      class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => clearDrawings(lineup)),
+      class: 'btn sm action', style: 'flex:1',
+      onclick: () => {
+        if (!(lineup.drawings || []).length) { toast('Ei piirroksia'); return; }
+        commit(() => clearDrawings(lineup));
+        toast('Piirrokset tyhjennetty');
+      },
     }, 'Tyhjennä'),
     h('button', {
-      class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => resetPositions(lineup)),
+      class: 'btn sm action', style: 'flex:1',
+      onclick: () => {
+        if (!Object.keys(lineup.positions || {}).length) { toast('Paikat ovat jo ennallaan'); return; }
+        commit(() => resetPositions(lineup));
+        toast('Paikat palautettu');
+      },
     }, 'Palauta paikat')));
 
   if (onFullscreen) {
@@ -4504,6 +4522,7 @@ function resolve() {
 }
 
 let currentTab = '#/ottelupaiva';
+let renderedHash = null;
 
 function renderTabs() {
   const nav = clear(document.getElementById('tabbar'));
@@ -4541,9 +4560,16 @@ function render() {
     }, a.icon || '', a.label || ''));
   }
 
-  const view = clear(document.getElementById('view'));
+  // Näkymä piirretään uudelleen jokaisesta tilamuutoksesta. Vierityskohta
+  // säilytetään, kun sivu pysyy samana – muuten painikkeen painallus hyppäisi
+  // näkymän alkuun ja vaikuttaisi siltä ettei mitään tapahtunut.
+  const view = document.getElementById('view');
+  const keepScroll = location.hash === renderedHash;
+  const scrollTop = view.scrollTop;
+  clear(view);
   view.append(page.body);
-  view.scrollTop = 0;
+  view.scrollTop = keepScroll ? scrollTop : 0;
+  renderedHash = location.hash;
   renderTabs();
   document.title = `${page.title} · Pelikirja`;
 }

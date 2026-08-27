@@ -330,10 +330,20 @@ console.log('koko ruudun taulu: kenttä ' + Math.round(board.height) + 'px, piir
 await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
 await page.waitForTimeout(200);
 
-// Kumoa ja tyhjennä
-await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
+// Kumoa toimii ensimmäisellä painauksella eikä näkymä hyppää alkuun
+await page.evaluate(() => { const v = document.getElementById('view'); v.scrollTop = v.scrollHeight; });
 await page.waitForTimeout(200);
+const scrollBefore = await page.evaluate(() => document.getElementById('view').scrollTop);
+if (scrollBefore < 50) { console.error('Testiä varten pitäisi olla vieritettävää sisältöä'); process.exit(1); }
+await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
+await page.waitForTimeout(250);
 if ((await drawings()).length !== 2) { console.error('Kumoa ei toiminut'); process.exit(1); }
+const scrollAfter = await page.evaluate(() => document.getElementById('view').scrollTop);
+if (Math.abs(scrollAfter - scrollBefore) > 4) {
+  console.error(`Näkymä hyppäsi painalluksesta: ${scrollBefore} -> ${scrollAfter}`);
+  process.exit(1);
+}
+console.log(`kumoa toimi kerralla, vierityskohta säilyi (${scrollAfter} px)`);
 await page.locator('#view .btn', { hasText: 'Tyhjennä' }).click();
 await page.waitForTimeout(200);
 if ((await drawings()).length !== 0) { console.error('Tyhjennys ei toiminut'); process.exit(1); }

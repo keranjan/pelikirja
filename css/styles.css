@@ -385,6 +385,9 @@ a.btn { text-decoration: none; }
   box-shadow: var(--shadow-accent);
 }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--ink-2); box-shadow: none; }
+/* Toimintopainikkeet: selvä reuna ja voimakas painallustila. */
+.btn.action { background: var(--surface); border-color: var(--accent-line); color: var(--accent); }
+.btn.action:active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96); }
 .btn.danger { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
 .btn.sm { width: auto; min-height: 40px; padding: 8px 14px; font-size: 13.5px; border-radius: 10px; }
 .btn-row { display: flex; gap: 12px; }
