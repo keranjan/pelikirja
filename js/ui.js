@@ -35,6 +35,48 @@ export function add(parent, ...children) {
 
 export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
+/**
+ * Tekee painikkeesta kosketukselle responsiivisen: painallus näkyy heti
+ * sormen osuessa ja toiminto suoritetaan sormen noustessa. Selaimen oma
+ * click-tapahtuma tulee kosketuksella viiveellä ja voi jäädä kokonaan
+ * tulematta esimerkiksi vierityksen jälkeen, minkä takia sitä ei odoteta.
+ */
+export function pressable(el, action) {
+  if (typeof action !== 'function') return el;
+  let armed = false;
+
+  const release = () => el.classList.remove('pressing');
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    armed = true;
+    el.classList.add('pressing');
+    el.setPointerCapture?.(e.pointerId);
+  });
+
+  el.addEventListener('pointerup', (e) => {
+    release();
+    if (!armed) return;
+    armed = false;
+    // Sormi on nostettava painikkeen päällä, jotta vahinkopainallus voi peruuntua.
+    const r = el.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+    if (el.disabled) return;
+    action(e);
+  });
+
+  el.addEventListener('pointercancel', () => { armed = false; release(); });
+  el.addEventListener('lostpointercapture', release);
+
+  // Näppäimistöltä tuleva click (detail === 0) suoritetaan yhä; osoittimen
+  // tuottama click ohitetaan, ettei toiminto tapahdu kahdesti.
+  el.addEventListener('click', (e) => {
+    if (e.detail === 0 && !el.disabled) action(e);
+  });
+
+  return el;
+}
+
 /* ---------- Ilmoitus ---------- */
 let toastTimer = null;
 export function toast(msg) {

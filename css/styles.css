@@ -377,7 +377,7 @@ select {
 }
 a.btn { text-decoration: none; }
 .btn { transition: transform .08s ease, background-color .12s ease, filter .12s ease; }
-.btn:active { transform: scale(.97); background: var(--surface-2); }
+.btn:active, .btn.pressing { transform: scale(.97); background: var(--surface-2); }
 .btn.primary:active, .btn.danger:active { background: var(--accent); filter: brightness(.9); }
 .btn.danger:active { background: var(--red-soft); }
 .btn.primary {
@@ -387,7 +387,9 @@ a.btn { text-decoration: none; }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--ink-2); box-shadow: none; }
 /* Toimintopainikkeet: selvä reuna ja voimakas painallustila. */
 .btn.action { background: var(--surface); border-color: var(--accent-line); color: var(--accent); }
-.btn.action:active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96); }
+.btn.action:active, .btn.action.pressing {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96);
+}
 .btn.danger { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
 .btn.sm { width: auto; min-height: 40px; padding: 8px 14px; font-size: 13.5px; border-radius: 10px; }
 .btn-row { display: flex; gap: 12px; }
@@ -501,8 +503,8 @@ a.btn { text-decoration: none; }
   background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
   box-shadow: var(--shadow-accent);
 }
-.toolbtn:active { transform: scale(.95); background: var(--surface-2); }
-.toolbtn.on:active { background: var(--accent); filter: brightness(.9); }
+.toolbtn:active, .toolbtn.pressing { transform: scale(.95); background: var(--surface-2); }
+.toolbtn.on:active, .toolbtn.on.pressing { background: var(--accent); filter: brightness(.9); }
 .toolbtn .sample { display: grid; place-items: center; height: 18px; }
 .toolbtn .tiny { font-size: 11px; }
 
@@ -519,8 +521,8 @@ a.btn { text-decoration: none; }
   transform: scale(1.1);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.3), 0 0 0 3px var(--accent);
 }
-.swatch:active { transform: scale(.92); }
-.swatch.on:active { transform: scale(1.02); }
+.swatch:active, .swatch.pressing { transform: scale(.92); }
+.swatch.on:active, .swatch.on.pressing { transform: scale(1.02); }
 .swatch:disabled { opacity: .35; }
 
 /* ---------- Koko ruudun taktiikkataulu ---------- */

@@ -1,5 +1,5 @@
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja poissaolot.
-import { h, sheet, toast, shortName, initials } from '../ui.js';
+import { h, sheet, toast, shortName, initials, pressable } from '../ui.js';
 import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
@@ -296,8 +296,12 @@ const onKey = (e) => { if (e.key === 'Escape') closeBoard(); };
 export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
   const bar = h('div', { class: 'stack', style: 'gap:8px' });
 
+  /** Painike, joka reagoi jo sormen osuessa eikä vasta click-tapahtumasta. */
+  const btn = ({ onclick, ...props }, ...children) =>
+    pressable(h('button', props, ...children), onclick);
+
   const tools = h('div', { class: 'toolrow' });
-  const toolButton = (id, label, sample) => h('button', {
+  const toolButton = (id, label, sample) => btn({
     class: `toolbtn${tool === id ? ' on' : ''}`,
     'aria-pressed': tool === id ? 'true' : 'false',
     onclick: () => { tool = id; commit(() => {}); },
@@ -309,7 +313,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
 
   const colors = h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' });
   for (const [id, c] of Object.entries(COLORS)) {
-    colors.append(h('button', {
+    colors.append(btn({
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
@@ -320,7 +324,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', {
+  colors.append(btn({
     class: 'btn sm action',
     onclick: () => {
       if (!(lineup.drawings || []).length) { toast('Ei kumottavaa'); return; }
@@ -335,7 +339,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
     : 'Piirrä sormella kentälle – myös pelaajien yli.' }));
 
   bar.append(h('div', { class: 'btn-row' },
-    h('button', {
+    btn({
       class: 'btn sm action', style: 'flex:1',
       onclick: () => {
         if (!(lineup.drawings || []).length) { toast('Ei piirroksia'); return; }
@@ -343,7 +347,7 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
         toast('Piirrokset tyhjennetty');
       },
     }, 'Tyhjennä'),
-    h('button', {
+    btn({
       class: 'btn sm action', style: 'flex:1',
       onclick: () => {
         if (!Object.keys(lineup.positions || {}).length) { toast('Paikat ovat jo ennallaan'); return; }
@@ -353,11 +357,11 @@ export function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) 
     }, 'Palauta paikat')));
 
   if (onFullscreen) {
-    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
+    bar.append(btn({ class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
       icon('expand', 17), 'Koko ruutu'));
   }
   if (onClose) {
-    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
+    bar.append(btn({ class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
   }
 
   return bar;

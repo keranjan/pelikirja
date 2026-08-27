@@ -427,7 +427,7 @@ select {
 }
 a.btn { text-decoration: none; }
 .btn { transition: transform .08s ease, background-color .12s ease, filter .12s ease; }
-.btn:active { transform: scale(.97); background: var(--surface-2); }
+.btn:active, .btn.pressing { transform: scale(.97); background: var(--surface-2); }
 .btn.primary:active, .btn.danger:active { background: var(--accent); filter: brightness(.9); }
 .btn.danger:active { background: var(--red-soft); }
 .btn.primary {
@@ -437,7 +437,9 @@ a.btn { text-decoration: none; }
 .btn.ghost { background: transparent; border-color: var(--line); color: var(--ink-2); box-shadow: none; }
 /* Toimintopainikkeet: selvä reuna ja voimakas painallustila. */
 .btn.action { background: var(--surface); border-color: var(--accent-line); color: var(--accent); }
-.btn.action:active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96); }
+.btn.action:active, .btn.action.pressing {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink); transform: scale(.96);
+}
 .btn.danger { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
 .btn.sm { width: auto; min-height: 40px; padding: 8px 14px; font-size: 13.5px; border-radius: 10px; }
 .btn-row { display: flex; gap: 12px; }
@@ -551,8 +553,8 @@ a.btn { text-decoration: none; }
   background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
   box-shadow: var(--shadow-accent);
 }
-.toolbtn:active { transform: scale(.95); background: var(--surface-2); }
-.toolbtn.on:active { background: var(--accent); filter: brightness(.9); }
+.toolbtn:active, .toolbtn.pressing { transform: scale(.95); background: var(--surface-2); }
+.toolbtn.on:active, .toolbtn.on.pressing { background: var(--accent); filter: brightness(.9); }
 .toolbtn .sample { display: grid; place-items: center; height: 18px; }
 .toolbtn .tiny { font-size: 11px; }
 
@@ -569,8 +571,8 @@ a.btn { text-decoration: none; }
   transform: scale(1.1);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.3), 0 0 0 3px var(--accent);
 }
-.swatch:active { transform: scale(.92); }
-.swatch.on:active { transform: scale(1.02); }
+.swatch:active, .swatch.pressing { transform: scale(.92); }
+.swatch.on:active, .swatch.on.pressing { transform: scale(1.02); }
 .swatch:disabled { opacity: .35; }
 
 /* ---------- Koko ruudun taktiikkataulu ---------- */
@@ -2035,6 +2037,48 @@ function add(parent, ...children) {
 
 const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
+/**
+ * Tekee painikkeesta kosketukselle responsiivisen: painallus näkyy heti
+ * sormen osuessa ja toiminto suoritetaan sormen noustessa. Selaimen oma
+ * click-tapahtuma tulee kosketuksella viiveellä ja voi jäädä kokonaan
+ * tulematta esimerkiksi vierityksen jälkeen, minkä takia sitä ei odoteta.
+ */
+function pressable(el, action) {
+  if (typeof action !== 'function') return el;
+  let armed = false;
+
+  const release = () => el.classList.remove('pressing');
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    armed = true;
+    el.classList.add('pressing');
+    el.setPointerCapture?.(e.pointerId);
+  });
+
+  el.addEventListener('pointerup', (e) => {
+    release();
+    if (!armed) return;
+    armed = false;
+    // Sormi on nostettava painikkeen päällä, jotta vahinkopainallus voi peruuntua.
+    const r = el.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+    if (el.disabled) return;
+    action(e);
+  });
+
+  el.addEventListener('pointercancel', () => { armed = false; release(); });
+  el.addEventListener('lostpointercapture', release);
+
+  // Näppäimistöltä tuleva click (detail === 0) suoritetaan yhä; osoittimen
+  // tuottama click ohitetaan, ettei toiminto tapahdu kahdesti.
+  el.addEventListener('click', (e) => {
+    if (e.detail === 0 && !el.disabled) action(e);
+  });
+
+  return el;
+}
+
 /* ---------- Ilmoitus ---------- */
 let toastTimer = null;
 function toast(msg) {
@@ -2173,12 +2217,12 @@ function videoInfo(raw) {
   return { url: url.href, host, service: service || host, known: !!service };
 }
 
-return { h, $, add, clear, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, timeAgo, initials, shortName, videoInfo };
+return { h, $, add, clear, pressable, toast, closeSheet, sheet, confirmSheet, fmtDate, fmtShortDate, monthLabel, daysUntil, countdownText, timeAgo, initials, shortName, videoInfo };
 };
 
 __mods['pitch'] = () => {
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja poissaolot.
-const { h, sheet, toast, shortName, initials } = __req('ui');
+const { h, sheet, toast, shortName, initials, pressable } = __req('ui');
 const { icon } = __req('icons');
 const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('formations');
 const {
@@ -2474,8 +2518,12 @@ const onKey = (e) => { if (e.key === 'Escape') closeBoard(); };
 function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
   const bar = h('div', { class: 'stack', style: 'gap:8px' });
 
+  /** Painike, joka reagoi jo sormen osuessa eikä vasta click-tapahtumasta. */
+  const btn = ({ onclick, ...props }, ...children) =>
+    pressable(h('button', props, ...children), onclick);
+
   const tools = h('div', { class: 'toolrow' });
-  const toolButton = (id, label, sample) => h('button', {
+  const toolButton = (id, label, sample) => btn({
     class: `toolbtn${tool === id ? ' on' : ''}`,
     'aria-pressed': tool === id ? 'true' : 'false',
     onclick: () => { tool = id; commit(() => {}); },
@@ -2487,7 +2535,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
 
   const colors = h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' });
   for (const [id, c] of Object.entries(COLORS)) {
-    colors.append(h('button', {
+    colors.append(btn({
       class: `swatch${color === id ? ' on' : ''}`,
       style: `--swatch:${c.value}`,
       'aria-label': c.name,
@@ -2498,7 +2546,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
     }));
   }
   colors.append(h('span', { class: 'grow' }));
-  colors.append(h('button', {
+  colors.append(btn({
     class: 'btn sm action',
     onclick: () => {
       if (!(lineup.drawings || []).length) { toast('Ei kumottavaa'); return; }
@@ -2513,7 +2561,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
     : 'Piirrä sormella kentälle – myös pelaajien yli.' }));
 
   bar.append(h('div', { class: 'btn-row' },
-    h('button', {
+    btn({
       class: 'btn sm action', style: 'flex:1',
       onclick: () => {
         if (!(lineup.drawings || []).length) { toast('Ei piirroksia'); return; }
@@ -2521,7 +2569,7 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
         toast('Piirrokset tyhjennetty');
       },
     }, 'Tyhjennä'),
-    h('button', {
+    btn({
       class: 'btn sm action', style: 'flex:1',
       onclick: () => {
         if (!Object.keys(lineup.positions || {}).length) { toast('Paikat ovat jo ennallaan'); return; }
@@ -2531,11 +2579,11 @@ function tacticsControls(lineup, commit, { onFullscreen, onClose } = {}) {
     }, 'Palauta paikat')));
 
   if (onFullscreen) {
-    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
+    bar.append(btn({ class: 'btn sm', style: 'width:100%', onclick: onFullscreen },
       icon('expand', 17), 'Koko ruutu'));
   }
   if (onClose) {
-    bar.append(h('button', { class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
+    bar.append(btn({ class: 'btn sm', style: 'width:100%', onclick: onClose }, 'Sulje taulu'));
   }
 
   return bar;
@@ -4573,6 +4621,10 @@ function render() {
   renderTabs();
   document.title = `${page.title} · Pelikirja`;
 }
+
+// iOS:n Safari jättää :active-tilan piirtämättä, ellei sivulla ole yhtään
+// kosketuskuuntelijaa. Tyhjä kuuntelija riittää.
+document.addEventListener('touchstart', () => {}, { passive: true });
 
 setRenderer(render);
 startAutoSync();

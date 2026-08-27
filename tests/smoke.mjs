@@ -666,6 +666,30 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
     console.error('Sormella piirtäminen ei tallentunut: ' + JSON.stringify(touchStrokes));
     process.exit(1);
   }
+  // Painike reagoi jo sormen osuessa ja näyttää painallustilan
+  const undo = tp.locator('#view .btn', { hasText: 'Kumoa' });
+  await undo.scrollIntoViewIfNeeded();
+  await tp.waitForTimeout(200);
+  const undoBox = await undo.boundingBox();
+  const ux = undoBox.x + undoBox.width / 2;
+  const uy = undoBox.y + undoBox.height / 2;
+  await touch('touchStart', ux, uy);
+  await tp.waitForTimeout(80);
+  const pressedClass = await undo.evaluate((el) => el.className);
+  await touch('touchEnd', ux, uy);
+  await tp.waitForTimeout(300);
+  const afterUndo = await tp.evaluate(() =>
+    JSON.parse(localStorage.getItem('pelikirja.v1')).lineups[0].lineup.drawings.length);
+  if (!pressedClass.includes('pressing')) {
+    console.error('Painikkeen painallustila ei näkynyt: ' + pressedClass);
+    process.exit(1);
+  }
+  if (afterUndo !== 0) {
+    console.error('Kumoa ei reagoinut yhteen kosketukseen: vetoja ' + afterUndo);
+    process.exit(1);
+  }
+  console.log('kosketus: painallustila näkyy heti ja toiminto tapahtuu sormen noustessa');
+
   const scrolled = await tp.evaluate(() => document.getElementById('view').scrollTop);
   if (scrolled !== 0) { console.error('Piirtäminen vieritti näkymää'); process.exit(1); }
   console.log('sormipiirto: ' + touchStrokes[0].points.length + ' pistettä, näkymä ei vierinyt');

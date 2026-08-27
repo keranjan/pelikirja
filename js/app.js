@@ -95,6 +95,10 @@ function render() {
   document.title = `${page.title} · Pelikirja`;
 }
 
+// iOS:n Safari jättää :active-tilan piirtämättä, ellei sivulla ole yhtään
+// kosketuskuuntelijaa. Tyhjä kuuntelija riittää.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
 setRenderer(render);
 startAutoSync();
 window.addEventListener('hashchange', render);
