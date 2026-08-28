@@ -4,6 +4,7 @@ import {
   getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
 } from '../store.js';
 import { getFormation } from '../formations.js';
+import { matchEvents } from '../timing.js';
 import { navigate } from '../router.js';
 import { getStatus, isConnected } from '../sync.js';
 import { icon } from '../icons.js';
@@ -134,7 +135,10 @@ function lastResultCard(m) {
   const label = r.gf > r.ga ? 'Voitto' : r.gf === r.ga ? 'Tasapeli' : 'Tappio';
   // Sama maalintekijä kootaan yhdeksi riviksi: "Koski x2, Hakala".
   const tally = new Map();
-  for (const e of r.events || []) tally.set(e.scorerId, (tally.get(e.scorerId) || 0) + 1);
+  for (const e of matchEvents(m)) {
+    if (e.type !== 'goal' || e.team === 'them' || !e.playerId) continue;
+    tally.set(e.playerId, (tally.get(e.playerId) || 0) + 1);
+  }
   const scorers = [...tally].map(([id, n]) => (n > 1 ? `${playerName(id)} ×${n}` : playerName(id)));
   const video = videoInfo(m.videoUrl);
 

@@ -718,6 +718,33 @@ const statsText = await page.locator('#view').textContent();
 if (!statsText.includes('Valmentajan arvosana') || !statsText.includes('8,5')) {
   console.error('Arvosanan keskiarvo puuttuu tilastoista'); process.exit(1);
 }
+// Seurannassa kirjattu maali ja syöttö näkyvät pelaajan riveillä
+const scored = await page.evaluate(() => {
+  const st = JSON.parse(localStorage.getItem('pelikirja.v1'));
+  const goal = (st.matches[0].timing?.events || [])
+    .find((e) => e.type === 'goal' && e.team !== 'them' && e.playerId);
+  const name = (id) => st.players.find((p) => p.id === id)?.name || '';
+  return goal ? { scorer: name(goal.playerId), assist: name(goal.assistId) } : null;
+});
+if (!scored || !scored.scorer || !scored.assist) {
+  console.error('Testidatassa ei ole maalia syöttäjineen: ' + JSON.stringify(scored)); process.exit(1);
+}
+const statRow = async (name) => {
+  const cells = await page.locator('#view table.stats tbody tr', { hasText: name }).first()
+    .locator('td').allTextContents();
+  return { goals: Number(cells[cells.length - 2]), assists: Number(cells[cells.length - 1]) };
+};
+const scorerRow = await statRow(scored.scorer);
+const assistRow = await statRow(scored.assist);
+if (scorerRow.goals < 1) {
+  console.error(`Maalintekijän (${scored.scorer}) maalit eivät näy tilastoissa: ` + JSON.stringify(scorerRow));
+  process.exit(1);
+}
+if (assistRow.assists < 1) {
+  console.error(`Syöttäjän (${scored.assist}) syötöt eivät näy tilastoissa: ` + JSON.stringify(assistRow));
+  process.exit(1);
+}
+console.log(`tilastot: ${scored.scorer} ${scorerRow.goals} maalia, ${scored.assist} ${assistRow.assists} syöttöä`);
 await shot('07-tilastot');
 await tap('#tabbar a[href="#/kokoonpanot"]');
 await shot('08-kokoonpanot');

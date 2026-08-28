@@ -4267,6 +4267,7 @@ const {
   getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
 } = __req('store');
 const { getFormation } = __req('formations');
+const { matchEvents } = __req('timing');
 const { navigate } = __req('router');
 const { getStatus, isConnected } = __req('sync');
 const { icon } = __req('icons');
@@ -4396,7 +4397,10 @@ function lastResultCard(m) {
   const label = r.gf > r.ga ? 'Voitto' : r.gf === r.ga ? 'Tasapeli' : 'Tappio';
   // Sama maalintekijä kootaan yhdeksi riviksi: "Koski x2, Hakala".
   const tally = new Map();
-  for (const e of r.events || []) tally.set(e.scorerId, (tally.get(e.scorerId) || 0) + 1);
+  for (const e of matchEvents(m)) {
+    if (e.type !== 'goal' || e.team === 'them' || !e.playerId) continue;
+    tally.set(e.playerId, (tally.get(e.playerId) || 0) + 1);
+  }
   const scorers = [...tally].map(([id, n]) => (n > 1 ? `${playerName(id)} ×${n}` : playerName(id)));
   const video = videoInfo(m.videoUrl);
 
@@ -5036,6 +5040,7 @@ const { h } = __req('ui');
 const { icon } = __req('icons');
 const { getState, sortedPlayers, isPlayed, averageRating, fmtRating } = __req('store');
 const { seasonPlayingTime } = __req('tracking');
+const { matchEvents } = __req('timing');
 function statsView() {
   const st = getState();
   const played = st.matches.filter(isPlayed);
@@ -5062,6 +5067,9 @@ function statsView() {
 
   const kpi = (v, k) => h('div', { class: 'kpi' }, h('div', { class: 'v', text: String(v) }), h('div', { class: 'k', text: k }));
 
+  // Pelaajatilastoihin lasketaan sekä tuloksen saaneet että seuratut ottelut.
+  const counted = [...new Set([...played, ...tracked])];
+
   if (played.length) {
     body.append(h('div', { class: 'section-title', text: 'Joukkue' }));
     body.append(h('div', { class: 'kpi-grid' }, kpi(played.length, 'Ottelua'), kpi(w, 'Voittoa'), kpi(d, 'Tasapeliä')));
@@ -5079,12 +5087,13 @@ function statsView() {
   const rows = sortedPlayers(st.players).map((p) => {
     let starts = 0, subs = 0, goals = 0, assists = 0;
     const minutes = Math.round(seasonPlayingTime(tracked, p.id) / 60);
-    const counted = played.length ? played : tracked;
     for (const m of counted) {
       if (m.lineup.slots.includes(p.id)) starts++;
       else if (m.lineup.bench.includes(p.id)) subs++;
-      for (const ev of m.result?.events || []) {
-        if (ev.scorerId === p.id) goals++;
+      // Maalit tulevat otteluseurannasta ja vanhoista tulokseen kirjatuista.
+      for (const ev of matchEvents(m)) {
+        if (ev.type !== 'goal' || ev.team === 'them') continue;
+        if (ev.playerId === p.id) goals++;
         if (ev.assistId === p.id) assists++;
       }
     }

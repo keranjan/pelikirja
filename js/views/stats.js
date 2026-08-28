@@ -3,6 +3,7 @@ import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { getState, sortedPlayers, isPlayed, averageRating, fmtRating } from '../store.js';
 import { seasonPlayingTime } from './tracking.js';
+import { matchEvents } from '../timing.js';
 
 export function statsView() {
   const st = getState();
@@ -30,6 +31,9 @@ export function statsView() {
 
   const kpi = (v, k) => h('div', { class: 'kpi' }, h('div', { class: 'v', text: String(v) }), h('div', { class: 'k', text: k }));
 
+  // Pelaajatilastoihin lasketaan sekä tuloksen saaneet että seuratut ottelut.
+  const counted = [...new Set([...played, ...tracked])];
+
   if (played.length) {
     body.append(h('div', { class: 'section-title', text: 'Joukkue' }));
     body.append(h('div', { class: 'kpi-grid' }, kpi(played.length, 'Ottelua'), kpi(w, 'Voittoa'), kpi(d, 'Tasapeliä')));
@@ -47,12 +51,13 @@ export function statsView() {
   const rows = sortedPlayers(st.players).map((p) => {
     let starts = 0, subs = 0, goals = 0, assists = 0;
     const minutes = Math.round(seasonPlayingTime(tracked, p.id) / 60);
-    const counted = played.length ? played : tracked;
     for (const m of counted) {
       if (m.lineup.slots.includes(p.id)) starts++;
       else if (m.lineup.bench.includes(p.id)) subs++;
-      for (const ev of m.result?.events || []) {
-        if (ev.scorerId === p.id) goals++;
+      // Maalit tulevat otteluseurannasta ja vanhoista tulokseen kirjatuista.
+      for (const ev of matchEvents(m)) {
+        if (ev.type !== 'goal' || ev.team === 'them') continue;
+        if (ev.playerId === p.id) goals++;
         if (ev.assistId === p.id) assists++;
       }
     }
