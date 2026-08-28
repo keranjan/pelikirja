@@ -189,7 +189,9 @@ function lineupText(m) {
       .map((person) => `${person.name} (${STAFF_ROLES[person.role] || 'toimihenkilö'})`);
     if (staff.length) lines.push('', `Valmennus: ${staff.join(', ')}`);
   }
-  const absent = absentIds(m.lineup);
+  // Poissaolijat ovat mielekkäitä vasta kun ryhmä on valittu.
+  const squadPicked = m.lineup.slots.filter(Boolean).length + m.lineup.bench.length;
+  const absent = squadPicked ? absentIds(m.lineup) : [];
   if (absent.length) lines.push('', `Poissa: ${absent.map(who).join(', ')}`);
   if (m.notes) lines.push('', m.notes);
   return lines.join('\n');

@@ -624,6 +624,14 @@ await page.locator('.sheet input[type=date]').fill(new Date(Date.now() + 9 * 864
 await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Keltainen');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(300);
+// Toinen tuleva ottelu, jotta etusivulle syntyy myös "Tulossa myöhemmin" -lista.
+await tap('#tabbar a[href="#/ottelut"]');
+await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
+await page.locator('.sheet input[type=text]').first().fill('Ilves Alfa');
+await page.locator('.sheet input[type=date]').fill(new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10));
+await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Beta');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(300);
 await tap('#tabbar a[href="#/ottelut"]');
 await page.locator('#view .segmented button', { hasText: 'Tulevat' }).click();
 await page.waitForTimeout(250);
@@ -641,17 +649,21 @@ await shot('10-joukkuesuodatin');
 await page.locator('#view .chips .chip', { hasText: 'Kaikki' }).click();
 await page.waitForTimeout(250);
 console.log('joukkuesuodatin:', teamChips.join(' | '));
-// Ylimääräinen ottelu pois, jotta loput tarkistukset katsovat alkuperäistä dataa.
 await page.locator('#view .card', { hasText: 'Tampere United' }).click();
 await page.waitForTimeout(300);
 await page.locator('#view .segmented button', { hasText: 'Tiedot' }).click();
 await page.waitForTimeout(200);
 const infoTeam = await page.locator('#view .card.row.between', { hasText: 'Oma joukkue' }).textContent();
 if (!infoTeam.includes('Ilves Keltainen')) { console.error('Oma joukkue puuttuu ottelun tiedoista'); process.exit(1); }
-await page.locator('#view .btn.danger', { hasText: 'Poista tapahtuma' }).click();
-await page.waitForTimeout(200);
-await page.locator('#overlay .btn.danger').click();
-await page.waitForTimeout(300);
+
+// Kokoonpanoa täydennettäessä ei ole erillistä poissaolijoiden listaa.
+await page.locator('#view .segmented button', { hasText: 'Kokoonpano' }).first().click();
+await page.waitForTimeout(250);
+const lineupSections = await page.locator('#view .section-title').allTextContents();
+if (lineupSections.some((t) => t.startsWith('Poissa'))) {
+  console.error('Kokoonpanossa on yhä poissa-lista: ' + JSON.stringify(lineupSections)); process.exit(1);
+}
+console.log('kokoonpanon osiot:', lineupSections.join(' | '));
 
 // --- Ottelulista (pelatut) ---
 await tap('#tabbar a[href="#/ottelut"]');
@@ -664,9 +676,34 @@ await tap('#tabbar a[href="#/ottelupaiva"]');
 await page.waitForTimeout(300);
 await shot('11-ottelupaiva');
 const heroText = await page.locator('#view .hero').first().textContent();
-if (!heroText.includes('FC Naapuri') && !heroText.includes('Ei tulevia')) {
-  console.error('Etusivun ottelukortti puuttuu'); process.exit(1);
+if (!heroText.includes('Tampere United') || !heroText.includes('Ilves Keltainen')) {
+  console.error('Etusivun ottelukortista puuttuu ottelu tai joukkue: ' + heroText.slice(0, 120));
+  process.exit(1);
 }
+// Tulossa myöhemmin -kortti kertoo kumman joukkueen ottelu on.
+const laterTeams = await page.locator('#view .card.row .badge.team').allTextContents();
+if (!laterTeams.includes('Ilves Beta')) {
+  console.error('Tulossa myöhemmin -kortista puuttuu joukkue: ' + JSON.stringify(laterTeams));
+  process.exit(1);
+}
+console.log('tulossa myöhemmin:', laterTeams.join(' | '));
+
+// Ylimääräinen ottelu pois, jotta loput tarkistukset katsovat alkuperäistä dataa.
+await tap('#tabbar a[href="#/ottelut"]');
+await page.locator('#view .segmented button', { hasText: 'Tulevat' }).click();
+await page.waitForTimeout(250);
+for (const opponent of ['Tampere United', 'Ilves Alfa']) {
+  await page.locator('#view .card', { hasText: opponent }).click();
+  await page.waitForTimeout(300);
+  await page.locator('#view .segmented button', { hasText: 'Tiedot' }).click();
+  await page.waitForTimeout(200);
+  await page.locator('#view .btn.danger', { hasText: 'Poista tapahtuma' }).click();
+  await page.waitForTimeout(200);
+  await page.locator('#overlay .btn.danger').click();
+  await page.waitForTimeout(300);
+}
+await tap('#tabbar a[href="#/ottelupaiva"]');
+await page.waitForTimeout(250);
 
 // --- Uudelleenlataus: pysyykö data? ---
 await page.reload();

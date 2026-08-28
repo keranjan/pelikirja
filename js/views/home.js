@@ -30,7 +30,9 @@ export function homeView() {
         h('span', { class: 'numchip tnum', style: 'width:auto;padding:0 10px', text: shortDay(m.date) }),
         h('span', { class: 'grow' },
           h('div', { class: 'bold ellip', text: `${m.home ? '' : '@ '}${m.opponent || 'Vastustaja avoin'}` }),
-          h('div', { class: 'tiny muted', text: `klo ${m.time}${m.venue ? ' · ' + m.venue : ''}` })),
+          h('div', { class: 'tiny muted ellip', text: `klo ${m.time}${m.venue ? ' · ' + m.venue : ''}` }),
+          // Kumman joukkueen ottelu, kun seurassa on useampi joukkue.
+          m.team ? h('div', { style: 'margin-top:6px' }, h('span', { class: 'badge team', text: m.team })) : null),
         h('span', { class: 'muted', text: '›' })));
     }
   }

@@ -1,10 +1,10 @@
-// Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja poissaolot.
+// Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja ryhmän valinta.
 import { h, sheet, toast, shortName, initials, pressable } from '../ui.js';
 import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
-  toggleSquad, inSquad, absentIds, lineupRole,
+  toggleSquad, inSquad, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
   sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
 } from '../store.js';
@@ -135,20 +135,6 @@ export function renderLineupEditor(lineup, commit) {
         h('span', { class: 'numchip sm', text: p.number ?? '–' }),
         h('span', { class: 'grow ellip', text: p.name }),
         h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Poista')));
-    }
-  }
-
-  /* --- Poissa: päätellään ryhmävalinnasta, ei omaa listaa --- */
-  const absent = absentIds(lineup);
-  if (absent.length) {
-    wrap.append(h('div', { class: 'section-title', text: `Poissa (${absent.length})` }));
-    for (const pid of absent) {
-      const p = playerById(pid);
-      if (!p) continue;
-      wrap.append(h('div', { class: 'card row compact' },
-        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
-        h('span', { class: 'grow ellip muted', text: p.name }),
-        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Mukaan')));
     }
   }
 
