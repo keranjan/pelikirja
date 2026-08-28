@@ -150,6 +150,7 @@ function lastResultCard(m) {
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),
+      r.rating ? h('span', { class: 'badge rating tnum', text: `★ ${r.rating}/5` }) : null,
       scorers.length ? h('span', { class: 'tiny muted ellip', text: scorers.join(', ') }) : null,
       video ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 

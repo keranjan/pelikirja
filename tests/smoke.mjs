@@ -580,6 +580,34 @@ const videoLink = page.locator('#view a.btn.primary');
 const videoHref = await videoLink.getAttribute('href');
 console.log('videonappi:', (await videoLink.textContent()).trim(), '->', videoHref);
 if (videoHref !== VEO) { console.error('Videolinkki ei tallentunut'); process.exit(1); }
+
+// Valmentajan arvio: arvosana tähdillä ja sanallinen analyysi
+const stars = page.locator('#view .stars .star');
+if (await stars.count() !== 5) { console.error('Arvosanan tähdet puuttuvat'); process.exit(1); }
+await stars.nth(3).click();
+await page.waitForTimeout(250);
+const rated = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.rating);
+if (rated !== 4) { console.error('Arvosana ei tallentunut: ' + rated); process.exit(1); }
+const ratingLabel = await page.locator('#view .stars').locator('..').textContent();
+if (!ratingLabel.includes('Erittäin hyvä')) {
+  console.error('Arvosanan kuvaus puuttuu: ' + ratingLabel.slice(0, 80)); process.exit(1);
+}
+const ANALYYSI = 'Puolustus piti hyvin, keskikentän paineistus parani toisella jaksolla.';
+await page.locator('#view textarea').last().fill(ANALYYSI);
+await page.locator('#view .stars .star').first().click();   // vie fokuksen pois -> change
+await page.waitForTimeout(250);
+const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result);
+if (stored.notes !== ANALYYSI) { console.error('Analyysi ei tallentunut: ' + stored.notes); process.exit(1); }
+if (stored.rating !== 1) { console.error('Arvosanan vaihto ei toiminut: ' + stored.rating); process.exit(1); }
+// Saman tähden painaminen uudestaan poistaa arvosanan.
+await page.locator('#view .stars .star').first().click();
+await page.waitForTimeout(250);
+if (await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.rating) !== null) {
+  console.error('Arvosanan poisto ei toiminut'); process.exit(1);
+}
+await page.locator('#view .stars .star').nth(3).click();
+await page.waitForTimeout(250);
+console.log('valmentajan arvio: arvosana ja analyysi tallessa');
 await shot('06-tulos');
 
 // --- Tilastot / kokoonpanot / asetukset ---
@@ -589,6 +617,10 @@ const statHeaders = await page.locator('#view table.stats th').allTextContents()
 if (!statHeaders.includes('Min')) {
   console.error('Peliaikasarake puuttuu tilastoista: ' + statHeaders.join(', '));
   process.exit(1);
+}
+const statsText = await page.locator('#view').textContent();
+if (!statsText.includes('Valmentajan arvosana') || !statsText.includes('4.0/5')) {
+  console.error('Arvosanan keskiarvo puuttuu tilastoista'); process.exit(1);
 }
 await shot('07-tilastot');
 await tap('#tabbar a[href="#/kokoonpanot"]');

@@ -184,7 +184,7 @@
    mutta jättää vierityksen ja nipistyszoomauksen ennalleen. */
 html, body { height: 100%; touch-action: manipulation; }
 button, a, label, input, select, textarea,
-.card, .list-item, .chip, .swatch, .toolbtn, .slot, #tabbar a { touch-action: manipulation; }
+.card, .list-item, .chip, .swatch, .toolbtn, .slot, .star, #tabbar a { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--paper);
@@ -345,6 +345,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .numchip.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 /* Kapea versio listoihin, joissa rivejä on paljon. */
 .numchip.sm { width: 30px; height: 30px; font-size: 13px; }
+
+/* Valmentajan arvosana: viisi tähteä, napautuksella. */
+.stars { display: flex; justify-content: center; gap: 2px; margin: 8px 0 2px; }
+.star {
+  flex: 1; max-width: 64px; min-height: 48px; padding: 0;
+  background: none; border: 0; border-radius: 12px; cursor: pointer;
+  font-size: 30px; line-height: 1; color: var(--ink-3);
+  transition: transform .08s ease, background-color .12s ease, color .12s ease;
+}
+.star.on { color: var(--amber); }
+.star:active { background: var(--surface-2); transform: scale(.92); }
+.badge.rating { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 
 /* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
 .card.pick { border-color: var(--line); transition: background-color .12s ease, border-color .12s ease; }
@@ -1276,7 +1288,8 @@ const { getFormation } = __req('formations');
 const { DEFAULT_TEAM_NAME } = __req('merge');
 const { emptyTiming, clockSeconds, onField } = __req('timing');
 const KEY = 'pelikirja.v1';
-const listeners = new Set();
+const listeners = new Set();   // näkymän uudelleenpiirto
+const savers = new Set();      // kuuntelijat, jotka tarvitsevat myös hiljaiset muutokset
 
 const uid = () =>
   Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
@@ -1355,6 +1368,8 @@ let state = load();
 
 const getState = () => state;
 const subscribe = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+/** Kuulee myös hiljaiset muutokset – pilvisynkronointi tarvitsee kaikki. */
+const subscribeAll = (fn) => { savers.add(fn); return () => savers.delete(fn); };
 
 function save() {
   try {
@@ -1365,10 +1380,16 @@ function save() {
 }
 
 /** Muokkaa tilaa ja ilmoita kuuntelijoille. */
-function update(mutator) {
+/**
+ * Muuttaa tilan ja tallentaa sen. Vaihtoehto { silent: true } jättää näkymän
+ * piirtämättä uudelleen: sitä käytetään tekstikentissä, joissa uudelleenpiirto
+ * veisi kohdistuksen ja söisi juuri alkaneen napautuksen.
+ */
+function update(mutator, { silent = false } = {}) {
   mutator(state);
   save();
-  listeners.forEach((fn) => fn(state));
+  savers.forEach((fn) => fn(state));
+  if (!silent) listeners.forEach((fn) => fn(state));
 }
 
 function replaceState(next) {
@@ -1508,11 +1529,27 @@ function addMatch(data) {
     notes: '',
     lineup: emptyLineup(),
     timing: null,             // peliaikaseuranta, ks. js/timing.js
-    result: null,             // { gf, ga, events:[{id, scorerId, assistId, minute}], notes }
+    result: null,             // { gf, ga, events:[...], rating, notes } – ks. RATINGS
     ...data,
   };
   update((st) => { st.matches.push(m); });
   return m;
+}
+
+/** Valmentajan arvosana ottelulle: 1–5 tähteä. */
+const RATINGS = {
+  1: 'Heikko',
+  2: 'Välttävä',
+  3: 'Hyvä',
+  4: 'Erittäin hyvä',
+  5: 'Erinomainen',
+};
+
+/** Arvosanan keskiarvo niistä otteluista, joille se on annettu. */
+function averageRating(matches) {
+  const given = matches.map((m) => m.result?.rating).filter((v) => typeof v === 'number' && v > 0);
+  if (!given.length) return null;
+  return { avg: given.reduce((a, b) => a + b, 0) / given.length, count: given.length };
 }
 
 /** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
@@ -1521,11 +1558,11 @@ function matchTeams(matches = getState().matches) {
     .sort((a, b) => a.localeCompare(b, 'fi'));
 }
 
-function updateMatch(id, data) {
+function updateMatch(id, data, opts) {
   update((st) => {
     const m = st.matches.find((x) => x.id === id);
     if (m) Object.assign(m, data);
-  });
+  }, opts);
 }
 
 function removeMatch(id) {
@@ -1748,7 +1785,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATINGS, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -1898,7 +1935,7 @@ __mods['sync'] = () => {
 // Pilvitallennus Supabaseen. Käytetään suoraan REST-rajapintaa, joten
 // sovellus pysyy riippumattomana eikä offline-tuki tai yhden tiedoston
 // versio riko mitään.
-const { getState, replaceState, subscribe } = __req('store');
+const { getState, replaceState, subscribeAll } = __req('store');
 const { mergeStates, payload, stable } = __req('merge');
 const CONFIG_KEY = 'pelikirja.cloud';
 const SESSION_KEY = 'pelikirja.session';
@@ -2145,7 +2182,7 @@ function startAutoSync() {
     syncNow({ silent: true });
   }
 
-  subscribe(() => { if (isConnected()) schedulePush(); });
+  subscribeAll(() => { if (isConnected()) schedulePush(); });
 
   window.addEventListener('online', () => { if (isConnected()) syncNow({ silent: true }); });
   window.addEventListener('offline', () => {
@@ -3816,6 +3853,7 @@ function matchCard(m) {
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
       m.team ? h('span', { class: 'badge team', text: m.team }) : null,
+      m.result?.rating ? h('span', { class: 'badge rating tnum', text: `★ ${m.result.rating}/5` }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }
@@ -4063,6 +4101,7 @@ function lastResultCard(m) {
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),
+      r.rating ? h('span', { class: 'badge rating tnum', text: `★ ${r.rating}/5` }) : null,
       scorers.length ? h('span', { class: 'tiny muted ellip', text: scorers.join(', ') }) : null,
       video ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 
@@ -4121,7 +4160,7 @@ const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds,
+  staffById, STAFF_ROLES, absentIds, RATINGS,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { matchEvents } = __req('timing');
@@ -4343,7 +4382,7 @@ function resultTab(m) {
       h('p', { class: 'small', text: 'Kirjaa lopputulos ja maalintekijät, kun ottelu on pelattu.' })));
     wrap.append(h('button', {
       class: 'btn primary',
-      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], notes: '' } }),
+      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], rating: null, notes: '' } }),
     }, '＋ Kirjaa tulos'));
     return wrap;
   }
@@ -4375,9 +4414,7 @@ function resultTab(m) {
   wrap.append(h('p', { class: 'tiny muted center', style: 'margin:4px 0 0',
     text: 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
 
-  const notesI = h('textarea', { placeholder: 'Ottelumuistiinpanot', text: r.notes || '' });
-  notesI.addEventListener('change', () => updateMatch(m.id, { result: { ...matchById(m.id).result, notes: notesI.value } }));
-  wrap.append(h('label', { class: 'field', style: 'margin-top:16px' }, h('span', { text: 'Ottelumuistiinpanot' }), notesI));
+  wrap.append(coachReview(m));
 
   wrap.append(h('button', {
     class: 'btn danger',
@@ -4388,6 +4425,59 @@ function resultTab(m) {
       }
     },
   }, 'Poista tulos'));
+
+  return wrap;
+}
+
+/* ---------- Valmentajan arvio ---------- */
+
+/**
+ * Arvosana ja sanallinen analyysi ottelusta. Saman tähden painaminen
+ * uudestaan poistaa arvosanan.
+ */
+function coachReview(m) {
+  const r = m.result;
+  const rating = r.rating || 0;
+  const wrap = h('div', { class: 'stack', style: 'gap:8px' });
+
+  wrap.append(h('div', { class: 'section-title', style: 'margin-bottom:0', text: 'Valmentajan arvio' }));
+
+  const setRating = (value) => updateMatch(m.id, {
+    result: { ...matchById(m.id).result, rating: value === rating ? null : value },
+  });
+
+  const stars = h('div', { class: 'stars' });
+  for (let i = 1; i <= 5; i++) {
+    stars.append(h('button', {
+      class: `star${i <= rating ? ' on' : ''}`,
+      'aria-label': `${i} / 5 – ${RATINGS[i]}`,
+      'aria-pressed': i <= rating ? 'true' : 'false',
+      onclick: () => setRating(i),
+      text: i <= rating ? '★' : '☆',
+    }));
+  }
+
+  wrap.append(h('div', { class: 'card' },
+    h('div', { class: 'row between' },
+      h('span', { class: 'small muted', text: rating ? RATINGS[rating] : 'Ei arvosanaa' }),
+      rating ? h('span', { class: 'badge rating tnum', text: `${rating}/5` }) : null),
+    stars,
+    h('div', { class: 'tiny muted center', style: 'margin-top:2px',
+      text: rating ? 'Poista arvosana painamalla samaa tähteä uudestaan.' : 'Anna ottelulle arvosana napauttamalla tähteä.' })));
+
+  const notesI = h('textarea', {
+    rows: 5,
+    placeholder: 'Miten ottelu meni? Onnistumiset, kehityskohteet, huomiot pelaajista.',
+    text: r.notes || '',
+  });
+  // Tallennus ilman uudelleenpiirtoa: muuten kentästä pois vievä napautus
+  // korvaisi juuri painetun painikkeen eikä painallus menisi perille.
+  notesI.addEventListener('change', () => updateMatch(m.id, {
+    result: { ...matchById(m.id).result, notes: notesI.value },
+  }, { silent: true }));
+  wrap.append(h('label', { class: 'field' },
+    h('span', { text: 'Kommentti tai analyysi' }), notesI,
+    h('span', { class: 'tiny muted', text: 'Tallentuu automaattisesti, kun siirryt pois kentästä.' })));
 
   return wrap;
 }
@@ -4557,7 +4647,7 @@ __mods['stats'] = () => {
 // Kauden tilastot: joukkue ja pelaajat.
 const { h } = __req('ui');
 const { icon } = __req('icons');
-const { getState, sortedPlayers, isPlayed } = __req('store');
+const { getState, sortedPlayers, isPlayed, averageRating } = __req('store');
 const { seasonPlayingTime } = __req('tracking');
 function statsView() {
   const st = getState();
@@ -4589,6 +4679,13 @@ function statsView() {
     body.append(h('div', { class: 'section-title', text: 'Joukkue' }));
     body.append(h('div', { class: 'kpi-grid' }, kpi(played.length, 'Ottelua'), kpi(w, 'Voittoa'), kpi(d, 'Tasapeliä')));
     body.append(h('div', { class: 'kpi-grid' }, kpi(l, 'Tappiota'), kpi(`${gf}–${ga}`, 'Maalit'), kpi(w * 3 + d, 'Pistettä')));
+    // Valmentajan arvosanojen keskiarvo, kun arvosanoja on annettu.
+    const rated = averageRating(played);
+    if (rated) {
+      body.append(h('div', { class: 'card row between' },
+        h('span', { class: 'small muted', text: `Valmentajan arvosana (${rated.count} ottelua)` }),
+        h('span', { class: 'badge rating tnum', text: `★ ${rated.avg.toFixed(1)}/5` })));
+    }
   }
 
   // Pelaajakohtaiset tilastot

@@ -1,7 +1,7 @@
 // Pilvitallennus Supabaseen. Käytetään suoraan REST-rajapintaa, joten
 // sovellus pysyy riippumattomana eikä offline-tuki tai yhden tiedoston
 // versio riko mitään.
-import { getState, replaceState, subscribe } from './store.js';
+import { getState, replaceState, subscribeAll } from './store.js';
 import { mergeStates, payload, stable } from './merge.js';
 
 const CONFIG_KEY = 'pelikirja.cloud';
@@ -249,7 +249,7 @@ export function startAutoSync() {
     syncNow({ silent: true });
   }
 
-  subscribe(() => { if (isConnected()) schedulePush(); });
+  subscribeAll(() => { if (isConnected()) schedulePush(); });
 
   window.addEventListener('online', () => { if (isConnected()) syncNow({ silent: true }); });
   window.addEventListener('offline', () => {

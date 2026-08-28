@@ -100,6 +100,7 @@ function matchCard(m) {
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
       m.team ? h('span', { class: 'badge team', text: m.team }) : null,
+      m.result?.rating ? h('span', { class: 'badge rating tnum', text: `★ ${m.result.rating}/5` }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }

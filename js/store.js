@@ -4,7 +4,8 @@ import { DEFAULT_TEAM_NAME } from './merge.js';
 import { emptyTiming, clockSeconds, onField } from './timing.js';
 
 const KEY = 'pelikirja.v1';
-const listeners = new Set();
+const listeners = new Set();   // näkymän uudelleenpiirto
+const savers = new Set();      // kuuntelijat, jotka tarvitsevat myös hiljaiset muutokset
 
 export const uid = () =>
   Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
@@ -83,6 +84,8 @@ let state = load();
 
 export const getState = () => state;
 export const subscribe = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+/** Kuulee myös hiljaiset muutokset – pilvisynkronointi tarvitsee kaikki. */
+export const subscribeAll = (fn) => { savers.add(fn); return () => savers.delete(fn); };
 
 export function save() {
   try {
@@ -93,10 +96,16 @@ export function save() {
 }
 
 /** Muokkaa tilaa ja ilmoita kuuntelijoille. */
-export function update(mutator) {
+/**
+ * Muuttaa tilan ja tallentaa sen. Vaihtoehto { silent: true } jättää näkymän
+ * piirtämättä uudelleen: sitä käytetään tekstikentissä, joissa uudelleenpiirto
+ * veisi kohdistuksen ja söisi juuri alkaneen napautuksen.
+ */
+export function update(mutator, { silent = false } = {}) {
   mutator(state);
   save();
-  listeners.forEach((fn) => fn(state));
+  savers.forEach((fn) => fn(state));
+  if (!silent) listeners.forEach((fn) => fn(state));
 }
 
 export function replaceState(next) {
@@ -236,11 +245,27 @@ export function addMatch(data) {
     notes: '',
     lineup: emptyLineup(),
     timing: null,             // peliaikaseuranta, ks. js/timing.js
-    result: null,             // { gf, ga, events:[{id, scorerId, assistId, minute}], notes }
+    result: null,             // { gf, ga, events:[...], rating, notes } – ks. RATINGS
     ...data,
   };
   update((st) => { st.matches.push(m); });
   return m;
+}
+
+/** Valmentajan arvosana ottelulle: 1–5 tähteä. */
+export const RATINGS = {
+  1: 'Heikko',
+  2: 'Välttävä',
+  3: 'Hyvä',
+  4: 'Erittäin hyvä',
+  5: 'Erinomainen',
+};
+
+/** Arvosanan keskiarvo niistä otteluista, joille se on annettu. */
+export function averageRating(matches) {
+  const given = matches.map((m) => m.result?.rating).filter((v) => typeof v === 'number' && v > 0);
+  if (!given.length) return null;
+  return { avg: given.reduce((a, b) => a + b, 0) / given.length, count: given.length };
 }
 
 /** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
@@ -249,11 +274,11 @@ export function matchTeams(matches = getState().matches) {
     .sort((a, b) => a.localeCompare(b, 'fi'));
 }
 
-export function updateMatch(id, data) {
+export function updateMatch(id, data, opts) {
   update((st) => {
     const m = st.matches.find((x) => x.id === id);
     if (m) Object.assign(m, data);
-  });
+  }, opts);
 }
 
 export function removeMatch(id) {

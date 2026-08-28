@@ -1,7 +1,7 @@
 // Kauden tilastot: joukkue ja pelaajat.
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
-import { getState, sortedPlayers, isPlayed } from '../store.js';
+import { getState, sortedPlayers, isPlayed, averageRating } from '../store.js';
 import { seasonPlayingTime } from './tracking.js';
 
 export function statsView() {
@@ -34,6 +34,13 @@ export function statsView() {
     body.append(h('div', { class: 'section-title', text: 'Joukkue' }));
     body.append(h('div', { class: 'kpi-grid' }, kpi(played.length, 'Ottelua'), kpi(w, 'Voittoa'), kpi(d, 'Tasapeliä')));
     body.append(h('div', { class: 'kpi-grid' }, kpi(l, 'Tappiota'), kpi(`${gf}–${ga}`, 'Maalit'), kpi(w * 3 + d, 'Pistettä')));
+    // Valmentajan arvosanojen keskiarvo, kun arvosanoja on annettu.
+    const rated = averageRating(played);
+    if (rated) {
+      body.append(h('div', { class: 'card row between' },
+        h('span', { class: 'small muted', text: `Valmentajan arvosana (${rated.count} ottelua)` }),
+        h('span', { class: 'badge rating tnum', text: `★ ${rated.avg.toFixed(1)}/5` })));
+    }
   }
 
   // Pelaajakohtaiset tilastot

@@ -4,7 +4,7 @@ import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js
 import {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds,
+  staffById, STAFF_ROLES, absentIds, RATINGS,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { matchEvents } from '../timing.js';
@@ -227,7 +227,7 @@ function resultTab(m) {
       h('p', { class: 'small', text: 'Kirjaa lopputulos ja maalintekijät, kun ottelu on pelattu.' })));
     wrap.append(h('button', {
       class: 'btn primary',
-      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], notes: '' } }),
+      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], rating: null, notes: '' } }),
     }, '＋ Kirjaa tulos'));
     return wrap;
   }
@@ -259,9 +259,7 @@ function resultTab(m) {
   wrap.append(h('p', { class: 'tiny muted center', style: 'margin:4px 0 0',
     text: 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
 
-  const notesI = h('textarea', { placeholder: 'Ottelumuistiinpanot', text: r.notes || '' });
-  notesI.addEventListener('change', () => updateMatch(m.id, { result: { ...matchById(m.id).result, notes: notesI.value } }));
-  wrap.append(h('label', { class: 'field', style: 'margin-top:16px' }, h('span', { text: 'Ottelumuistiinpanot' }), notesI));
+  wrap.append(coachReview(m));
 
   wrap.append(h('button', {
     class: 'btn danger',
@@ -272,6 +270,59 @@ function resultTab(m) {
       }
     },
   }, 'Poista tulos'));
+
+  return wrap;
+}
+
+/* ---------- Valmentajan arvio ---------- */
+
+/**
+ * Arvosana ja sanallinen analyysi ottelusta. Saman tähden painaminen
+ * uudestaan poistaa arvosanan.
+ */
+function coachReview(m) {
+  const r = m.result;
+  const rating = r.rating || 0;
+  const wrap = h('div', { class: 'stack', style: 'gap:8px' });
+
+  wrap.append(h('div', { class: 'section-title', style: 'margin-bottom:0', text: 'Valmentajan arvio' }));
+
+  const setRating = (value) => updateMatch(m.id, {
+    result: { ...matchById(m.id).result, rating: value === rating ? null : value },
+  });
+
+  const stars = h('div', { class: 'stars' });
+  for (let i = 1; i <= 5; i++) {
+    stars.append(h('button', {
+      class: `star${i <= rating ? ' on' : ''}`,
+      'aria-label': `${i} / 5 – ${RATINGS[i]}`,
+      'aria-pressed': i <= rating ? 'true' : 'false',
+      onclick: () => setRating(i),
+      text: i <= rating ? '★' : '☆',
+    }));
+  }
+
+  wrap.append(h('div', { class: 'card' },
+    h('div', { class: 'row between' },
+      h('span', { class: 'small muted', text: rating ? RATINGS[rating] : 'Ei arvosanaa' }),
+      rating ? h('span', { class: 'badge rating tnum', text: `${rating}/5` }) : null),
+    stars,
+    h('div', { class: 'tiny muted center', style: 'margin-top:2px',
+      text: rating ? 'Poista arvosana painamalla samaa tähteä uudestaan.' : 'Anna ottelulle arvosana napauttamalla tähteä.' })));
+
+  const notesI = h('textarea', {
+    rows: 5,
+    placeholder: 'Miten ottelu meni? Onnistumiset, kehityskohteet, huomiot pelaajista.',
+    text: r.notes || '',
+  });
+  // Tallennus ilman uudelleenpiirtoa: muuten kentästä pois vievä napautus
+  // korvaisi juuri painetun painikkeen eikä painallus menisi perille.
+  notesI.addEventListener('change', () => updateMatch(m.id, {
+    result: { ...matchById(m.id).result, notes: notesI.value },
+  }, { silent: true }));
+  wrap.append(h('label', { class: 'field' },
+    h('span', { text: 'Kommentti tai analyysi' }), notesI,
+    h('span', { class: 'tiny muted', text: 'Tallentuu automaattisesti, kun siirryt pois kentästä.' })));
 
   return wrap;
 }

@@ -57,6 +57,11 @@ async function device(name) {
       const store = await import('/js/store.js');
       store.update(new Function('st', `(${src})(st)`));
     }, fn.toString()),
+    /** Hiljainen muokkaus, kuten tekstikentän tallennus: ei uudelleenpiirtoa. */
+    editSilent: (fn) => page.evaluate(async (src) => {
+      const store = await import('/js/store.js');
+      store.update(new Function('st', `(${src})(st)`), { silent: true });
+    }, fn.toString()),
     connect: () => page.evaluate(async (url) => {
       const sync = await import('/js/sync.js');
       sync.setConfig(url, 'anon-avain');
@@ -175,6 +180,23 @@ if (staffA !== 's1,s2' || staffB !== 's1,s2') {
   fail('valmentajan merkintä otteluun ei siirtynyt');
 } else {
   console.log('valmentajat yhdistyivät molemmilta laitteilta ja ottelumerkintä siirtyi');
+}
+
+// --- Valmentajan arvio (hiljainen tallennus) siirtyy laitteelta toiselle ---
+await a.edit((st) => {
+  st.matches[0].result = { gf: 3, ga: 1, events: [], rating: null, notes: '' };
+});
+await a.editSilent((st) => {
+  st.matches[0].result.rating = 4;
+  st.matches[0].result.notes = 'Hyvä paineistus, viimeistely jäi vajaaksi.';
+});
+await a.sync();
+await b.sync();
+const arvio = (await b.state()).matches[0].result;
+if (arvio?.rating !== 4 || !arvio.notes.startsWith('Hyvä paineistus')) {
+  fail('valmentajan arvio ei siirtynyt: ' + JSON.stringify(arvio));
+} else {
+  console.log('valmentajan arvio siirtyi laitteelle B:', `★${arvio.rating}/5`, `"${arvio.notes.slice(0, 24)}…"`);
 }
 
 // --- Poisto leviää toiselle laitteelle ---

@@ -134,7 +134,7 @@
    mutta jättää vierityksen ja nipistyszoomauksen ennalleen. */
 html, body { height: 100%; touch-action: manipulation; }
 button, a, label, input, select, textarea,
-.card, .list-item, .chip, .swatch, .toolbtn, .slot, #tabbar a { touch-action: manipulation; }
+.card, .list-item, .chip, .swatch, .toolbtn, .slot, .star, #tabbar a { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--paper);
@@ -295,6 +295,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .numchip.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 /* Kapea versio listoihin, joissa rivejä on paljon. */
 .numchip.sm { width: 30px; height: 30px; font-size: 13px; }
+
+/* Valmentajan arvosana: viisi tähteä, napautuksella. */
+.stars { display: flex; justify-content: center; gap: 2px; margin: 8px 0 2px; }
+.star {
+  flex: 1; max-width: 64px; min-height: 48px; padding: 0;
+  background: none; border: 0; border-radius: 12px; cursor: pointer;
+  font-size: 30px; line-height: 1; color: var(--ink-3);
+  transition: transform .08s ease, background-color .12s ease, color .12s ease;
+}
+.star.on { color: var(--amber); }
+.star:active { background: var(--surface-2); transform: scale(.92); }
+.badge.rating { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 
 /* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
 .card.pick { border-color: var(--line); transition: background-color .12s ease, border-color .12s ease; }
