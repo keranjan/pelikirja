@@ -184,19 +184,19 @@ if (staffA !== 's1,s2' || staffB !== 's1,s2') {
 
 // --- Valmentajan arvio (hiljainen tallennus) siirtyy laitteelta toiselle ---
 await a.edit((st) => {
-  st.matches[0].result = { gf: 3, ga: 1, events: [], rating: null, notes: '' };
+  st.matches[0].result = { gf: 3, ga: 1, events: [], rating: null, ratingMax: 10, notes: '' };
 });
 await a.editSilent((st) => {
-  st.matches[0].result.rating = 4;
+  st.matches[0].result.rating = 8.5;
   st.matches[0].result.notes = 'Hyvä paineistus, viimeistely jäi vajaaksi.';
 });
 await a.sync();
 await b.sync();
 const arvio = (await b.state()).matches[0].result;
-if (arvio?.rating !== 4 || !arvio.notes.startsWith('Hyvä paineistus')) {
+if (arvio?.rating !== 8.5 || !arvio.notes.startsWith('Hyvä paineistus')) {
   fail('valmentajan arvio ei siirtynyt: ' + JSON.stringify(arvio));
 } else {
-  console.log('valmentajan arvio siirtyi laitteelle B:', `★${arvio.rating}/5`, `"${arvio.notes.slice(0, 24)}…"`);
+  console.log('valmentajan arvio siirtyi laitteelle B:', `arvosana ${arvio.rating}`, `"${arvio.notes.slice(0, 24)}…"`);
 }
 
 // --- Poisto leviää toiselle laitteelle ---

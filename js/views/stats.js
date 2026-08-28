@@ -1,7 +1,7 @@
 // Kauden tilastot: joukkue ja pelaajat.
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
-import { getState, sortedPlayers, isPlayed, averageRating } from '../store.js';
+import { getState, sortedPlayers, isPlayed, averageRating, fmtRating } from '../store.js';
 import { seasonPlayingTime } from './tracking.js';
 
 export function statsView() {
@@ -39,7 +39,7 @@ export function statsView() {
     if (rated) {
       body.append(h('div', { class: 'card row between' },
         h('span', { class: 'small muted', text: `Valmentajan arvosana (${rated.count} ottelua)` }),
-        h('span', { class: 'badge rating tnum', text: `★ ${rated.avg.toFixed(1)}/5` })));
+        h('span', { class: 'badge rating tnum', text: fmtRating(rated.avg) })));
     }
   }
 

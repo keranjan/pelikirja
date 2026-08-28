@@ -57,6 +57,12 @@ function migrate(data) {
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
+    // Arvosana oli aiemmin 1–5 tähteä, nyt kouluasteikko 4–10.
+    const r = m.result;
+    if (r && typeof r.rating === 'number' && r.ratingMax !== 10) {
+      r.rating = Math.round((4 + (r.rating - 1) * 1.5) * 2) / 2;
+      r.ratingMax = 10;
+    }
   }
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
@@ -252,14 +258,34 @@ export function addMatch(data) {
   return m;
 }
 
-/** Valmentajan arvosana ottelulle: 1–5 tähteä. */
+/** Valmentajan arvosana ottelulle kouluasteikolla 4–10, puolikkaan tarkkuudella. */
+export const RATING_MIN = 4;
+export const RATING_MAX = 10;
+export const RATING_STEP = 0.5;
 export const RATINGS = {
-  1: 'Heikko',
-  2: 'Välttävä',
-  3: 'Hyvä',
-  4: 'Erittäin hyvä',
-  5: 'Erinomainen',
+  4: 'Heikko',
+  5: 'Välttävä',
+  6: 'Kohtalainen',
+  7: 'Tyydyttävä',
+  8: 'Hyvä',
+  9: 'Kiitettävä',
+  10: 'Erinomainen',
 };
+
+/** Arvosanan sanallinen kuvaus: puolikas näkyy plussana, esim. "Hyvä +". */
+export function ratingLabel(value) {
+  if (typeof value !== 'number') return '';
+  const whole = Math.floor(value);
+  return RATINGS[whole] ? RATINGS[whole] + (value > whole ? ' +' : '') : '';
+}
+
+/** Arvosana suomalaisittain: 8 -> "8", 8.5 -> "8,5". */
+export const fmtRating = (value) =>
+  (typeof value === 'number' ? String(Math.round(value * 10) / 10).replace('.', ',') : '');
+
+/** Pitää arvosanan asteikolla ja puolikkaan tarkkuudella. */
+export const clampRating = (value) =>
+  Math.min(RATING_MAX, Math.max(RATING_MIN, Math.round(value / RATING_STEP) * RATING_STEP));
 
 /** Arvosanan keskiarvo niistä otteluista, joille se on annettu. */
 export function averageRating(matches) {

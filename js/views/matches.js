@@ -2,7 +2,7 @@
 import { icon } from '../icons.js';
 import { h, sheet, toast, fmtShortDate, countdownText, videoInfo } from '../ui.js';
 import {
-  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams, fmtRating,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
@@ -100,7 +100,8 @@ function matchCard(m) {
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
       m.team ? h('span', { class: 'badge team', text: m.team }) : null,
-      m.result?.rating ? h('span', { class: 'badge rating tnum', text: `★ ${m.result.rating}/5` }) : null,
+      typeof m.result?.rating === 'number'
+        ? h('span', { class: 'badge rating tnum', text: `Arvio ${fmtRating(m.result.rating)}` }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }

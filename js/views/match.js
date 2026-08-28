@@ -4,7 +4,8 @@ import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js
 import {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds, RATINGS,
+  staffById, STAFF_ROLES, absentIds,
+  RATINGS, RATING_MIN, RATING_MAX, RATING_STEP, ratingLabel, fmtRating, clampRating,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { matchEvents } from '../timing.js';
@@ -227,7 +228,9 @@ function resultTab(m) {
       h('p', { class: 'small', text: 'Kirjaa lopputulos ja maalintekijät, kun ottelu on pelattu.' })));
     wrap.append(h('button', {
       class: 'btn primary',
-      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], rating: null, notes: '' } }),
+      onclick: () => updateMatch(m.id, {
+        result: { gf: 0, ga: 0, events: [], rating: null, ratingMax: RATING_MAX, notes: '' },
+      }),
     }, '＋ Kirjaa tulos'));
     return wrap;
   }
@@ -277,38 +280,62 @@ function resultTab(m) {
 /* ---------- Valmentajan arvio ---------- */
 
 /**
- * Arvosana ja sanallinen analyysi ottelusta. Saman tähden painaminen
- * uudestaan poistaa arvosanan.
+ * Ottelun arvosana kouluasteikolla 4–10 ja sanallinen analyysi.
+ * Kokonaisluku napautetaan suoraan, puolikkaat ±0,5-painikkeilla.
  */
 function coachReview(m) {
   const r = m.result;
-  const rating = r.rating || 0;
+  const rating = typeof r.rating === 'number' ? r.rating : null;
   const wrap = h('div', { class: 'stack', style: 'gap:8px' });
 
   wrap.append(h('div', { class: 'section-title', style: 'margin-bottom:0', text: 'Valmentajan arvio' }));
 
   const setRating = (value) => updateMatch(m.id, {
-    result: { ...matchById(m.id).result, rating: value === rating ? null : value },
+    result: {
+      ...matchById(m.id).result,
+      rating: value === null ? null : clampRating(value),
+      ratingMax: RATING_MAX,
+    },
   });
 
-  const stars = h('div', { class: 'stars' });
-  for (let i = 1; i <= 5; i++) {
-    stars.append(h('button', {
-      class: `star${i <= rating ? ' on' : ''}`,
-      'aria-label': `${i} / 5 – ${RATINGS[i]}`,
-      'aria-pressed': i <= rating ? 'true' : 'false',
-      onclick: () => setRating(i),
-      text: i <= rating ? '★' : '☆',
+  const grades = h('div', { class: 'grades' });
+  for (let g = RATING_MIN; g <= RATING_MAX; g++) {
+    grades.append(h('button', {
+      class: `grade${rating !== null && Math.floor(rating) === g ? ' on' : ''}`,
+      'aria-label': `${g} – ${RATINGS[g]}`,
+      'aria-pressed': rating !== null && Math.floor(rating) === g ? 'true' : 'false',
+      // Saman kokonaisluvun napautus uudestaan poistaa arvosanan.
+      onclick: () => setRating(rating === g ? null : g),
+      text: String(g),
     }));
   }
 
+  const nudge = (delta) => h('button', {
+    class: 'btn sm ghost', style: 'flex:1',
+    disabled: rating === null
+      || (delta < 0 && rating <= RATING_MIN) || (delta > 0 && rating >= RATING_MAX),
+    onclick: () => setRating(rating + delta),
+  }, `${delta > 0 ? '＋' : '−'} ${fmtRating(Math.abs(delta))}`);
+
   wrap.append(h('div', { class: 'card' },
     h('div', { class: 'row between' },
-      h('span', { class: 'small muted', text: rating ? RATINGS[rating] : 'Ei arvosanaa' }),
-      rating ? h('span', { class: 'badge rating tnum', text: `${rating}/5` }) : null),
-    stars,
-    h('div', { class: 'tiny muted center', style: 'margin-top:2px',
-      text: rating ? 'Poista arvosana painamalla samaa tähteä uudestaan.' : 'Anna ottelulle arvosana napauttamalla tähteä.' })));
+      h('span', { class: 'small muted', text: rating !== null ? ratingLabel(rating) : 'Ei arvosanaa' }),
+      h('span', {
+        class: 'tnum',
+        style: `font-family:var(--display);font-size:30px;font-weight:800;${rating === null ? 'color:var(--ink-3)' : 'color:var(--amber)'}`,
+        text: rating !== null ? fmtRating(rating) : '–',
+      })),
+    grades,
+    h('div', { class: 'btn-row', style: 'margin-top:8px' },
+      nudge(-RATING_STEP),
+      nudge(RATING_STEP),
+      h('button', {
+        class: 'btn sm ghost', style: 'flex:1',
+        disabled: rating === null,
+        onclick: () => setRating(null),
+      }, 'Poista')),
+    h('div', { class: 'tiny muted center', style: 'margin-top:8px',
+      text: 'Asteikko 4–10. Puolikkaat säädetään ±0,5-painikkeilla.' })));
 
   const notesI = h('textarea', {
     rows: 5,

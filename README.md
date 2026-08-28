@@ -75,8 +75,9 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Tulevat tapahtumat aikajärjestyksessä, mukana lähtölaskenta ja kokoonpanon täyttöaste
 - Jokaisella ottelulla oma kokoonpanonsa
 - Tulos: maalit puolittain sekä ottelun tapahtumat aikajärjestyksessä
-- Valmentajan arvio: arvosana 1–5 tähdellä ja sanallinen analyysi ottelusta;
-  arvosana näkyy ottelukorteissa ja sen kauden keskiarvo Tilastot-välilehdellä
+- Valmentajan arvio: ottelun arvosana kouluasteikolla 4–10 puolikkaan
+  tarkkuudella (esim. 8,5) ja sanallinen analyysi; arvosana näkyy
+  ottelukorteissa ja sen kauden keskiarvo Tilastot-välilehdellä
 - Videolinkki otteluun (Veo, YouTube, Vimeo, Spiideo, Hudl tai mikä tahansa https-osoite):
   tallenne avautuu Tulos-välilehdeltä yhdellä napautuksella palvelun omaan sovellukseen
 - Pelatut ottelut omalla välilehdellään voitto/tasapeli/tappio-merkinnöin

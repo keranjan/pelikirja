@@ -581,33 +581,44 @@ const videoHref = await videoLink.getAttribute('href');
 console.log('videonappi:', (await videoLink.textContent()).trim(), '->', videoHref);
 if (videoHref !== VEO) { console.error('Videolinkki ei tallentunut'); process.exit(1); }
 
-// Valmentajan arvio: arvosana tähdillä ja sanallinen analyysi
-const stars = page.locator('#view .stars .star');
-if (await stars.count() !== 5) { console.error('Arvosanan tähdet puuttuvat'); process.exit(1); }
-await stars.nth(3).click();
+// Valmentajan arvio: arvosana asteikolla 4–10 ja sanallinen analyysi
+const rating = () => page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.rating);
+const grades = page.locator('#view .grades .grade');
+const gradeText = await grades.allTextContents();
+if (gradeText.join(',') !== '4,5,6,7,8,9,10') {
+  console.error('Arvosana-asteikko ei ole 4–10: ' + gradeText.join(',')); process.exit(1);
+}
+await grades.nth(4).click();          // 8
 await page.waitForTimeout(250);
-const rated = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.rating);
-if (rated !== 4) { console.error('Arvosana ei tallentunut: ' + rated); process.exit(1); }
-const ratingLabel = await page.locator('#view .stars').locator('..').textContent();
-if (!ratingLabel.includes('Erittäin hyvä')) {
-  console.error('Arvosanan kuvaus puuttuu: ' + ratingLabel.slice(0, 80)); process.exit(1);
+if (await rating() !== 8) { console.error('Arvosana ei tallentunut: ' + await rating()); process.exit(1); }
+await page.locator('#view .btn', { hasText: '＋ 0,5' }).click();
+await page.waitForTimeout(250);
+if (await rating() !== 8.5) { console.error('Puolikas ei toiminut: ' + await rating()); process.exit(1); }
+const reviewCard = await page.locator('#view .grades').locator('..').textContent();
+if (!reviewCard.includes('8,5') || !reviewCard.includes('Hyvä +')) {
+  console.error('Arvosanan kuvaus tai lukema puuttuu: ' + reviewCard.slice(0, 100)); process.exit(1);
+}
+// Asteikon ylä- ja alarajat pitävät
+await page.locator('#view .grades .grade', { hasText: '10' }).click();
+await page.waitForTimeout(200);
+if (await page.locator('#view .btn', { hasText: '＋ 0,5' }).isEnabled()) {
+  console.error('Arvosana yli kympin on mahdollinen'); process.exit(1);
 }
 const ANALYYSI = 'Puolustus piti hyvin, keskikentän paineistus parani toisella jaksolla.';
 await page.locator('#view textarea').last().fill(ANALYYSI);
-await page.locator('#view .stars .star').first().click();   // vie fokuksen pois -> change
+await page.locator('#view .grades .grade').nth(4).click();   // vie fokuksen pois -> change
 await page.waitForTimeout(250);
 const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result);
 if (stored.notes !== ANALYYSI) { console.error('Analyysi ei tallentunut: ' + stored.notes); process.exit(1); }
-if (stored.rating !== 1) { console.error('Arvosanan vaihto ei toiminut: ' + stored.rating); process.exit(1); }
-// Saman tähden painaminen uudestaan poistaa arvosanan.
-await page.locator('#view .stars .star').first().click();
+if (stored.rating !== 8) { console.error('Arvosanan vaihto ei toiminut: ' + stored.rating); process.exit(1); }
+// Saman numeron napautus uudestaan poistaa arvosanan.
+await page.locator('#view .grades .grade').nth(4).click();
 await page.waitForTimeout(250);
-if (await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.rating) !== null) {
-  console.error('Arvosanan poisto ei toiminut'); process.exit(1);
-}
-await page.locator('#view .stars .star').nth(3).click();
+if (await rating() !== null) { console.error('Arvosanan poisto ei toiminut'); process.exit(1); }
+await page.locator('#view .grades .grade').nth(4).click();
+await page.locator('#view .btn', { hasText: '＋ 0,5' }).click();
 await page.waitForTimeout(250);
-console.log('valmentajan arvio: arvosana ja analyysi tallessa');
+console.log('valmentajan arvio: arvosana', await rating(), 'ja analyysi tallessa');
 await shot('06-tulos');
 
 // --- Tilastot / kokoonpanot / asetukset ---
@@ -619,7 +630,7 @@ if (!statHeaders.includes('Min')) {
   process.exit(1);
 }
 const statsText = await page.locator('#view').textContent();
-if (!statsText.includes('Valmentajan arvosana') || !statsText.includes('4.0/5')) {
+if (!statsText.includes('Valmentajan arvosana') || !statsText.includes('8,5')) {
   console.error('Arvosanan keskiarvo puuttuu tilastoista'); process.exit(1);
 }
 await shot('07-tilastot');
@@ -895,6 +906,38 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
   if (scrolled !== 0) { console.error('Piirtäminen vieritti näkymää'); process.exit(1); }
   console.log('sormipiirto: ' + touchStrokes[0].points.length + ' pistettä, näkymä ei vierinyt');
   await touchCtx.close();
+}
+
+// --- Vanha tähtiarvosana muuttuu kouluasteikolle ---
+{
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fi-FI' });
+  const op = await ctx2.newPage();
+  op.on('pageerror', (e) => errors.push('migraatio: ' + e.message));
+  await op.goto('http://localhost:8777/index.html');
+  await op.evaluate(() => localStorage.setItem('pelikirja.v1', JSON.stringify({
+    version: 1, team: { name: 'Vanha', season: '2026' }, players: [], staff: [], lineups: [],
+    matches: [1, 2, 3, 4, 5].map((star, i) => ({
+      id: 'v' + i, date: '2026-05-0' + (i + 1), time: '18:00', opponent: 'Vastus ' + i,
+      home: true, venue: '', type: 'ottelu', videoUrl: '', notes: '',
+      lineup: { formation: '4-3-3', slots: Array(11).fill(null), bench: [], positions: {}, drawings: [] },
+      result: { gf: 1, ga: 0, events: [], rating: star, notes: '' },
+    })),
+  })));
+  await op.reload();
+  await op.waitForTimeout(400);
+  // Uudelleenlataus vielä kerran: migraatio ei saa muuttaa arvoja toistamiseen.
+  await op.reload();
+  await op.waitForTimeout(400);
+  const migrated = await op.evaluate(async () => {
+    const store = await import('/js/store.js');
+    return store.getState().matches.map((m) => m.result.rating);
+  });
+  if (migrated.join(',') !== '4,5.5,7,8.5,10') {
+    console.error('Tähtiarvosanojen muunnos epäonnistui: ' + JSON.stringify(migrated));
+    process.exit(1);
+  }
+  console.log('vanhat tähtiarvosanat kouluasteikolla:', migrated.join(' · '));
+  await ctx2.close();
 }
 
 await browser.close();

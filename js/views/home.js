@@ -1,7 +1,7 @@
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
 import { h, fmtDate, daysUntil, videoInfo, timeAgo } from '../ui.js';
 import {
-  getState, upcomingMatches, pastMatches, isPlayed, playerName,
+  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
@@ -150,7 +150,8 @@ function lastResultCard(m) {
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),
-      r.rating ? h('span', { class: 'badge rating tnum', text: `★ ${r.rating}/5` }) : null,
+      typeof r.rating === 'number'
+        ? h('span', { class: 'badge rating tnum', text: `Arvio ${fmtRating(r.rating)}` }) : null,
       scorers.length ? h('span', { class: 'tiny muted ellip', text: scorers.join(', ') }) : null,
       video ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 

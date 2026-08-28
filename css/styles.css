@@ -134,7 +134,7 @@
    mutta jättää vierityksen ja nipistyszoomauksen ennalleen. */
 html, body { height: 100%; touch-action: manipulation; }
 button, a, label, input, select, textarea,
-.card, .list-item, .chip, .swatch, .toolbtn, .slot, .star, #tabbar a { touch-action: manipulation; }
+.card, .list-item, .chip, .swatch, .toolbtn, .slot, .grade, #tabbar a { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--paper);
@@ -296,16 +296,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 /* Kapea versio listoihin, joissa rivejä on paljon. */
 .numchip.sm { width: 30px; height: 30px; font-size: 13px; }
 
-/* Valmentajan arvosana: viisi tähteä, napautuksella. */
-.stars { display: flex; justify-content: center; gap: 2px; margin: 8px 0 2px; }
-.star {
-  flex: 1; max-width: 64px; min-height: 48px; padding: 0;
-  background: none; border: 0; border-radius: 12px; cursor: pointer;
-  font-size: 30px; line-height: 1; color: var(--ink-3);
+/* Ottelun arvosana kouluasteikolla: numeropainikkeet 4–10. */
+.grades { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
+.grade {
+  min-height: 46px; padding: 0;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px;
+  color: var(--ink-2); cursor: pointer;
+  font-family: var(--display); font-size: 16px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
   transition: transform .08s ease, background-color .12s ease, color .12s ease;
 }
-.star.on { color: var(--amber); }
-.star:active { background: var(--surface-2); transform: scale(.92); }
+.grade.on { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
+.grade:active { background: var(--surface-2); transform: scale(.94); }
 .badge.rating { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 
 /* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */

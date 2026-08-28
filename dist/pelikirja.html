@@ -184,7 +184,7 @@
    mutta jättää vierityksen ja nipistyszoomauksen ennalleen. */
 html, body { height: 100%; touch-action: manipulation; }
 button, a, label, input, select, textarea,
-.card, .list-item, .chip, .swatch, .toolbtn, .slot, .star, #tabbar a { touch-action: manipulation; }
+.card, .list-item, .chip, .swatch, .toolbtn, .slot, .grade, #tabbar a { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--paper);
@@ -346,16 +346,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 /* Kapea versio listoihin, joissa rivejä on paljon. */
 .numchip.sm { width: 30px; height: 30px; font-size: 13px; }
 
-/* Valmentajan arvosana: viisi tähteä, napautuksella. */
-.stars { display: flex; justify-content: center; gap: 2px; margin: 8px 0 2px; }
-.star {
-  flex: 1; max-width: 64px; min-height: 48px; padding: 0;
-  background: none; border: 0; border-radius: 12px; cursor: pointer;
-  font-size: 30px; line-height: 1; color: var(--ink-3);
+/* Ottelun arvosana kouluasteikolla: numeropainikkeet 4–10. */
+.grades { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 10px; }
+.grade {
+  min-height: 46px; padding: 0;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px;
+  color: var(--ink-2); cursor: pointer;
+  font-family: var(--display); font-size: 16px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
   transition: transform .08s ease, background-color .12s ease, color .12s ease;
 }
-.star.on { color: var(--amber); }
-.star:active { background: var(--surface-2); transform: scale(.92); }
+.grade.on { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
+.grade:active { background: var(--surface-2); transform: scale(.94); }
 .badge.rating { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 
 /* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
@@ -1341,6 +1343,12 @@ function migrate(data) {
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
+    // Arvosana oli aiemmin 1–5 tähteä, nyt kouluasteikko 4–10.
+    const r = m.result;
+    if (r && typeof r.rating === 'number' && r.ratingMax !== 10) {
+      r.rating = Math.round((4 + (r.rating - 1) * 1.5) * 2) / 2;
+      r.ratingMax = 10;
+    }
   }
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
@@ -1536,14 +1544,34 @@ function addMatch(data) {
   return m;
 }
 
-/** Valmentajan arvosana ottelulle: 1–5 tähteä. */
+/** Valmentajan arvosana ottelulle kouluasteikolla 4–10, puolikkaan tarkkuudella. */
+const RATING_MIN = 4;
+const RATING_MAX = 10;
+const RATING_STEP = 0.5;
 const RATINGS = {
-  1: 'Heikko',
-  2: 'Välttävä',
-  3: 'Hyvä',
-  4: 'Erittäin hyvä',
-  5: 'Erinomainen',
+  4: 'Heikko',
+  5: 'Välttävä',
+  6: 'Kohtalainen',
+  7: 'Tyydyttävä',
+  8: 'Hyvä',
+  9: 'Kiitettävä',
+  10: 'Erinomainen',
 };
+
+/** Arvosanan sanallinen kuvaus: puolikas näkyy plussana, esim. "Hyvä +". */
+function ratingLabel(value) {
+  if (typeof value !== 'number') return '';
+  const whole = Math.floor(value);
+  return RATINGS[whole] ? RATINGS[whole] + (value > whole ? ' +' : '') : '';
+}
+
+/** Arvosana suomalaisittain: 8 -> "8", 8.5 -> "8,5". */
+const fmtRating = (value) =>
+  (typeof value === 'number' ? String(Math.round(value * 10) / 10).replace('.', ',') : '');
+
+/** Pitää arvosanan asteikolla ja puolikkaan tarkkuudella. */
+const clampRating = (value) =>
+  Math.min(RATING_MAX, Math.max(RATING_MIN, Math.round(value / RATING_STEP) * RATING_STEP));
 
 /** Arvosanan keskiarvo niistä otteluista, joille se on annettu. */
 function averageRating(matches) {
@@ -1785,7 +1813,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATINGS, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -3756,7 +3784,7 @@ __mods['matches'] = () => {
 const { icon } = __req('icons');
 const { h, sheet, toast, fmtShortDate, countdownText, videoInfo } = __req('ui');
 const {
-  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams, fmtRating,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
@@ -3853,7 +3881,8 @@ function matchCard(m) {
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
       m.team ? h('span', { class: 'badge team', text: m.team }) : null,
-      m.result?.rating ? h('span', { class: 'badge rating tnum', text: `★ ${m.result.rating}/5` }) : null,
+      typeof m.result?.rating === 'number'
+        ? h('span', { class: 'badge rating tnum', text: `Arvio ${fmtRating(m.result.rating)}` }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }
@@ -3953,7 +3982,7 @@ __mods['home'] = () => {
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
 const { h, fmtDate, daysUntil, videoInfo, timeAgo } = __req('ui');
 const {
-  getState, upcomingMatches, pastMatches, isPlayed, playerName,
+  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
@@ -4101,7 +4130,8 @@ function lastResultCard(m) {
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),
-      r.rating ? h('span', { class: 'badge rating tnum', text: `★ ${r.rating}/5` }) : null,
+      typeof r.rating === 'number'
+        ? h('span', { class: 'badge rating tnum', text: `Arvio ${fmtRating(r.rating)}` }) : null,
       scorers.length ? h('span', { class: 'tiny muted ellip', text: scorers.join(', ') }) : null,
       video ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 
@@ -4160,7 +4190,8 @@ const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds, RATINGS,
+  staffById, STAFF_ROLES, absentIds,
+  RATINGS, RATING_MIN, RATING_MAX, RATING_STEP, ratingLabel, fmtRating, clampRating,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { matchEvents } = __req('timing');
@@ -4382,7 +4413,9 @@ function resultTab(m) {
       h('p', { class: 'small', text: 'Kirjaa lopputulos ja maalintekijät, kun ottelu on pelattu.' })));
     wrap.append(h('button', {
       class: 'btn primary',
-      onclick: () => updateMatch(m.id, { result: { gf: 0, ga: 0, events: [], rating: null, notes: '' } }),
+      onclick: () => updateMatch(m.id, {
+        result: { gf: 0, ga: 0, events: [], rating: null, ratingMax: RATING_MAX, notes: '' },
+      }),
     }, '＋ Kirjaa tulos'));
     return wrap;
   }
@@ -4432,38 +4465,62 @@ function resultTab(m) {
 /* ---------- Valmentajan arvio ---------- */
 
 /**
- * Arvosana ja sanallinen analyysi ottelusta. Saman tähden painaminen
- * uudestaan poistaa arvosanan.
+ * Ottelun arvosana kouluasteikolla 4–10 ja sanallinen analyysi.
+ * Kokonaisluku napautetaan suoraan, puolikkaat ±0,5-painikkeilla.
  */
 function coachReview(m) {
   const r = m.result;
-  const rating = r.rating || 0;
+  const rating = typeof r.rating === 'number' ? r.rating : null;
   const wrap = h('div', { class: 'stack', style: 'gap:8px' });
 
   wrap.append(h('div', { class: 'section-title', style: 'margin-bottom:0', text: 'Valmentajan arvio' }));
 
   const setRating = (value) => updateMatch(m.id, {
-    result: { ...matchById(m.id).result, rating: value === rating ? null : value },
+    result: {
+      ...matchById(m.id).result,
+      rating: value === null ? null : clampRating(value),
+      ratingMax: RATING_MAX,
+    },
   });
 
-  const stars = h('div', { class: 'stars' });
-  for (let i = 1; i <= 5; i++) {
-    stars.append(h('button', {
-      class: `star${i <= rating ? ' on' : ''}`,
-      'aria-label': `${i} / 5 – ${RATINGS[i]}`,
-      'aria-pressed': i <= rating ? 'true' : 'false',
-      onclick: () => setRating(i),
-      text: i <= rating ? '★' : '☆',
+  const grades = h('div', { class: 'grades' });
+  for (let g = RATING_MIN; g <= RATING_MAX; g++) {
+    grades.append(h('button', {
+      class: `grade${rating !== null && Math.floor(rating) === g ? ' on' : ''}`,
+      'aria-label': `${g} – ${RATINGS[g]}`,
+      'aria-pressed': rating !== null && Math.floor(rating) === g ? 'true' : 'false',
+      // Saman kokonaisluvun napautus uudestaan poistaa arvosanan.
+      onclick: () => setRating(rating === g ? null : g),
+      text: String(g),
     }));
   }
 
+  const nudge = (delta) => h('button', {
+    class: 'btn sm ghost', style: 'flex:1',
+    disabled: rating === null
+      || (delta < 0 && rating <= RATING_MIN) || (delta > 0 && rating >= RATING_MAX),
+    onclick: () => setRating(rating + delta),
+  }, `${delta > 0 ? '＋' : '−'} ${fmtRating(Math.abs(delta))}`);
+
   wrap.append(h('div', { class: 'card' },
     h('div', { class: 'row between' },
-      h('span', { class: 'small muted', text: rating ? RATINGS[rating] : 'Ei arvosanaa' }),
-      rating ? h('span', { class: 'badge rating tnum', text: `${rating}/5` }) : null),
-    stars,
-    h('div', { class: 'tiny muted center', style: 'margin-top:2px',
-      text: rating ? 'Poista arvosana painamalla samaa tähteä uudestaan.' : 'Anna ottelulle arvosana napauttamalla tähteä.' })));
+      h('span', { class: 'small muted', text: rating !== null ? ratingLabel(rating) : 'Ei arvosanaa' }),
+      h('span', {
+        class: 'tnum',
+        style: `font-family:var(--display);font-size:30px;font-weight:800;${rating === null ? 'color:var(--ink-3)' : 'color:var(--amber)'}`,
+        text: rating !== null ? fmtRating(rating) : '–',
+      })),
+    grades,
+    h('div', { class: 'btn-row', style: 'margin-top:8px' },
+      nudge(-RATING_STEP),
+      nudge(RATING_STEP),
+      h('button', {
+        class: 'btn sm ghost', style: 'flex:1',
+        disabled: rating === null,
+        onclick: () => setRating(null),
+      }, 'Poista')),
+    h('div', { class: 'tiny muted center', style: 'margin-top:8px',
+      text: 'Asteikko 4–10. Puolikkaat säädetään ±0,5-painikkeilla.' })));
 
   const notesI = h('textarea', {
     rows: 5,
@@ -4647,7 +4704,7 @@ __mods['stats'] = () => {
 // Kauden tilastot: joukkue ja pelaajat.
 const { h } = __req('ui');
 const { icon } = __req('icons');
-const { getState, sortedPlayers, isPlayed, averageRating } = __req('store');
+const { getState, sortedPlayers, isPlayed, averageRating, fmtRating } = __req('store');
 const { seasonPlayingTime } = __req('tracking');
 function statsView() {
   const st = getState();
@@ -4684,7 +4741,7 @@ function statsView() {
     if (rated) {
       body.append(h('div', { class: 'card row between' },
         h('span', { class: 'small muted', text: `Valmentajan arvosana (${rated.count} ottelua)` }),
-        h('span', { class: 'badge rating tnum', text: `★ ${rated.avg.toFixed(1)}/5` })));
+        h('span', { class: 'badge rating tnum', text: fmtRating(rated.avg) })));
     }
   }
 
