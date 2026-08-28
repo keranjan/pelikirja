@@ -1020,6 +1020,84 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
   await touchCtx.close();
 }
 
+// --- Tulos koti–vieras-järjestyksessä ja peliaikamerkki ---
+{
+  const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fi-FI' });
+  const sp = await ctx3.newPage();
+  sp.on('pageerror', (e) => errors.push('tulokset: ' + e.message));
+  await sp.goto('http://localhost:8777/index.html');
+  await sp.evaluate(() => {
+    const players = Array.from({ length: 11 }, (_, i) => ({
+      id: 'p' + i, name: 'Pelaaja ' + i, number: i + 1, roles: ['KK'], active: true }));
+    const slots = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+    let n = 0;
+    const ev = slots.map((id) => ({ id: 'e' + n++, at: 0, type: 'in', playerId: id }));
+    // Vaihdot: p7 ulos 10 min, p8 sisään; p8 ulos 20 min, p9 sisään;
+    // p0 ulos 25 min, p10 sisään -> p10 on kentällä ja vähiten pelannut (5 min).
+    ev.push({ id: 'e' + n++, at: 600, type: 'out', playerId: 'p7' },
+            { id: 'e' + n++, at: 600, type: 'in', playerId: 'p8' },
+            { id: 'e' + n++, at: 1200, type: 'out', playerId: 'p8' },
+            { id: 'e' + n++, at: 1200, type: 'in', playerId: 'p9' },
+            { id: 'e' + n++, at: 1500, type: 'out', playerId: 'p0' },
+            { id: 'e' + n++, at: 1500, type: 'in', playerId: 'p10' });
+    const lineup = () => ({ formation: '8-2-3-2', slots: [...slots], bench: ['p8', 'p9', 'p10'],
+      positions: {}, drawings: [], staff: [] });
+    localStorage.setItem('pelikirja.v1', JSON.stringify({
+      version: 1, team: { name: 'Ilves', season: '2026' }, players, staff: [], lineups: [],
+      matches: [
+        { id: 'koti', date: '2026-05-01', time: '12:00', opponent: 'FC Koti', home: true, venue: '',
+          type: 'ottelu', videoUrl: '', notes: '', lineup: lineup(), timing: null,
+          result: { gf: 3, ga: 1, events: [], rating: null, ratingMax: 10, notes: '' } },
+        { id: 'vieras', date: '2026-05-08', time: '12:00', opponent: 'FC Vieras', home: false, venue: '',
+          type: 'ottelu', videoUrl: '', notes: '', lineup: lineup(),
+          timing: { status: 'paused', startedAt: null, elapsed: 1800, periods: 2, periodMinutes: 30, events: ev },
+          result: { gf: 4, ga: 3, events: [], rating: null, ratingMax: 10, notes: '' } },
+      ],
+    }));
+  });
+  await sp.reload();
+  await sp.waitForTimeout(400);
+  await sp.evaluate(() => { location.hash = '#/ottelut'; });
+  await sp.waitForTimeout(300);
+  await sp.locator('#view .segmented button', { hasText: 'Pelatut' }).click();
+  await sp.waitForTimeout(300);
+  const scores = await sp.locator('#view .cards .card').evaluateAll((els) => els.map((el) => ({
+    opponent: el.querySelector('.bold')?.textContent || '',
+    score: el.querySelector('.badge.win, .badge.draw, .badge.loss')?.textContent.trim() || '',
+  })));
+  const koti = scores.find((x) => x.opponent.includes('FC Koti'));
+  const vieras = scores.find((x) => x.opponent.includes('FC Vieras'));
+  // Koti 3–1 voitto, vieras 3–4 voitto (koti–vieras-järjestys kuten sarjaohjelmassa).
+  if (!koti?.score.startsWith('3–1') || !vieras?.score.startsWith('3–4')) {
+    console.error('Tulos ei ole koti–vieras-järjestyksessä: ' + JSON.stringify(scores));
+    process.exit(1);
+  }
+  if (!vieras.score.includes('V')) {
+    console.error('Vierasvoitto ei näy voittona: ' + vieras.score); process.exit(1);
+  }
+  console.log('tulokset koti–vieras-järjestyksessä:', koti.score, '|', vieras.score);
+
+  // Seuranta: "vähiten peliaikaa" osuu koko ryhmän vähiten pelanneeseen
+  await sp.locator('#view .cards .card', { hasText: 'FC Vieras' }).click();
+  await sp.waitForTimeout(400);
+  await sp.locator('#view .segmented button', { hasText: 'Seuranta' }).click();
+  await sp.waitForTimeout(500);
+  const squadRows = await sp.locator('#view .card.row').evaluateAll((els) => els.map((el) => ({
+    name: el.querySelector('.bold.ellip')?.textContent || '',
+    minutes: Number(([...el.querySelectorAll('.tnum')].pop()?.textContent || '').replace(/\D+/g, '')),
+    badge: el.querySelector('.badge')?.textContent || '',
+  })).filter((r) => r.name));
+  const marked = squadRows.filter((r) => r.badge.includes('vähiten'));
+  const lowest = Math.min(...squadRows.map((r) => r.minutes));
+  if (marked.length !== 1 || marked[0].minutes !== lowest) {
+    console.error('Vähiten peliaikaa -merkki on väärällä pelaajalla: '
+      + JSON.stringify({ marked, lowest, squadRows }));
+    process.exit(1);
+  }
+  console.log(`vähiten peliaikaa: ${marked[0].name} (${marked[0].minutes} min, ryhmän pienin ${lowest})`);
+  await ctx3.close();
+}
+
 // --- Vanha tähtiarvosana muuttuu kouluasteikolle ---
 {
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fi-FI' });

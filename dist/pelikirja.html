@@ -1580,6 +1580,16 @@ function averageRating(matches) {
   return { avg: given.reduce((a, b) => a + b, 0) / given.length, count: given.length };
 }
 
+/**
+ * Ottelun tulos koti–vieras-järjestyksessä, kuten sarjaohjelmassa: vierasottelun
+ * 3–4 tarkoittaa oman joukkueen 4:ää maalia. gf ja ga ovat aina oman joukkueen
+ * tekemät ja päästämät.
+ */
+function scoreText(match, result = match?.result) {
+  if (!result) return '';
+  return match?.home === false ? `${result.ga}–${result.gf}` : `${result.gf}–${result.ga}`;
+}
+
 /** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
 function matchTeams(matches = getState().matches) {
   return [...new Set(matches.map((m) => (m.team || '').trim()).filter(Boolean))]
@@ -1827,7 +1837,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, scoreText, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -3441,7 +3451,13 @@ function trackingTab(match) {
   const squad = [...match.lineup.slots.filter(Boolean), ...match.lineup.bench];
   const times = playingTimes(timing, at());
   const bench = squad.filter((id) => !field.has(id));
-  const leastPlayed = [...bench].sort((a, b) => (times.get(a) || 0) - (times.get(b) || 0))[0];
+  // Vähiten pelannut koko ryhmästä – myös kentällä oleva voi olla vähiten
+  // pelannut, joten merkkiä ei voi päätellä pelkästä vaihtopenkistä. Tasatilanne
+  // jätetään merkitsemättä, koska silloin merkki ei kertoisi mitään.
+  const secondsOf = (id) => times.get(id) || 0;
+  const least = squad.length ? Math.min(...squad.map(secondsOf)) : null;
+  const atLeast = squad.filter((id) => secondsOf(id) === least);
+  const leastPlayed = atLeast.length === 1 ? atLeast[0] : null;
 
   const row = (playerId, isOn) => {
     const p = playerById(playerId);
@@ -3452,7 +3468,7 @@ function trackingTab(match) {
       h('span', { class: `numchip${isOn ? ' accent' : ''}`, text: p.number ?? '–' }),
       h('span', { class: 'grow' },
         h('div', { class: 'bold ellip', text: p.name }),
-        !isOn && playerId === leastPlayed
+        playerId === leastPlayed
           ? h('span', { class: 'badge draw', text: 'vähiten peliaikaa' })
           : null),
       timeEl,
@@ -3477,7 +3493,7 @@ function trackingTab(match) {
     wrap.append(h('div', { class: 'card small muted', text: 'Ei vaihtopelaajia. Lisää heidät kokoonpanoon.' }));
   } else {
     [...bench]
-      .sort((a, b) => (times.get(a) || 0) - (times.get(b) || 0))
+      .sort((a, b) => secondsOf(a) - secondsOf(b))
       .forEach((id) => add(wrap, row(id, false)));
   }
 
@@ -4066,7 +4082,8 @@ __mods['matches'] = () => {
 const { icon } = __req('icons');
 const { h, sheet, toast, fmtShortDate, countdownText, videoInfo } = __req('ui');
 const {
-  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams, fmtRating,
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+  fmtRating, scoreText,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
@@ -4145,7 +4162,7 @@ function matchCard(m) {
   if (m.result) {
     const cls = m.result.gf > m.result.ga ? 'win' : m.result.gf === m.result.ga ? 'draw' : 'loss';
     const label = m.result.gf > m.result.ga ? 'V' : m.result.gf === m.result.ga ? 'T' : 'H';
-    right = h('span', { class: `badge ${cls}`, style: 'font-size:14px;padding:5px 10px' }, `${m.result.gf}–${m.result.ga}`, ' ', label);
+    right = h('span', { class: `badge ${cls}`, style: 'font-size:14px;padding:5px 10px' }, scoreText(m), ' ', label);
   } else {
     right = h('span', { class: 'badge' + (filled === f.slots.length && filled > 0 ? ' accent' : ''), text: `${filled}/${f.slots.length}` });
   }
@@ -4264,7 +4281,7 @@ __mods['home'] = () => {
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
 const { h, fmtDate, daysUntil, videoInfo, timeAgo } = __req('ui');
 const {
-  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
+  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating, scoreText,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { matchEvents } = __req('timing');
@@ -4412,7 +4429,7 @@ function lastResultCard(m) {
       h('span', {
         class: `badge ${cls} tnum`,
         style: 'font-family:var(--display);font-size:16px;font-weight:800;padding:6px 12px',
-        text: `${r.gf}–${r.ga}`,
+        text: scoreText(m),
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),

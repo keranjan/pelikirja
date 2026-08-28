@@ -1,7 +1,7 @@
 // Ottelupäivä: seuraava tapahtuma isona, viimeisin tulos ja kauden luvut.
 import { h, fmtDate, daysUntil, videoInfo, timeAgo } from '../ui.js';
 import {
-  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating,
+  getState, upcomingMatches, pastMatches, isPlayed, playerName, fmtRating, scoreText,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { matchEvents } from '../timing.js';
@@ -150,7 +150,7 @@ function lastResultCard(m) {
       h('span', {
         class: `badge ${cls} tnum`,
         style: 'font-family:var(--display);font-size:16px;font-weight:800;padding:6px 12px',
-        text: `${r.gf}–${r.ga}`,
+        text: scoreText(m),
       })),
     h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
       h('span', { class: `badge ${cls}`, text: label }),

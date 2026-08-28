@@ -76,7 +76,13 @@ export function trackingTab(match) {
   const squad = [...match.lineup.slots.filter(Boolean), ...match.lineup.bench];
   const times = playingTimes(timing, at());
   const bench = squad.filter((id) => !field.has(id));
-  const leastPlayed = [...bench].sort((a, b) => (times.get(a) || 0) - (times.get(b) || 0))[0];
+  // Vähiten pelannut koko ryhmästä – myös kentällä oleva voi olla vähiten
+  // pelannut, joten merkkiä ei voi päätellä pelkästä vaihtopenkistä. Tasatilanne
+  // jätetään merkitsemättä, koska silloin merkki ei kertoisi mitään.
+  const secondsOf = (id) => times.get(id) || 0;
+  const least = squad.length ? Math.min(...squad.map(secondsOf)) : null;
+  const atLeast = squad.filter((id) => secondsOf(id) === least);
+  const leastPlayed = atLeast.length === 1 ? atLeast[0] : null;
 
   const row = (playerId, isOn) => {
     const p = playerById(playerId);
@@ -87,7 +93,7 @@ export function trackingTab(match) {
       h('span', { class: `numchip${isOn ? ' accent' : ''}`, text: p.number ?? '–' }),
       h('span', { class: 'grow' },
         h('div', { class: 'bold ellip', text: p.name }),
-        !isOn && playerId === leastPlayed
+        playerId === leastPlayed
           ? h('span', { class: 'badge draw', text: 'vähiten peliaikaa' })
           : null),
       timeEl,
@@ -112,7 +118,7 @@ export function trackingTab(match) {
     wrap.append(h('div', { class: 'card small muted', text: 'Ei vaihtopelaajia. Lisää heidät kokoonpanoon.' }));
   } else {
     [...bench]
-      .sort((a, b) => (times.get(a) || 0) - (times.get(b) || 0))
+      .sort((a, b) => secondsOf(a) - secondsOf(b))
       .forEach((id) => add(wrap, row(id, false)));
   }
 

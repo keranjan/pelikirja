@@ -294,6 +294,16 @@ export function averageRating(matches) {
   return { avg: given.reduce((a, b) => a + b, 0) / given.length, count: given.length };
 }
 
+/**
+ * Ottelun tulos koti–vieras-järjestyksessä, kuten sarjaohjelmassa: vierasottelun
+ * 3–4 tarkoittaa oman joukkueen 4:ää maalia. gf ja ga ovat aina oman joukkueen
+ * tekemät ja päästämät.
+ */
+export function scoreText(match, result = match?.result) {
+  if (!result) return '';
+  return match?.home === false ? `${result.ga}–${result.gf}` : `${result.gf}–${result.ga}`;
+}
+
 /** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
 export function matchTeams(matches = getState().matches) {
   return [...new Set(matches.map((m) => (m.team || '').trim()).filter(Boolean))]

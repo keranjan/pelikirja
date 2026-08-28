@@ -2,7 +2,8 @@
 import { icon } from '../icons.js';
 import { h, sheet, toast, fmtShortDate, countdownText, videoInfo } from '../ui.js';
 import {
-  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams, fmtRating,
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+  fmtRating, scoreText,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
@@ -82,7 +83,7 @@ function matchCard(m) {
   if (m.result) {
     const cls = m.result.gf > m.result.ga ? 'win' : m.result.gf === m.result.ga ? 'draw' : 'loss';
     const label = m.result.gf > m.result.ga ? 'V' : m.result.gf === m.result.ga ? 'T' : 'H';
-    right = h('span', { class: `badge ${cls}`, style: 'font-size:14px;padding:5px 10px' }, `${m.result.gf}–${m.result.ga}`, ' ', label);
+    right = h('span', { class: `badge ${cls}`, style: 'font-size:14px;padding:5px 10px' }, scoreText(m), ' ', label);
   } else {
     right = h('span', { class: 'badge' + (filled === f.slots.length && filled > 0 ? ' accent' : ''), text: `${filled}/${f.slots.length}` });
   }
