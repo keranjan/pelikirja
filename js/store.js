@@ -13,7 +13,7 @@ export const uid = () =>
 /** Valmennuksen ja toimihenkilöiden tehtävät. */
 export const STAFF_ROLES = {
   paavalmentaja: 'Päävalmentaja',
-  apuvalmentaja: 'Apuvalmentaja',
+  apuvalmentaja: 'Valmentaja',   // avain säilyy, jotta vanha data toimii
   mv_valmentaja: 'Maalivahtivalmentaja',
   joukkueenjohtaja: 'Joukkueenjohtaja',
   huoltaja: 'Huoltaja',

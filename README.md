@@ -41,7 +41,7 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Pelipaikat (MV, LP, KP, AKK, KK, YKK, LH, KH) – sovellus ehdottaa niiden perusteella sopivia pelaajia
 - Merkintä "ei käytettävissä" pidempiaikaisille poissaoloille
 - Valmentajat ja toimihenkilöt omana ryhmänään: nimi, tehtävä
-  (päävalmentaja, apuvalmentaja, maalivahtivalmentaja, joukkueenjohtaja,
+  (päävalmentaja, valmentaja, maalivahtivalmentaja, joukkueenjohtaja,
   huoltaja, muu), puhelin ja muistiinpanot
 
 **Kokoonpanot ja pelipaikat**
