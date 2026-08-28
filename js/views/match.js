@@ -306,9 +306,12 @@ function resultTab(m) {
 
   const events = matchEvents(m);
   wrap.append(h('div', { class: 'section-title', text: `Ottelun tapahtumat (${events.length})` }));
-  wrap.append(eventList(m, null, { editable: false }));
+  // Tapahtumia voi korjata myös jälkikäteen: pelaajat, aika ja poisto.
+  wrap.append(eventList(m, (fn) => update(() => fn(matchById(m.id))), { editable: true }));
   wrap.append(h('p', { class: 'tiny muted center', style: 'margin:4px 0 0',
-    text: 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
+    text: events.length
+      ? 'Napauta tapahtumaa muokataksesi pelaajia ja aikaa tai poistaaksesi sen.'
+      : 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
 
   wrap.append(coachReview(m));
 

@@ -94,7 +94,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Vaihdot kirjataan napauttamalla: pelaaja ulos ja tilalle tuleva sisään
 - Kaikki tapahtumat tallentuvat ottelukellon ajan kanssa ja näkyvät
   Tulos-välilehdellä aikajärjestyksessä
-- Tapahtuman aikaa voi korjata tai tapahtuman poistaa jälkikäteen
+- Tapahtumia voi korjata jälkikäteen myös Tulos-välilehden aikajanalta:
+  maalintekijä, syöttäjä, kortin saaja, vaihdon pelaajat, minuutti ja poisto
 - Jokaisen pelaajan peliaika kertyy reaaliajassa, myös taustalla ja
   sovelluksen ollessa kiinni
 - Vaihtopenkki järjestyy vähiten pelanneen mukaan ja vähiten peliaikaa saanut

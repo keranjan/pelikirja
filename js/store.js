@@ -396,6 +396,13 @@ export function recordCard(match, { team = 'us', card = 'yellow', playerId = nul
 }
 
 /** Poistaa tapahtumat ja pitää tuloksen ajan tasalla. */
+/** Muuttaa yksittäisen tapahtuman tietoja, esimerkiksi maalintekijän. */
+export function updateTimingEvent(match, id, patch) {
+  const t = ensureTiming(match);
+  const e = t.events.find((x) => x.id === id);
+  if (e) Object.assign(e, patch);
+}
+
 export function removeTimingEvents(match, ids) {
   const t = ensureTiming(match);
   const removed = t.events.filter((e) => ids.includes(e.id));

@@ -667,6 +667,48 @@ if (goalStyle === 'rgba(0, 0, 0, 0)' || goalStyle === 'rgb(255, 255, 255)') {
 }
 console.log('oman joukkueen maali korostettu:', ourGoalRows[0].text, '| tausta', goalStyle);
 
+// Tapahtumaa voi muokata myös Tulos-välilehdellä: pelaajat ja aika
+await page.locator('#view .card.event.ourgoal').first().click();
+await page.waitForTimeout(350);
+const sheetLabels = await page.locator('#overlay .field > span').allTextContents();
+for (const want of ['Maalintekijä', 'Syöttäjä', 'Minuutti']) {
+  if (!sheetLabels.some((t) => t.startsWith(want))) {
+    console.error(`Tapahtuman muokkauksesta puuttuu "${want}": ` + JSON.stringify(sheetLabels));
+    process.exit(1);
+  }
+}
+const scorerSelect = page.locator('#overlay select').first();
+const otherScorer = await scorerSelect.locator('option').evaluateAll((els) => {
+  const free = els.filter((e) => e.value && !e.selected);
+  return free.length ? free[free.length - 1].value : null;
+});
+if (!otherScorer) { console.error('Vaihtoehtoista maalintekijää ei löytynyt'); process.exit(1); }
+await scorerSelect.selectOption(otherScorer);
+await page.locator('#overlay input[type=number]').fill('23');
+await page.locator('#overlay .btn.primary').click();
+await page.waitForTimeout(350);
+const editedGoal = await page.evaluate(() => {
+  const m = JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0];
+  return (m.timing.events || []).find((e) => e.type === 'goal' && e.team !== 'them');
+});
+if (editedGoal.playerId !== otherScorer || editedGoal.at !== 23 * 60) {
+  console.error('Maalin muokkaus ei tallentunut: ' + JSON.stringify(editedGoal)); process.exit(1);
+}
+// Poisto vie tapahtuman aikajanalta ja korjaa tuloksen (vastustajan maali)
+const beforeDelete = await page.locator('#view .card.event').count();
+const scoreBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.ga);
+await page.locator('#view .card.event.away').first().click();
+await page.waitForTimeout(350);
+await page.locator('#overlay .btn.danger').click();
+await page.waitForTimeout(400);
+const afterDelete = await page.locator('#view .card.event').count();
+const scoreAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.ga);
+if (afterDelete !== beforeDelete - 1 || scoreAfter !== scoreBefore - 1) {
+  console.error(`Tapahtuman poisto ei toiminut: rivejä ${beforeDelete}->${afterDelete}, maaleja ${scoreBefore}->${scoreAfter}`);
+  process.exit(1);
+}
+console.log(`tuloksen aikajana: maalintekijä ja aika muokattavissa, poisto vie vastustajan maalin (${scoreBefore}->${scoreAfter})`);
+
 const shownScore = await page.locator('#view .card.center').first().textContent();
 console.log(`tulokset: ${timelineTimes.length} tapahtumaa aikajärjestyksessä, tulos ${shownScore.replace(/\s+/g, ' ').trim().slice(0, 24)}`);
 // Veo-videolinkki

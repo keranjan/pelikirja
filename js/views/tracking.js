@@ -3,7 +3,7 @@ import { h, add, sheet, toast, confirmSheet, pressable } from '../ui.js';
 import {
   matchById, update, playerById, getState,
   startTiming, pauseTiming, endTiming, resetTiming, substitute,
-  removeTimingEvents, moveTimingEvents, ensureTiming, recordGoal, recordCard,
+  removeTimingEvents, moveTimingEvents, updateTimingEvent, ensureTiming, recordGoal, recordCard,
   removeResultEvent,
 } from '../store.js';
 import {
@@ -448,6 +448,27 @@ function openCardSheet(match, commit) {
 
 /* ---------- Tapahtuman muokkaus ---------- */
 
+/** Ryhmän pelaajat valintalistaksi; mukaan myös tapahtumaan jo merkitty pelaaja. */
+function playerOptions(match, selected, { emptyLabel = null } = {}) {
+  const ids = [...new Set([...squadOf(match), ...(selected ? [selected] : [])])]
+    .filter((id) => playerById(id))
+    .sort((a, b) => (playerById(a)?.number ?? 999) - (playerById(b)?.number ?? 999));
+  const sel = h('select', {},
+    emptyLabel ? h('option', { value: '', text: emptyLabel, selected: !selected }) : null,
+    ...ids.map((id) => {
+      const p = playerById(id);
+      return h('option', {
+        value: id, selected: id === selected,
+        text: `${p.number ?? '–'} ${p.name}`,
+      });
+    }));
+  return sel;
+}
+
+/**
+ * Tapahtuman muokkaus: pelaajat ja aika, sekä tapahtuman poisto. Käytössä sekä
+ * seurannassa ottelun aikana että tuloksen aikajanalla jälkikäteen.
+ */
 function openEventSheet(match, e, commit) {
   if (e.legacy) {
     sheet('Vanha maalikirjaus', (body, close) => {
@@ -463,15 +484,57 @@ function openEventSheet(match, e, commit) {
   }
 
   const subIds = pairedIds(match, e);
-  sheet('Tapahtuma', (body, close) => {
+  // Vaihdossa rivi kattaa kaksi tapahtumaa: ulos menevä ja sisään tuleva.
+  const events = (match.timing?.events || []);
+  const outEvent = e.type === 'out' ? e : events.find((x) => x.type === 'out' && subIds.includes(x.id));
+  const inEvent = e.type === 'in' ? e : events.find((x) => x.type === 'in' && subIds.includes(x.id));
+
+  sheet('Muokkaa tapahtumaa', (body, close) => {
     const minuteI = h('input', { type: 'number', value: Math.round(e.at / 60), min: '0', max: '200', inputmode: 'numeric' });
+    add(body, h('p', { class: 'small muted' }, eventText(match, e)));
+
+    // Pelaajakentät tapahtuman tyypin mukaan; vastustajan maalilla ei ole pelaajaa.
+    const fields = [];
+    const ours = e.team !== 'them';
+    if (e.type === 'goal' && ours) {
+      const scorerI = playerOptions(match, e.playerId, { emptyLabel: 'Ei pelaajaa' });
+      const assistI = playerOptions(match, e.assistId, { emptyLabel: 'Ei syöttäjää' });
+      add(body,
+        h('label', { class: 'field' }, h('span', { text: 'Maalintekijä' }), scorerI),
+        h('label', { class: 'field' }, h('span', { text: 'Syöttäjä' }), assistI));
+      fields.push(() => ({ id: e.id, patch: {
+        playerId: scorerI.value || null,
+        assistId: assistI.value && assistI.value !== scorerI.value ? assistI.value : null,
+      } }));
+    } else if (e.type === 'card' && ours) {
+      const playerI = playerOptions(match, e.playerId, { emptyLabel: 'Ei pelaajaa' });
+      add(body, h('label', { class: 'field' }, h('span', { text: 'Pelaaja' }), playerI));
+      fields.push(() => ({ id: e.id, patch: { playerId: playerI.value || null } }));
+    } else if (outEvent || inEvent) {
+      if (outEvent) {
+        const outI = playerOptions(match, outEvent.playerId);
+        add(body, h('label', { class: 'field' }, h('span', { text: 'Pois kentältä' }), outI));
+        fields.push(() => ({ id: outEvent.id, patch: { playerId: outI.value || null } }));
+      }
+      if (inEvent) {
+        const inI = playerOptions(match, inEvent.playerId);
+        add(body, h('label', { class: 'field' }, h('span', { text: 'Kentälle' }), inI));
+        fields.push(() => ({ id: inEvent.id, patch: { playerId: inI.value || null } }));
+      }
+    }
+
     add(body,
-      h('p', { class: 'small muted' }, eventText(match, e)),
-      h('label', { class: 'field' }, h('span', { text: 'Minuutti' }), minuteI),
-      pressable(h('button', { class: 'btn primary' }, 'Tallenna aika'), () => {
-        commit((m) => moveTimingEvents(m, subIds, (Number(minuteI.value) || 0) * 60));
+      h('label', { class: 'field' },
+        h('span', { text: 'Minuutti' }), minuteI,
+        h('span', { class: 'tiny muted', text: 'Ottelukellon minuutti, jolloin tapahtuma sattui.' })),
+      pressable(h('button', { class: 'btn primary' }, 'Tallenna'), () => {
+        const changes = fields.map((read) => read());
+        commit((m) => {
+          for (const { id, patch } of changes) updateTimingEvent(m, id, patch);
+          moveTimingEvents(m, subIds, (Number(minuteI.value) || 0) * 60);
+        });
         close();
-        toast('Aika korjattu');
+        toast('Tapahtuma tallennettu');
       }),
       pressable(h('button', { class: 'btn danger', style: 'margin-top:10px' }, 'Poista tapahtuma'), () => {
         commit((m) => removeTimingEvents(m, subIds));
