@@ -1,5 +1,9 @@
 -- 5 ottelua joukkueelle Ilves Keltainen
 -- Voidaan ajaa turvallisesti uudelleen: jo tuodut ottelut päivitetään, ei kahdenneta.
+do $pelikirja$
+declare
+  paivitetty int;
+begin
 update public.pelikirja
 set data = jsonb_set(
       data,
@@ -29,4 +33,12 @@ set data = jsonb_set(
     ),
     rev = rev + 1,
     updated_at = now()
-where user_id = auth.uid();
+where user_id = '66fa941c-bf29-45d9-9bcf-e736ca6433ae';
+
+get diagnostics paivitetty = row_count;
+if paivitetty = 0 then
+  raise exception 'Yhtaan rivia ei paivitetty: tarkista kayttajatunnus (SQL-editorissa auth.uid() on NULL).';
+end if;
+raise notice 'Paivitetty % ottelua riville.', 5;
+end
+$pelikirja$;

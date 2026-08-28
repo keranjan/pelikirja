@@ -12,6 +12,20 @@ node tools/import-torneopal.mjs otteluohjelma.html --team "Ilves Beta" --sql
 | `ilves-beta-ottelut.sql` | sama Supabase-riville ajettavana SQL:nä |
 | `ilves-keltainen-ottelut.json` | Ilves Keltaisen ottelut |
 | `ilves-keltainen-ottelut.sql` | sama SQL:nä |
+| `lisaa-joukkuetieto.sql` | lisää joukkuetiedon jo tuotuihin otteluihin |
+
+## Käyttäjätunnus, ei auth.uid()
+
+Supabasen SQL-editorissa **ei ole kirjautunutta käyttäjää**, joten `auth.uid()`
+on `NULL` eikä `where user_id = auth.uid()` osu yhteenkään riviin – editori
+ilmoittaa silti "Success. No rows returned", jolloin näyttää siltä ettei mikään
+tapahtunut. Siksi tiedostoissa on käyttäjätunnus kirjoitettuna näkyviin ja lause
+keskeytyy virheeseen, jos se ei päivittänyt yhtään riviä. Oman tunnuksen saa
+tarvittaessa kyselyllä:
+
+```sql
+select user_id from public.pelikirja;
+```
 
 Jokaisessa ottelussa on `team`-kenttä, joka kertoo kumman joukkueen ottelusta on
 kyse. Sovellus näyttää sen ottelukortin merkkinä ja tarjoaa Ottelut-välilehdellä

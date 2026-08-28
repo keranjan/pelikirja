@@ -184,6 +184,10 @@ SQL-lauseen voi ajaa turvallisesti uudelleen: jo tuodut ottelut tunnistetaan
 ottelunumerosta, jolloin niiden kokoonpanot ja tulokset säilyvät ja vain
 joukkuetieto päivittyy. Valmiit tuonnit ovat kansiossa `docs/tuonti/`.
 
+Anna käyttäjätunnus valinnalla `--user <uuid>`: Supabasen SQL-editorissa ei ole
+kirjautunutta käyttäjää, jolloin `auth.uid()` on `NULL` eikä lause osu yhteenkään
+riviin. Lause keskeytyy virheeseen, jos se ei päivittänyt yhtään riviä.
+
 ## Kehitys
 
 ```bash

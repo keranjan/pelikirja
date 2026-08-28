@@ -192,11 +192,22 @@ matches.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`
 if (has('sql')) {
   const user = flag('user');
   const where = user ? `user_id = '${user}'` : 'user_id = auth.uid()';
+  // Supabasen SQL-editorissa ei ole kirjautunutta käyttäjää, jolloin auth.uid()
+  // on NULL eikä lause osu yhteenkään riviin. Siksi lause kertoo, jos se ei
+  // päivittänyt mitään – muuten editori ilmoittaa vain "Success".
+  const varoitus = user ? '' : `
+-- HUOM: ilman --user <uuid> ehtona on auth.uid(), joka on Supabasen
+-- SQL-editorissa NULL. Aja tuonti uudestaan valinnalla --user <uuid> tai
+-- korvaa alta auth.uid() omalla käyttäjätunnuksellasi.`;
   const json = JSON.stringify(matches).replace(/'/g, "''");
   // Sama lause voidaan ajaa uudestaan: tunnisteeltaan tutut ottelut vain
   // päivitetään (joukkuetieto), jolloin kokoonpanot ja tulokset säilyvät.
   console.log(`-- ${matches.length} ottelua joukkueelle ${teamName || team}
--- Voidaan ajaa turvallisesti uudelleen: jo tuodut ottelut päivitetään, ei kahdenneta.
+-- Voidaan ajaa turvallisesti uudelleen: jo tuodut ottelut päivitetään, ei kahdenneta.${varoitus}
+do $pelikirja$
+declare
+  paivitetty int;
+begin
 update public.pelikirja
 set data = jsonb_set(
       data,
@@ -226,7 +237,15 @@ set data = jsonb_set(
     ),
     rev = rev + 1,
     updated_at = now()
-where ${where};`);
+where ${where};
+
+get diagnostics paivitetty = row_count;
+if paivitetty = 0 then
+  raise exception 'Yhtaan rivia ei paivitetty: tarkista kayttajatunnus (SQL-editorissa auth.uid() on NULL).';
+end if;
+raise notice 'Paivitetty % ottelua riville.', ${matches.length};
+end
+$pelikirja$;`);
 } else {
   console.log(JSON.stringify(matches, null, 2));
 }
