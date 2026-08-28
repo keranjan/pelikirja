@@ -56,7 +56,9 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Valmentajat merkitään mukaan ottelukohtaisesti ja he näkyvät myös
   jaettavassa kokoonpanossa
 - Kokoonpanopohjat: tallenna vakioasetelmat ja hae ne otteluun yhdellä napautuksella
-- Kokoonpanon jakaminen tekstinä esimerkiksi joukkueen WhatsApp-ryhmään
+- Kokoonpanon jakaminen: mukana kuva kentästä, jossa pelaajat ovat paikoillaan,
+  sekä sama kokoonpano tekstinä esimerkiksi joukkueen WhatsApp-ryhmään
+  ("Näytä kuvana" avaa esikatselun)
 
 **Taktiikkataulu**
 - Sama kenttäkuva vaihtuu Taktiikka-tilaan, jossa voi piirtää sormella ottelun aikana
@@ -211,6 +213,7 @@ css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
 css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
 js/tactics.js           taktiikkapiirrosten työkalut ja polut
+js/lineup-image.js      jaettavan kokoonpanokuvan piirto (canvas)
 js/timing.js            peliajan laskenta (kello, vaihdot, pelaaja-ajat)
 js/sync.js              pilvitallennus (Supabasen REST-rajapinta)
 js/merge.js             kolmen version yhdistäminen laitteiden välillä

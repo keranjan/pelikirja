@@ -12,6 +12,7 @@ import { matchEvents } from '../timing.js';
 import { renderLineupEditor } from './pitch.js';
 import { trackingTab, eventList } from './tracking.js';
 import { openMatchSheet } from './matches.js';
+import { lineupDataUrl, lineupImageFile } from '../lineup-image.js';
 import { navigate } from '../router.js';
 
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
@@ -55,7 +56,9 @@ function lineupTab(m) {
   wrap.append(h('div', { class: 'btn-row' },
     h('button', { class: 'btn sm', style: 'flex:1', onclick: () => openTemplatePicker(m) }, 'Hae pohjasta'),
     h('button', { class: 'btn sm', style: 'flex:1', onclick: () => saveAsTemplate(m) }, 'Tallenna pohjaksi')));
-  wrap.append(h('button', { class: 'btn', onclick: () => shareLineup(m) }, 'Jaa kokoonpano'));
+  wrap.append(h('div', { class: 'btn-row' },
+    h('button', { class: 'btn', style: 'flex:1', onclick: () => previewLineupImage(m) }, 'Näytä kuvana'),
+    h('button', { class: 'btn primary', style: 'flex:1', onclick: () => shareLineup(m) }, 'Jaa kokoonpano')));
 
   return wrap;
 }
@@ -201,18 +204,63 @@ function lineupText(m) {
 async function shareLineup(m) {
   const text = lineupText(m);
   const title = `Kokoonpano – ${m.opponent || 'ottelu'}`;
+
+  // Kuva kenttäkokoonpanosta jaetaan tekstin mukana, jos laite tukee sitä.
+  let file = null;
   try {
+    file = await lineupImageFile(m);
+  } catch (e) {
+    console.warn('Kokoonpanokuvaa ei voitu piirtää:', e);
+  }
+
+  try {
+    if (file && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title, text, files: [file] });
+      return;
+    }
     if (navigator.share) { await navigator.share({ title, text }); return; }
-    await navigator.clipboard.writeText(text);
-    toast('Kokoonpano kopioitu leikepöydälle');
-    return;
   } catch (e) {
     if (e && e.name === 'AbortError') return;
   }
-  sheet('Kokoonpano tekstinä', (body) => {
-    const ta = h('textarea', { style: 'min-height:340px;font-family:ui-monospace,monospace;font-size:13px', text });
-    body.append(h('p', { class: 'tiny muted', text: 'Kopioi teksti ja liitä se vaikka joukkueen WhatsApp-ryhmään.' }), ta);
-    setTimeout(() => { ta.focus(); ta.select(); }, 60);
+  openShareSheet(m, text, file);
+}
+
+/** Varasuunnitelma, kun laite ei osaa jakaa: kuva ja teksti talteen käsin. */
+function openShareSheet(m, text, file) {
+  sheet('Jaa kokoonpano', (body) => {
+    const url = file ? URL.createObjectURL(file) : null;
+    if (url) {
+      body.append(h('img', {
+        src: url, alt: 'Kokoonpano kentällä',
+        style: 'width:100%;border-radius:14px;border:1px solid var(--line)',
+      }));
+      body.append(h('a', {
+        class: 'btn primary', style: 'margin:12px 0', href: url, download: file.name,
+      }, 'Tallenna kuva'));
+      body.append(h('p', { class: 'tiny muted', text: 'Voit myös painaa kuvaa pitkään ja tallentaa sen kuviin.' }));
+    }
+    const ta = h('textarea', { style: 'min-height:220px;font-family:ui-monospace,monospace;font-size:13px', text });
+    body.append(h('button', {
+      class: 'btn', onclick: async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          toast('Kokoonpano kopioitu leikepöydälle');
+        } catch { ta.focus(); ta.select(); }
+      },
+    }, 'Kopioi teksti'), ta);
+  });
+}
+
+/** Näyttää kokoonpanokuvan esikatseluna omassa paneelissaan. */
+function previewLineupImage(m) {
+  const src = lineupDataUrl(m);
+  sheet('Kokoonpanokuva', (body) => {
+    body.append(h('img', {
+      src, alt: 'Kokoonpano kentällä',
+      style: 'width:100%;border-radius:14px;border:1px solid var(--line)',
+    }));
+    body.append(h('p', { class: 'tiny muted', style: 'margin-top:10px',
+      text: 'Sama kuva lähtee mukaan, kun jaat kokoonpanon.' }));
   });
 }
 

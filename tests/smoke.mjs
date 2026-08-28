@@ -457,9 +457,52 @@ const inLineup = await page.evaluate(() =>
   JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.staff);
 if (inLineup.length !== 1) { console.error('Valmentaja ei tullut kokoonpanoon: ' + JSON.stringify(inLineup)); process.exit(1); }
 
-// Jaettu kokoonpano sisältää valmennuksen
+// Kokoonpanokuva: esikatselu piirtyy kentän mittasuhteissa eikä ole tyhjä
+await page.locator('#view .btn', { hasText: 'Näytä kuvana' }).click();
+await page.waitForTimeout(500);
+const preview = await page.locator('#overlay img').first().evaluate((el) => new Promise((done) => {
+  const check = () => {
+    const cv = document.createElement('canvas');
+    cv.width = el.naturalWidth; cv.height = el.naturalHeight;
+    const c2 = cv.getContext('2d');
+    c2.drawImage(el, 0, 0);
+    // Keskiympyrän kohdalta pitää löytyä nurmen väri, ei paperia.
+    const mid = c2.getImageData(Math.round(cv.width * 0.5), Math.round(cv.height * 0.55), 1, 1).data;
+    // Yksi pelaajamerkki: hae vihreä levy vasemmalta puolustuslinjalta.
+    const counts = { pitch: 0, token: 0 };
+    const px = c2.getImageData(0, 0, cv.width, cv.height).data;
+    for (let i = 0; i < px.length; i += 4 * 37) {
+      const [r, g, b] = [px[i], px[i + 1], px[i + 2]];
+      if (g > r + 10 && g > b + 5 && g > 180) counts.pitch++;
+      if (r < 60 && g > 90 && g < 160 && b < 100) counts.token++;
+    }
+    done({ w: cv.width, h: cv.height, mid: [mid[0], mid[1], mid[2]], ...counts });
+  };
+  if (el.complete && el.naturalWidth) check();
+  else el.addEventListener('load', check, { once: true });
+}));
+if (preview.w < 900 || preview.h < preview.w) {
+  console.error('Kokoonpanokuva ei ole pystysuuntainen: ' + JSON.stringify(preview)); process.exit(1);
+}
+if (preview.pitch < 500) {
+  console.error('Kokoonpanokuvasta puuttuu kenttä: ' + JSON.stringify(preview)); process.exit(1);
+}
+if (preview.token < 20) {
+  console.error('Kokoonpanokuvasta puuttuvat pelaajamerkit: ' + JSON.stringify(preview)); process.exit(1);
+}
+console.log(`kokoonpanokuva: ${preview.w}×${preview.h}, nurmi- ja pelaajapisteitä ${preview.pitch}/${preview.token}`);
+await shot('05-kokoonpanokuva');
+await page.locator('#overlay .iconbtn').first().click();
+await page.waitForTimeout(200);
+
+// Jaettu kokoonpano sisältää valmennuksen ja kuvan
 await page.locator('#view .btn', { hasText: 'Jaa kokoonpano' }).click();
-await page.waitForTimeout(400);
+await page.waitForTimeout(600);
+if (!(await page.locator('#overlay img').count())) {
+  console.error('Jakonäkymästä puuttuu kokoonpanokuva'); process.exit(1);
+}
+await page.locator('#overlay .btn', { hasText: 'Kopioi teksti' }).click();
+await page.waitForTimeout(250);
 const shared = await page.evaluate(async () => {
   try { return await navigator.clipboard.readText(); }
   catch { return document.querySelector('#overlay textarea')?.value || ''; }
