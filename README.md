@@ -51,7 +51,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
   9 vs 9 (3-3-2, 3-2-3, 2-3-3), 8 vs 8 (2-3-2, 2-4-1, 3-2-2, 3-3-1, 2-2-3, 3-1-3),
   7 vs 7 (2-3-1, 3-2-1, 2-1-2-1) ja 5 vs 5 (1-2-1, 2-1-1, 1-1-2)
 - Automaattitäyttö, joka sijoittaa pelaajat heidän pelipaikkojensa mukaan
-- Vaihtopenkki ja ottelukohtaiset poissaolot
+- Ottelun ryhmä valitaan napauttamalla pelaajat vihreiksi: kentällä, penkillä
+  ja poissa päätellään valinnasta ja kenttäkokoonpanosta
 - Valmentajat merkitään mukaan ottelukohtaisesti ja he näkyvät myös
   jaettavassa kokoonpanossa
 - Kokoonpanopohjat: tallenna vakioasetelmat ja hae ne otteluun yhdellä napautuksella
