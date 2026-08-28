@@ -426,6 +426,13 @@ a.btn { text-decoration: none; }
   .segmented.four button { font-size: 14px; }
 }
 
+.score {
+  font-family: var(--display); font-size: 30px; font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1;
+}
+.card.event.away { background: var(--surface-2); }
+.card.event.away .numchip { background: var(--surface); }
+
 /* ---------- Kenttä ---------- */
 
 .pitch-wrap { position: relative; }

@@ -2,13 +2,13 @@
 import { h } from '../ui.js';
 import { icon } from '../icons.js';
 import { getState, sortedPlayers, isPlayed } from '../store.js';
-import { seasonPlayingTime } from './playtime.js';
+import { seasonPlayingTime } from './tracking.js';
 
 export function statsView() {
   const st = getState();
   const played = st.matches.filter(isPlayed);
   // Peliaikaa voi kertyä jo ennen kuin tulos on kirjattu.
-  const tracked = st.matches.filter((m) => m.timing && m.timing.events?.length);
+  const tracked = st.matches.filter((m) => m.timing?.events?.some((e) => e.type === 'in'));
   const body = h('div', { class: 'stack' });
 
   if (!played.length && !tracked.length) {

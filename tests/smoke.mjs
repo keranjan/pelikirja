@@ -389,8 +389,8 @@ await tapText('Tallenna pohjaksi');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(200);
 
-// --- Peliaikaseuranta ---
-await page.locator('#view .segmented.four button', { hasText: 'Peliaika' }).click();
+// --- Otteluseuranta ---
+await page.locator('#view .segmented.four button', { hasText: 'Seuranta' }).click();
 await page.waitForTimeout(300);
 await page.locator('#view input#periods').fill('2');
 await page.locator('#view input#plen').fill('25');
@@ -443,32 +443,79 @@ if ((await page.locator('#view .clock').textContent()) !== pausedClock) {
 
 await shot('14-peliaika');
 
-// Vaihdon minuutin korjaus
-await page.locator('#view .card.row', { hasText: '▲' }).first().click();
+// Maali oman joukkueen pelaajalle
+await page.locator('#view .btn', { hasText: 'Maali' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .btn.primary').first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .list-item').first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .list-item').nth(1).click();
+await page.waitForTimeout(400);
+t = await timing();
+const goal = t.events.find((e) => e.type === 'goal');
+if (!goal || goal.team !== 'us' || !goal.playerId || !goal.assistId) {
+  console.error('Maalia ei kirjattu oikein: ' + JSON.stringify(goal));
+  process.exit(1);
+}
+let score = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result);
+if (!score || score.gf !== 1) { console.error('Tulos ei päivittynyt maalista: ' + JSON.stringify(score)); process.exit(1); }
+
+// Vastustajan maali
+await page.locator('#view .btn', { hasText: 'Maali' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .btn', { hasText: 'teki maalin' }).nth(1).click();
+await page.waitForTimeout(400);
+score = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result);
+if (score.ga !== 1) { console.error('Vastustajan maali ei kirjautunut: ' + JSON.stringify(score)); process.exit(1); }
+
+// Keltainen kortti omalle pelaajalle
+await page.locator('#view .btn', { hasText: 'Kortti' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .btn', { hasText: 'Keltainen' }).click();
+await page.waitForTimeout(300);
+await page.locator('#overlay .list-item').first().click();
+await page.waitForTimeout(400);
+t = await timing();
+const card = t.events.find((e) => e.type === 'card');
+if (!card || card.card !== 'yellow' || !card.playerId) {
+  console.error('Korttia ei kirjattu: ' + JSON.stringify(card)); process.exit(1);
+}
+
+// Tapahtuman ajan korjaus yhteisestä listasta
+await page.locator('#view .card.event', { hasText: '▲' }).first().click();
 await page.waitForTimeout(300);
 await page.locator('#overlay input[type=number]').fill('12');
 await page.locator('#overlay .btn.primary').click();
 await page.waitForTimeout(300);
 t = await timing();
 if (!t.events.some((e) => e.at === 720)) {
-  console.error('Vaihdon ajan korjaus ei tallentunut: ' + JSON.stringify(t.events.map((e) => e.at)));
+  console.error('Tapahtuman ajan korjaus ei tallentunut: ' + JSON.stringify(t.events.map((e) => e.at)));
   process.exit(1);
 }
-console.log(`peliaika: kello ${firstClock} -> ${laterClock}, ensimmäinen pelaaja ${fieldRowTime}, vaihto korjattu 12. minuutille`);
+console.log('seuranta: maali syöttäjineen, vastustajan maali, kortti ja ajan korjaus');
+console.log(`peliaika: kello ${firstClock} -> ${laterClock}, ensimmäinen pelaaja ${fieldRowTime}`);
 
 // --- Tulos ---
 await page.locator('#view .segmented button', { hasText: 'Tulos' }).click();
-await page.waitForTimeout(150);
-await tapText('Kirjaa tulos');
-await page.waitForTimeout(200);
-await tapText('Lisää maali');
-await page.waitForTimeout(200);
-await page.locator('.sheet select').first().selectOption({ index: 3 });
-await page.locator('.sheet input[type=number]').fill('23');
-await page.locator('.sheet .btn.primary').click();
-await page.waitForTimeout(200);
-await page.locator('#view .card .iconbtn', { hasText: '＋' }).nth(1).click(); // vastustajan maali
-await page.waitForTimeout(200);
+await page.waitForTimeout(300);
+
+// Seurannan tapahtumat näkyvät tuloksissa aikajärjestyksessä
+const timelineTimes = await page.locator('#view .card.event .numchip').allTextContents();
+if (timelineTimes.length < 3) {
+  console.error('Tapahtumalista jäi vajaaksi: ' + JSON.stringify(timelineTimes));
+  process.exit(1);
+}
+const asSeconds = timelineTimes.map((t2) => {
+  const [mm, ss] = t2.split(':').map(Number);
+  return mm * 60 + ss;
+});
+if (asSeconds.some((v, i) => i > 0 && v < asSeconds[i - 1])) {
+  console.error('Tapahtumat eivät ole aikajärjestyksessä: ' + JSON.stringify(timelineTimes));
+  process.exit(1);
+}
+const shownScore = await page.locator('#view .card.center').first().textContent();
+console.log(`tulokset: ${timelineTimes.length} tapahtumaa aikajärjestyksessä, tulos ${shownScore.replace(/\s+/g, ' ').trim().slice(0, 24)}`);
 // Veo-videolinkki
 await tapText('Lisää videolinkki');
 await page.waitForTimeout(200);

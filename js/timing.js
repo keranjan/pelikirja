@@ -26,9 +26,11 @@ export function clockSeconds(timing, now = Date.now()) {
   return base;
 }
 
-/** Tapahtumat aikajärjestyksessä; samalla sekunnilla ulos ennen sisään. */
+/** Vaihtotapahtumat aikajärjestyksessä; samalla sekunnilla ulos ennen sisään. */
 const ordered = (events = []) =>
-  [...events].sort((a, b) => a.at - b.at || (a.type === b.type ? 0 : a.type === 'out' ? -1 : 1));
+  events
+    .filter((e) => e.type === 'in' || e.type === 'out')
+    .sort((a, b) => a.at - b.at || (a.type === b.type ? 0 : a.type === 'out' ? -1 : 1));
 
 /**
  * Pelaajakohtaiset peliajat sekunteina hetkellä `at`.
@@ -96,6 +98,49 @@ export function periodOf(seconds, timing) {
 
 export const totalSeconds = (timing) =>
   (timing?.periods || DEFAULT_PERIODS) * (timing?.periodMinutes || DEFAULT_PERIOD_MINUTES) * 60;
+
+/* ---------- Ottelutapahtumat ---------- */
+
+export const CARDS = { yellow: 'Keltainen kortti', red: 'Punainen kortti' };
+
+/**
+ * Onko tapahtuma sellainen, joka näytetään ottelun tapahtumalistassa?
+ * Avauskokoonpanon merkinnät hetkellä 0 ovat kokoonpanoa, eivät tapahtumia.
+ */
+const isMatchEvent = (e) =>
+  ['goal', 'card', 'in', 'out'].includes(e.type) && !(e.type === 'in' && e.at === 0);
+
+/**
+ * Kaikki ottelun tapahtumat aikajärjestyksessä. Mukaan luetaan myös vanhat
+ * tulokseen kirjatut maalit, jotka tallennettiin ennen seurantaa minuutteina.
+ */
+export function matchEvents(match) {
+  const tracked = (match?.timing?.events || []).filter(isMatchEvent);
+  const legacy = (match?.result?.events || []).map((e) => ({
+    id: e.id,
+    at: (e.minute ?? 0) * 60,
+    type: 'goal',
+    team: 'us',
+    playerId: e.scorerId,
+    assistId: e.assistId || null,
+    legacy: true,
+  }));
+  return [...tracked, ...legacy].sort((a, b) => a.at - b.at || order(a) - order(b));
+}
+
+// Samalla hetkellä: maali, kortti, vaihto ulos, vaihto sisään.
+const order = (e) => ({ goal: 0, card: 1, out: 2, in: 3 })[e.type] ?? 9;
+
+/** Maalit joukkueittain tapahtumista. */
+export function goalsFrom(match) {
+  let us = 0, them = 0;
+  for (const e of matchEvents(match)) {
+    if (e.type !== 'goal') continue;
+    if (e.team === 'them') them++;
+    else us++;
+  }
+  return { us, them };
+}
 
 /* ---------- Muotoilu ---------- */
 

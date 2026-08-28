@@ -21,7 +21,7 @@ const ASSETS = [
   './js/views/lineups.js',
   './js/views/players.js',
   './js/views/pitch.js',
-  './js/views/playtime.js',
+  './js/views/tracking.js',
   './js/views/stats.js',
   './js/views/settings.js',
   './icons/icon.svg',

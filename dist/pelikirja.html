@@ -476,6 +476,13 @@ a.btn { text-decoration: none; }
   .segmented.four button { font-size: 14px; }
 }
 
+.score {
+  font-family: var(--display); font-size: 30px; font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1;
+}
+.card.event.away { background: var(--surface-2); }
+.card.event.away .numchip { background: var(--surface); }
+
 /* ---------- Kenttä ---------- */
 
 .pitch-wrap { position: relative; }
@@ -1108,9 +1115,11 @@ function clockSeconds(timing, now = Date.now()) {
   return base;
 }
 
-/** Tapahtumat aikajärjestyksessä; samalla sekunnilla ulos ennen sisään. */
+/** Vaihtotapahtumat aikajärjestyksessä; samalla sekunnilla ulos ennen sisään. */
 const ordered = (events = []) =>
-  [...events].sort((a, b) => a.at - b.at || (a.type === b.type ? 0 : a.type === 'out' ? -1 : 1));
+  events
+    .filter((e) => e.type === 'in' || e.type === 'out')
+    .sort((a, b) => a.at - b.at || (a.type === b.type ? 0 : a.type === 'out' ? -1 : 1));
 
 /**
  * Pelaajakohtaiset peliajat sekunteina hetkellä `at`.
@@ -1179,6 +1188,49 @@ function periodOf(seconds, timing) {
 const totalSeconds = (timing) =>
   (timing?.periods || DEFAULT_PERIODS) * (timing?.periodMinutes || DEFAULT_PERIOD_MINUTES) * 60;
 
+/* ---------- Ottelutapahtumat ---------- */
+
+const CARDS = { yellow: 'Keltainen kortti', red: 'Punainen kortti' };
+
+/**
+ * Onko tapahtuma sellainen, joka näytetään ottelun tapahtumalistassa?
+ * Avauskokoonpanon merkinnät hetkellä 0 ovat kokoonpanoa, eivät tapahtumia.
+ */
+const isMatchEvent = (e) =>
+  ['goal', 'card', 'in', 'out'].includes(e.type) && !(e.type === 'in' && e.at === 0);
+
+/**
+ * Kaikki ottelun tapahtumat aikajärjestyksessä. Mukaan luetaan myös vanhat
+ * tulokseen kirjatut maalit, jotka tallennettiin ennen seurantaa minuutteina.
+ */
+function matchEvents(match) {
+  const tracked = (match?.timing?.events || []).filter(isMatchEvent);
+  const legacy = (match?.result?.events || []).map((e) => ({
+    id: e.id,
+    at: (e.minute ?? 0) * 60,
+    type: 'goal',
+    team: 'us',
+    playerId: e.scorerId,
+    assistId: e.assistId || null,
+    legacy: true,
+  }));
+  return [...tracked, ...legacy].sort((a, b) => a.at - b.at || order(a) - order(b));
+}
+
+// Samalla hetkellä: maali, kortti, vaihto ulos, vaihto sisään.
+const order = (e) => ({ goal: 0, card: 1, out: 2, in: 3 })[e.type] ?? 9;
+
+/** Maalit joukkueittain tapahtumista. */
+function goalsFrom(match) {
+  let us = 0, them = 0;
+  for (const e of matchEvents(match)) {
+    if (e.type !== 'goal') continue;
+    if (e.team === 'them') them++;
+    else us++;
+  }
+  return { us, them };
+}
+
 /* ---------- Muotoilu ---------- */
 
 function fmtClock(seconds) {
@@ -1188,7 +1240,7 @@ function fmtClock(seconds) {
 
 const fmtMinutes = (seconds) => `${Math.round((seconds || 0) / 60)} min`;
 
-return { DEFAULT_PERIODS, DEFAULT_PERIOD_MINUTES, emptyTiming, clockSeconds, playingTimes, onField, substitutions, periodOf, totalSeconds, fmtClock, fmtMinutes };
+return { DEFAULT_PERIODS, DEFAULT_PERIOD_MINUTES, emptyTiming, clockSeconds, playingTimes, onField, substitutions, periodOf, totalSeconds, CARDS, matchEvents, goalsFrom, fmtClock, fmtMinutes };
 };
 
 __mods['store'] = () => {
@@ -1495,10 +1547,55 @@ function substitute(match, outId, inId, at) {
   if (inId) t.events.push({ id: uid(), at: moment, type: 'in', playerId: inId });
 }
 
-/** Poistaa vaihdon (molemmat tapahtumat) esimerkiksi virhekirjauksen jälkeen. */
+/** Ottelun tulos luodaan tarvittaessa, kun ensimmäinen tapahtuma kirjataan. */
+function ensureResult(match) {
+  if (!match.result) match.result = { gf: 0, ga: 0, events: [], notes: '' };
+  return match.result;
+}
+
+/** Maali seurannasta: tapahtuma lokiin ja tulos ajan tasalle. */
+function recordGoal(match, { team = 'us', playerId = null, assistId = null, at } = {}) {
+  const t = ensureTiming(match);
+  const moment = at ?? clockSeconds(t);
+  t.events.push({ id: uid(), at: moment, type: 'goal', team, playerId, assistId });
+  const result = ensureResult(match);
+  if (team === 'them') result.ga = (result.ga || 0) + 1;
+  else result.gf = (result.gf || 0) + 1;
+}
+
+/** Kortti seurannasta. Punainen kortti vie oman pelaajan myös pois kentältä. */
+function recordCard(match, { team = 'us', card = 'yellow', playerId = null, at } = {}) {
+  const t = ensureTiming(match);
+  const moment = at ?? clockSeconds(t);
+  t.events.push({ id: uid(), at: moment, type: 'card', team, card, playerId });
+  if (card === 'red' && team === 'us' && playerId && onField(t, moment).has(playerId)) {
+    t.events.push({ id: uid(), at: moment, type: 'out', playerId });
+  }
+}
+
+/** Poistaa tapahtumat ja pitää tuloksen ajan tasalla. */
 function removeTimingEvents(match, ids) {
   const t = ensureTiming(match);
+  const removed = t.events.filter((e) => ids.includes(e.id));
   t.events = t.events.filter((e) => !ids.includes(e.id));
+
+  const result = match.result;
+  if (!result) return;
+  for (const e of removed) {
+    if (e.type !== 'goal') continue;
+    if (e.team === 'them') result.ga = Math.max(0, (result.ga || 0) - 1);
+    else result.gf = Math.max(0, (result.gf || 0) - 1);
+  }
+}
+
+/** Vanha tulokseen kirjattu maali poistetaan omalta listaltaan. */
+function removeResultEvent(match, id) {
+  if (!match.result) return;
+  const before = match.result.events.length;
+  match.result.events = match.result.events.filter((e) => e.id !== id);
+  if (match.result.events.length < before) {
+    match.result.gf = Math.max(0, (match.result.gf || 0) - 1);
+  }
 }
 
 /** Siirtää vaihdon toiseen hetkeen, kun kirjaus tehtiin myöhässä. */
@@ -1619,7 +1716,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, removeTimingEvents, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -2879,22 +2976,23 @@ function autoFill(lineup) {
 return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls, blockBrowserGestures };
 };
 
-__mods['playtime'] = () => {
-// Peliaika: ottelukello, vaihdot ja pelaajakohtainen peliaika.
-const { h, add, sheet, toast, confirmSheet } = __req('ui');
+__mods['tracking'] = () => {
+// Otteluseuranta: ottelukello, maalit, kortit, vaihdot ja peliaika.
+const { h, add, sheet, toast, confirmSheet, pressable } = __req('ui');
 const {
-  matchById, update, playerById,
+  matchById, update, playerById, getState,
   startTiming, pauseTiming, endTiming, resetTiming, substitute,
-  removeTimingEvents, moveTimingEvents, ensureTiming,
+  removeTimingEvents, moveTimingEvents, ensureTiming, recordGoal, recordCard,
+  removeResultEvent,
 } = __req('store');
 const {
   clockSeconds, playingTimes, onField, substitutions, periodOf, totalSeconds,
-  fmtClock, fmtMinutes,
+  matchEvents, goalsFrom, CARDS, fmtClock, fmtMinutes,
 } = __req('timing');
 // Kello päivittyy sekunnin välein ilman koko näkymän uudelleenpiirtoa.
 let ticker = null;
 
-function playtimeTab(match) {
+function trackingTab(match) {
   clearInterval(ticker);
   const wrap = h('div', { class: 'stack' });
   const timing = match.timing;
@@ -2915,7 +3013,14 @@ function playtimeTab(match) {
   // Unohtunut kello: varoitus, jos aikaa on kulunut selvästi otteluaikaa enemmän.
   const forgotten = timing.status === 'running' && at() > totalSeconds(timing) + 30 * 60;
 
+  const score = goalsFrom(match);
+  const teamName = getState().team.name || 'Me';
+
   wrap.append(h('div', { class: 'card center stack', style: 'gap:10px' },
+    h('div', { class: 'row', style: 'justify-content:center;gap:14px' },
+      h('span', { class: 'small bold ellip', style: 'max-width:38%', text: match.home ? teamName : (match.opponent || 'Vastustaja') }),
+      h('span', { class: 'score tnum', text: match.home ? `${score.us}–${score.them}` : `${score.them}–${score.us}` }),
+      h('span', { class: 'small bold ellip', style: 'max-width:38%', text: match.home ? (match.opponent || 'Vastustaja') : teamName })),
     periodEl,
     clockEl,
     forgotten
@@ -2936,6 +3041,13 @@ function playtimeTab(match) {
               }
             },
           }, 'Päätä ottelu'))));
+
+  /* --- Tapahtumien kirjaus --- */
+  if (timing.status !== 'ended') {
+    wrap.append(h('div', { class: 'btn-row' },
+      pressable(h('button', { class: 'btn action' }, '⚽ Maali'), () => openGoalSheet(match, commit)),
+      pressable(h('button', { class: 'btn action' }, '🟨 Kortti'), () => openCardSheet(match, commit))));
+  }
 
   /* --- Kentällä ja penkillä --- */
   const field = onField(timing, at());
@@ -2982,23 +3094,9 @@ function playtimeTab(match) {
       .forEach((id) => add(wrap, row(id, false)));
   }
 
-  /* --- Vaihtoloki --- */
-  const subs = substitutions(timing);
-  wrap.append(h('div', { class: 'section-title', text: `Vaihdot (${subs.length})` }));
-  if (!subs.length) {
-    wrap.append(h('div', { class: 'card small muted', text: 'Ei vielä vaihtoja.' }));
-  } else {
-    for (const s of subs) {
-      wrap.append(h('button', {
-        class: 'card row', onclick: () => openEditSub(match, s, commit),
-      },
-        h('span', { class: 'numchip tnum', style: 'width:auto;padding:0 8px', text: fmtClock(s.at) }),
-        h('span', { class: 'grow small' },
-          s.inId ? h('div', { class: 'ellip', text: `▲ ${playerById(s.inId)?.name || '–'}` }) : null,
-          s.outId ? h('div', { class: 'ellip muted', text: `▼ ${playerById(s.outId)?.name || '–'}` }) : null),
-        h('span', { class: 'muted', text: '›' })));
-    }
-  }
+  /* --- Tapahtumat --- */
+  wrap.append(h('div', { class: 'section-title', text: 'Tapahtumat' }));
+  wrap.append(eventList(match, commit, { editable: true }));
 
   wrap.append(h('button', {
     class: 'btn danger', style: 'margin-top:12px',
@@ -3143,6 +3241,224 @@ function openEditSub(match, sub, commit) {
   });
 }
 
+/* ---------- Tapahtumalista ---------- */
+
+const teamLabel = (match, team) => {
+  const own = getState().team.name || 'Oma joukkue';
+  return team === 'them' ? (match.opponent || 'Vastustaja') : own;
+};
+
+/** Yhteinen tapahtumalista seurantaan ja tuloksiin. */
+function eventList(match, commit, { editable = false } = {}) {
+  const events = matchEvents(match);
+  if (!events.length) {
+    return h('div', { class: 'card small muted', text: 'Ei kirjattuja tapahtumia.' });
+  }
+
+  const list = h('div', { class: 'stack', style: 'gap:8px' });
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    // Vaihto näytetään yhtenä rivinä: sisään tullut ja ulos mennyt yhdessä.
+    const next = events[i + 1];
+    const pairedSub = e.type === 'out' && next?.type === 'in' && next.at === e.at;
+    if (pairedSub) i++;
+
+    const ours = e.team !== 'them';
+    const row = h(editable ? 'button' : 'div', {
+      class: `card row event${ours ? '' : ' away'}`,
+      onclick: editable ? () => openEventSheet(match, e, commit) : null,
+    },
+      h('span', { class: 'numchip tnum', style: 'width:auto;padding:0 8px', text: fmtClock(e.at) }),
+      h('span', { class: 'grow' }, pairedSub ? subText(next.playerId, e.playerId) : eventText(match, e)),
+      editable ? h('span', { class: 'muted', text: '›' }) : null);
+    list.append(row);
+  }
+  return list;
+}
+
+const subText = (inId, outId) => h('span', {},
+  h('div', { class: 'bold ellip', text: `▲ ${playerById(inId)?.name || '–'}` }),
+  h('div', { class: 'tiny muted ellip', text: `▼ ${playerById(outId)?.name || '–'}` }));
+
+function eventText(match, e) {
+  const name = (id) => playerById(id)?.name || null;
+
+  if (e.type === 'goal') {
+    return h('span', {},
+      h('div', { class: 'bold ellip', text: `⚽ ${name(e.playerId) || teamLabel(match, e.team)}` }),
+      h('div', { class: 'tiny muted ellip', text: e.assistId
+        ? `Syöttö: ${name(e.assistId) || '–'}`
+        : (e.playerId ? teamLabel(match, e.team) : 'Maali') }));
+  }
+
+  if (e.type === 'card') {
+    return h('span', {},
+      h('div', { class: 'bold ellip', text: `${e.card === 'red' ? '🟥' : '🟨'} ${name(e.playerId) || teamLabel(match, e.team)}` }),
+      h('div', { class: 'tiny muted', text: `${CARDS[e.card] || 'Kortti'} · ${teamLabel(match, e.team)}` }));
+  }
+
+  const label = e.type === 'in' ? '▲ Kentälle' : '▼ Pois kentältä';
+  return h('span', {},
+    h('div', { class: 'bold ellip', text: `${label}: ${name(e.playerId) || '–'}` }),
+    h('div', { class: 'tiny muted', text: 'Vaihto' }));
+}
+
+/* ---------- Maalin ja kortin kirjaus ---------- */
+
+const squadOf = (match) => [...match.lineup.slots.filter(Boolean), ...match.lineup.bench];
+
+function playerPicker(match, { onPick, allowNone, noneLabel }) {
+  const rows = [];
+  const field = onField(match.timing);
+  const squad = squadOf(match);
+  const sorted = [...squad].sort((a, b) => {
+    const onA = field.has(a) ? 0 : 1, onB = field.has(b) ? 0 : 1;
+    if (onA !== onB) return onA - onB;
+    return (playerById(a)?.number ?? 999) - (playerById(b)?.number ?? 999);
+  });
+
+  for (const id of sorted) {
+    const p = playerById(id);
+    if (!p) continue;
+    rows.push(pressable(h('button', { class: 'list-item' },
+      h('span', { class: `numchip${field.has(id) ? ' accent' : ''}`, text: p.number ?? '–' }),
+      h('span', { class: 'grow ellip bold', text: p.name }),
+      field.has(id) ? h('span', { class: 'badge accent', text: 'kentällä' }) : null), () => onPick(id)));
+  }
+  if (allowNone) {
+    rows.push(pressable(h('button', { class: 'btn ghost', style: 'margin-top:8px' }, noneLabel), () => onPick(null)));
+  }
+  return rows;
+}
+
+function openGoalSheet(match, commit) {
+  sheet('Maali', (body, close) => {
+    const own = getState().team.name || 'Oma joukkue';
+    add(body,
+      h('p', { class: 'tiny muted', text: 'Kummalle joukkueelle maali kirjataan?' }),
+      pressable(h('button', { class: 'btn primary', style: 'margin-bottom:10px' }, `${own} teki maalin`), () => {
+        close();
+        openScorerSheet(match, commit);
+      }),
+      pressable(h('button', { class: 'btn' }, `${match.opponent || 'Vastustaja'} teki maalin`), () => {
+        commit((m) => recordGoal(m, { team: 'them' }));
+        close();
+        toast('Vastustajan maali kirjattu');
+      }));
+  });
+}
+
+function openScorerSheet(match, commit) {
+  sheet('Maalintekijä', (body, close) => {
+    add(body,
+      h('p', { class: 'tiny muted', text: 'Kuka teki maalin?' }),
+      ...playerPicker(match, {
+        allowNone: true,
+        noneLabel: 'Ei tiedossa',
+        onPick: (playerId) => {
+          close();
+          if (!playerId) {
+            commit((m) => recordGoal(m, { team: 'us' }));
+            toast('Maali kirjattu');
+            return;
+          }
+          openAssistSheet(match, commit, playerId);
+        },
+      }));
+  });
+}
+
+function openAssistSheet(match, commit, scorerId) {
+  sheet('Syöttäjä', (body, close) => {
+    add(body,
+      h('p', { class: 'tiny muted', text: `Maalintekijä ${playerById(scorerId)?.name || ''}. Kuka syötti?` }),
+      ...playerPicker(match, {
+        allowNone: true,
+        noneLabel: 'Ei syöttäjää',
+        onPick: (assistId) => {
+          commit((m) => recordGoal(m, { team: 'us', playerId: scorerId, assistId: assistId === scorerId ? null : assistId }));
+          close();
+          toast('Maali kirjattu');
+        },
+      }));
+  });
+}
+
+function openCardSheet(match, commit) {
+  sheet('Kortti', (body, close) => {
+    const own = getState().team.name || 'Oma joukkue';
+    const pick = (card) => {
+      close();
+      sheet(CARDS[card], (b2, close2) => {
+        add(b2,
+          h('p', { class: 'tiny muted', text: 'Kenelle kortti kirjataan?' }),
+          ...playerPicker(match, {
+            allowNone: false,
+            onPick: (playerId) => {
+              commit((m) => recordCard(m, { team: 'us', card, playerId }));
+              close2();
+              toast(`${CARDS[card]} kirjattu`);
+            },
+          }),
+          h('div', { class: 'section-title', text: match.opponent || 'Vastustaja' }),
+          pressable(h('button', { class: 'btn' }, `${match.opponent || 'Vastustaja'}: ${CARDS[card].toLowerCase()}`), () => {
+            commit((m) => recordCard(m, { team: 'them', card }));
+            close2();
+            toast(`${CARDS[card]} kirjattu`);
+          }));
+      });
+    };
+
+    add(body,
+      h('p', { class: 'tiny muted', text: `Kortin väri. Oman joukkueen kortti kirjataan pelaajalle (${own}).` }),
+      pressable(h('button', { class: 'btn', style: 'margin-bottom:10px;border-color:var(--amber);color:var(--amber)' }, '🟨 Keltainen kortti'), () => pick('yellow')),
+      pressable(h('button', { class: 'btn', style: 'border-color:var(--red);color:var(--red)' }, '🟥 Punainen kortti'), () => pick('red')));
+  });
+}
+
+/* ---------- Tapahtuman muokkaus ---------- */
+
+function openEventSheet(match, e, commit) {
+  if (e.legacy) {
+    sheet('Vanha maalikirjaus', (body, close) => {
+      add(body,
+        h('p', { class: 'small muted', text: 'Tämä maali on kirjattu ennen otteluseurantaa, joten sen aikaa ei voi muuttaa.' }),
+        pressable(h('button', { class: 'btn danger' }, 'Poista maali'), () => {
+          commit((m) => removeResultEvent(m, e.id));
+          close();
+          toast('Maali poistettu');
+        }));
+    });
+    return;
+  }
+
+  const subIds = pairedIds(match, e);
+  sheet('Tapahtuma', (body, close) => {
+    const minuteI = h('input', { type: 'number', value: Math.round(e.at / 60), min: '0', max: '200', inputmode: 'numeric' });
+    add(body,
+      h('p', { class: 'small muted' }, eventText(match, e)),
+      h('label', { class: 'field' }, h('span', { text: 'Minuutti' }), minuteI),
+      pressable(h('button', { class: 'btn primary' }, 'Tallenna aika'), () => {
+        commit((m) => moveTimingEvents(m, subIds, (Number(minuteI.value) || 0) * 60));
+        close();
+        toast('Aika korjattu');
+      }),
+      pressable(h('button', { class: 'btn danger', style: 'margin-top:10px' }, 'Poista tapahtuma'), () => {
+        commit((m) => removeTimingEvents(m, subIds));
+        close();
+        toast('Tapahtuma poistettu');
+      }));
+  });
+}
+
+/** Vaihto poistetaan parina, muut tapahtumat yksin. */
+function pairedIds(match, e) {
+  if (e.type !== 'in' && e.type !== 'out') return [e.id];
+  const pair = (match.timing?.events || []).find((x) =>
+    x.id !== e.id && x.at === e.at && (x.type === 'in' || x.type === 'out') && x.type !== e.type);
+  return pair ? [e.id, pair.id] : [e.id];
+}
+
 /* ---------- Kauden yhteenveto ---------- */
 
 /** Pelaajan kokonaispeliaika sekunteina pelatuista otteluista. */
@@ -3155,7 +3471,7 @@ function seasonPlayingTime(matches, playerId) {
   return seconds;
 }
 
-return { playtimeTab, seasonPlayingTime };
+return { trackingTab, eventList, seasonPlayingTime };
 };
 
 __mods['players'] = () => {
@@ -3723,13 +4039,14 @@ __mods['match'] = () => {
 const { icon } = __req('icons');
 const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
-  getState, matchById, updateMatch, removeMatch, update, uid,
-  sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
+  getState, matchById, updateMatch, removeMatch, update,
+  playerById, cloneLineup, addLineup, lineupById,
   staffById, STAFF_ROLES,
 } = __req('store');
 const { getFormation } = __req('formations');
+const { matchEvents } = __req('timing');
 const { renderLineupEditor } = __req('pitch');
-const { playtimeTab } = __req('playtime');
+const { trackingTab, eventList } = __req('tracking');
 const { openMatchSheet } = __req('matches');
 const { navigate } = __req('router');
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
@@ -3746,11 +4063,11 @@ function matchView(id) {
 
   const body = h('div', { class: 'stack' });
   body.append(h('div', { class: 'segmented four' },
-    ...[['kokoonpano', 'Kokoonpano'], ['peliaika', 'Peliaika'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
+    ...[['kokoonpano', 'Kokoonpano'], ['seuranta', 'Seuranta'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
       h('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; navigate(`#/ottelu/${id}`); } }, label))));
 
   if (tab === 'kokoonpano') body.append(lineupTab(m));
-  else if (tab === 'peliaika') body.append(playtimeTab(m));
+  else if (tab === 'seuranta') body.append(trackingTab(m));
   else if (tab === 'tulos') body.append(resultTab(m));
   else body.append(infoTab(m));
 
@@ -3969,24 +4286,11 @@ function resultTab(m) {
 
   wrap.append(videoBlock(m));
 
-  wrap.append(h('div', { class: 'section-title', text: `Maalit (${r.events.length})` }));
-  if (!r.events.length) {
-    wrap.append(h('div', { class: 'card small muted', text: 'Ei kirjattuja maalintekijöitä.' }));
-  } else {
-    const sorted = [...r.events].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
-    for (const ev of sorted) {
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: ev.minute != null ? `${ev.minute}'` : '–' }),
-        h('span', { class: 'grow' },
-          h('div', { class: 'bold ellip', text: playerName(ev.scorerId) }),
-          ev.assistId ? h('div', { class: 'tiny muted ellip', text: `Syöttö: ${playerName(ev.assistId)}` }) : null),
-        h('button', {
-          class: 'btn sm ghost',
-          onclick: () => updateMatch(m.id, { result: { ...r, events: r.events.filter((x) => x.id !== ev.id) } }),
-        }, '✕')));
-    }
-  }
-  wrap.append(h('button', { class: 'btn', onclick: () => openGoalSheet(m) }, '＋ Lisää maali'));
+  const events = matchEvents(m);
+  wrap.append(h('div', { class: 'section-title', text: `Ottelun tapahtumat (${events.length})` }));
+  wrap.append(eventList(m, null, { editable: false }));
+  wrap.append(h('p', { class: 'tiny muted center', style: 'margin:4px 0 0',
+    text: 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
 
   const notesI = h('textarea', { placeholder: 'Ottelumuistiinpanot', text: r.notes || '' });
   notesI.addEventListener('change', () => updateMatch(m.id, { result: { ...matchById(m.id).result, notes: notesI.value } }));
@@ -4003,50 +4307,6 @@ function resultTab(m) {
   }, 'Poista tulos'));
 
   return wrap;
-}
-
-function openGoalSheet(m) {
-  sheet('Lisää maali', (body, close) => {
-    const lu = m.lineup;
-    const involved = [...lu.slots.filter(Boolean), ...lu.bench];
-    const all = sortedPlayers(getState().players);
-    const ordered = [
-      ...all.filter((p) => involved.includes(p.id)),
-      ...all.filter((p) => !involved.includes(p.id)),
-    ];
-
-    const minuteI = h('input', { type: 'number', placeholder: 'esim. 34', inputmode: 'numeric', min: '0', max: '130' });
-    const scorerSel = h('select', {}, ...ordered.map((p) =>
-      h('option', { value: p.id, text: `${p.number != null ? p.number + '. ' : ''}${p.name}` })));
-    const assistSel = h('select', {},
-      h('option', { value: '', text: 'Ei syöttäjää' }),
-      ...ordered.map((p) => h('option', { value: p.id, text: `${p.number != null ? p.number + '. ' : ''}${p.name}` })));
-
-    if (!ordered.length) {
-      body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia.' }));
-      return;
-    }
-
-    body.append(
-      h('label', { class: 'field' }, h('span', { text: 'Maalintekijä' }), scorerSel),
-      h('label', { class: 'field' }, h('span', { text: 'Syöttäjä' }), assistSel),
-      h('label', { class: 'field' }, h('span', { text: 'Minuutti' }), minuteI),
-      h('button', {
-        class: 'btn primary',
-        onclick: () => {
-          const r = matchById(m.id).result;
-          const ev = {
-            id: uid(),
-            scorerId: scorerSel.value,
-            assistId: assistSel.value || null,
-            minute: minuteI.value === '' ? null : Number(minuteI.value),
-          };
-          updateMatch(m.id, { result: { ...r, events: [...r.events, ev], gf: (r.gf || 0) + 1 } });
-          close();
-          toast('Maali kirjattu');
-        },
-      }, 'Lisää maali'));
-  });
 }
 
 /* ---------- Tiedot ---------- */
@@ -4214,12 +4474,12 @@ __mods['stats'] = () => {
 const { h } = __req('ui');
 const { icon } = __req('icons');
 const { getState, sortedPlayers, isPlayed } = __req('store');
-const { seasonPlayingTime } = __req('playtime');
+const { seasonPlayingTime } = __req('tracking');
 function statsView() {
   const st = getState();
   const played = st.matches.filter(isPlayed);
   // Peliaikaa voi kertyä jo ennen kuin tulos on kirjattu.
-  const tracked = st.matches.filter((m) => m.timing && m.timing.events?.length);
+  const tracked = st.matches.filter((m) => m.timing?.events?.some((e) => e.type === 'in'));
   const body = h('div', { class: 'stack' });
 
   if (!played.length && !tracked.length) {

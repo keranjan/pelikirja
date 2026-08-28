@@ -302,10 +302,55 @@ export function substitute(match, outId, inId, at) {
   if (inId) t.events.push({ id: uid(), at: moment, type: 'in', playerId: inId });
 }
 
-/** Poistaa vaihdon (molemmat tapahtumat) esimerkiksi virhekirjauksen jälkeen. */
+/** Ottelun tulos luodaan tarvittaessa, kun ensimmäinen tapahtuma kirjataan. */
+function ensureResult(match) {
+  if (!match.result) match.result = { gf: 0, ga: 0, events: [], notes: '' };
+  return match.result;
+}
+
+/** Maali seurannasta: tapahtuma lokiin ja tulos ajan tasalle. */
+export function recordGoal(match, { team = 'us', playerId = null, assistId = null, at } = {}) {
+  const t = ensureTiming(match);
+  const moment = at ?? clockSeconds(t);
+  t.events.push({ id: uid(), at: moment, type: 'goal', team, playerId, assistId });
+  const result = ensureResult(match);
+  if (team === 'them') result.ga = (result.ga || 0) + 1;
+  else result.gf = (result.gf || 0) + 1;
+}
+
+/** Kortti seurannasta. Punainen kortti vie oman pelaajan myös pois kentältä. */
+export function recordCard(match, { team = 'us', card = 'yellow', playerId = null, at } = {}) {
+  const t = ensureTiming(match);
+  const moment = at ?? clockSeconds(t);
+  t.events.push({ id: uid(), at: moment, type: 'card', team, card, playerId });
+  if (card === 'red' && team === 'us' && playerId && onField(t, moment).has(playerId)) {
+    t.events.push({ id: uid(), at: moment, type: 'out', playerId });
+  }
+}
+
+/** Poistaa tapahtumat ja pitää tuloksen ajan tasalla. */
 export function removeTimingEvents(match, ids) {
   const t = ensureTiming(match);
+  const removed = t.events.filter((e) => ids.includes(e.id));
   t.events = t.events.filter((e) => !ids.includes(e.id));
+
+  const result = match.result;
+  if (!result) return;
+  for (const e of removed) {
+    if (e.type !== 'goal') continue;
+    if (e.team === 'them') result.ga = Math.max(0, (result.ga || 0) - 1);
+    else result.gf = Math.max(0, (result.gf || 0) - 1);
+  }
+}
+
+/** Vanha tulokseen kirjattu maali poistetaan omalta listaltaan. */
+export function removeResultEvent(match, id) {
+  if (!match.result) return;
+  const before = match.result.events.length;
+  match.result.events = match.result.events.filter((e) => e.id !== id);
+  if (match.result.events.length < before) {
+    match.result.gf = Math.max(0, (match.result.gf || 0) - 1);
+  }
 }
 
 /** Siirtää vaihdon toiseen hetkeen, kun kirjaus tehtiin myöhässä. */

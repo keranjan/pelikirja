@@ -2,13 +2,14 @@
 import { icon } from '../icons.js';
 import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js';
 import {
-  getState, matchById, updateMatch, removeMatch, update, uid,
-  sortedPlayers, playerById, playerName, cloneLineup, addLineup, lineupById,
+  getState, matchById, updateMatch, removeMatch, update,
+  playerById, cloneLineup, addLineup, lineupById,
   staffById, STAFF_ROLES,
 } from '../store.js';
 import { getFormation } from '../formations.js';
+import { matchEvents } from '../timing.js';
 import { renderLineupEditor } from './pitch.js';
-import { playtimeTab } from './playtime.js';
+import { trackingTab, eventList } from './tracking.js';
 import { openMatchSheet } from './matches.js';
 import { navigate } from '../router.js';
 
@@ -26,11 +27,11 @@ export function matchView(id) {
 
   const body = h('div', { class: 'stack' });
   body.append(h('div', { class: 'segmented four' },
-    ...[['kokoonpano', 'Kokoonpano'], ['peliaika', 'Peliaika'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
+    ...[['kokoonpano', 'Kokoonpano'], ['seuranta', 'Seuranta'], ['tulos', 'Tulos'], ['tiedot', 'Tiedot']].map(([k, label]) =>
       h('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; navigate(`#/ottelu/${id}`); } }, label))));
 
   if (tab === 'kokoonpano') body.append(lineupTab(m));
-  else if (tab === 'peliaika') body.append(playtimeTab(m));
+  else if (tab === 'seuranta') body.append(trackingTab(m));
   else if (tab === 'tulos') body.append(resultTab(m));
   else body.append(infoTab(m));
 
@@ -249,24 +250,11 @@ function resultTab(m) {
 
   wrap.append(videoBlock(m));
 
-  wrap.append(h('div', { class: 'section-title', text: `Maalit (${r.events.length})` }));
-  if (!r.events.length) {
-    wrap.append(h('div', { class: 'card small muted', text: 'Ei kirjattuja maalintekijöitä.' }));
-  } else {
-    const sorted = [...r.events].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
-    for (const ev of sorted) {
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: ev.minute != null ? `${ev.minute}'` : '–' }),
-        h('span', { class: 'grow' },
-          h('div', { class: 'bold ellip', text: playerName(ev.scorerId) }),
-          ev.assistId ? h('div', { class: 'tiny muted ellip', text: `Syöttö: ${playerName(ev.assistId)}` }) : null),
-        h('button', {
-          class: 'btn sm ghost',
-          onclick: () => updateMatch(m.id, { result: { ...r, events: r.events.filter((x) => x.id !== ev.id) } }),
-        }, '✕')));
-    }
-  }
-  wrap.append(h('button', { class: 'btn', onclick: () => openGoalSheet(m) }, '＋ Lisää maali'));
+  const events = matchEvents(m);
+  wrap.append(h('div', { class: 'section-title', text: `Ottelun tapahtumat (${events.length})` }));
+  wrap.append(eventList(m, null, { editable: false }));
+  wrap.append(h('p', { class: 'tiny muted center', style: 'margin:4px 0 0',
+    text: 'Tapahtumat kirjataan Seuranta-välilehdellä ottelun aikana.' }));
 
   const notesI = h('textarea', { placeholder: 'Ottelumuistiinpanot', text: r.notes || '' });
   notesI.addEventListener('change', () => updateMatch(m.id, { result: { ...matchById(m.id).result, notes: notesI.value } }));
@@ -283,50 +271,6 @@ function resultTab(m) {
   }, 'Poista tulos'));
 
   return wrap;
-}
-
-function openGoalSheet(m) {
-  sheet('Lisää maali', (body, close) => {
-    const lu = m.lineup;
-    const involved = [...lu.slots.filter(Boolean), ...lu.bench];
-    const all = sortedPlayers(getState().players);
-    const ordered = [
-      ...all.filter((p) => involved.includes(p.id)),
-      ...all.filter((p) => !involved.includes(p.id)),
-    ];
-
-    const minuteI = h('input', { type: 'number', placeholder: 'esim. 34', inputmode: 'numeric', min: '0', max: '130' });
-    const scorerSel = h('select', {}, ...ordered.map((p) =>
-      h('option', { value: p.id, text: `${p.number != null ? p.number + '. ' : ''}${p.name}` })));
-    const assistSel = h('select', {},
-      h('option', { value: '', text: 'Ei syöttäjää' }),
-      ...ordered.map((p) => h('option', { value: p.id, text: `${p.number != null ? p.number + '. ' : ''}${p.name}` })));
-
-    if (!ordered.length) {
-      body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia.' }));
-      return;
-    }
-
-    body.append(
-      h('label', { class: 'field' }, h('span', { text: 'Maalintekijä' }), scorerSel),
-      h('label', { class: 'field' }, h('span', { text: 'Syöttäjä' }), assistSel),
-      h('label', { class: 'field' }, h('span', { text: 'Minuutti' }), minuteI),
-      h('button', {
-        class: 'btn primary',
-        onclick: () => {
-          const r = matchById(m.id).result;
-          const ev = {
-            id: uid(),
-            scorerId: scorerSel.value,
-            assistId: assistSel.value || null,
-            minute: minuteI.value === '' ? null : Number(minuteI.value),
-          };
-          updateMatch(m.id, { result: { ...r, events: [...r.events, ev], gf: (r.gf || 0) + 1 } });
-          close();
-          toast('Maali kirjattu');
-        },
-      }, 'Lisää maali'));
-  });
 }
 
 /* ---------- Tiedot ---------- */

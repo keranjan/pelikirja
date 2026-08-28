@@ -73,15 +73,22 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Ottelut, turnaukset ja harjoituspelit: päivä, aika, vastustaja, paikka, koti/vieras, muistiinpanot
 - Tulevat tapahtumat aikajärjestyksessä, mukana lähtölaskenta ja kokoonpanon täyttöaste
 - Jokaisella ottelulla oma kokoonpanonsa
-- Tulos: maalit puolittain, maalintekijät, syöttäjät ja maaliminuutit
+- Tulos: maalit puolittain sekä ottelun tapahtumat aikajärjestyksessä
 - Videolinkki otteluun (Veo, YouTube, Vimeo, Spiideo, Hudl tai mikä tahansa https-osoite):
   tallenne avautuu Tulos-välilehdeltä yhdellä napautuksella palvelun omaan sovellukseen
 - Pelatut ottelut omalla välilehdellään voitto/tasapeli/tappio-merkinnöin
 
-**Peliaika**
+**Otteluseuranta**
 - Ottelukello, joka käynnistetään alkuvihellyksestä; avauskokoonpano merkitään
   automaattisesti kentälle
+- Maalit molemmille joukkueille: omat kirjataan pelaajalle ja halutessa
+  syöttäjälle, vastustajan maalit joukkueelle
+- Keltaiset ja punaiset kortit; punainen kortti vie oman pelaajan myös pois
+  kentältä, jolloin peliaika pysyy oikein
 - Vaihdot kirjataan napauttamalla: pelaaja ulos ja tilalle tuleva sisään
+- Kaikki tapahtumat tallentuvat ottelukellon ajan kanssa ja näkyvät
+  Tulos-välilehdellä aikajärjestyksessä
+- Tapahtuman aikaa voi korjata tai tapahtuman poistaa jälkikäteen
 - Jokaisen pelaajan peliaika kertyy reaaliajassa, myös taustalla ja
   sovelluksen ollessa kiinni
 - Vaihtopenkki järjestyy vähiten pelanneen mukaan ja vähiten peliaikaa saanut
@@ -198,7 +205,7 @@ js/app.js               reititys ja näkymien piirto
 js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
-js/views/               näkymät: ottelupäivä, ottelut, ottelu, peliaika, kokoonpanot,
+js/views/               näkymät: ottelupäivä, ottelut, ottelu, seuranta, kokoonpanot,
                         ryhmä, kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
