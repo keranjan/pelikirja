@@ -449,13 +449,27 @@ export function setFormation(lineup, formationId) {
   for (const id of dropped) if (!lineup.bench.includes(id)) lineup.bench.push(id);
 }
 
-/** Asettaa pelaajan paikkaan ja poistaa hänet muualta kokoonpanosta. */
+/**
+ * Asettaa pelaajan paikkaan ja poistaa hänet muualta kentältä. Paikalta pois
+ * jäänyt pelaaja pysyy ryhmässä ja siirtyy vaihtopenkille – hän on poissa vain,
+ * jos hänet otetaan pois ryhmästä Hallitse ryhmää -näkymässä.
+ */
 export function assignToSlot(lineup, slotIndex, playerId) {
+  const previous = lineup.slots[slotIndex];
   if (playerId) {
     lineup.slots = lineup.slots.map((v, i) => (v === playerId && i !== slotIndex ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
   }
   lineup.slots[slotIndex] = playerId;
+  if (previous && previous !== playerId && !inSquad(lineup, previous)) lineup.bench.push(previous);
+}
+
+/** Tyhjentää kentän: pelaajat siirtyvät vaihtopenkille, eivät pois ryhmästä. */
+export function clearSlots(lineup) {
+  for (const id of lineup.slots) {
+    if (id && !lineup.bench.includes(id)) lineup.bench.push(id);
+  }
+  lineup.slots = lineup.slots.map(() => null);
 }
 
 /** Onko pelaaja merkitty mukaan otteluun (kentälle tai penkille)? */

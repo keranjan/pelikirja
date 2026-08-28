@@ -1735,13 +1735,27 @@ function setFormation(lineup, formationId) {
   for (const id of dropped) if (!lineup.bench.includes(id)) lineup.bench.push(id);
 }
 
-/** Asettaa pelaajan paikkaan ja poistaa hänet muualta kokoonpanosta. */
+/**
+ * Asettaa pelaajan paikkaan ja poistaa hänet muualta kentältä. Paikalta pois
+ * jäänyt pelaaja pysyy ryhmässä ja siirtyy vaihtopenkille – hän on poissa vain,
+ * jos hänet otetaan pois ryhmästä Hallitse ryhmää -näkymässä.
+ */
 function assignToSlot(lineup, slotIndex, playerId) {
+  const previous = lineup.slots[slotIndex];
   if (playerId) {
     lineup.slots = lineup.slots.map((v, i) => (v === playerId && i !== slotIndex ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
   }
   lineup.slots[slotIndex] = playerId;
+  if (previous && previous !== playerId && !inSquad(lineup, previous)) lineup.bench.push(previous);
+}
+
+/** Tyhjentää kentän: pelaajat siirtyvät vaihtopenkille, eivät pois ryhmästä. */
+function clearSlots(lineup) {
+  for (const id of lineup.slots) {
+    if (id && !lineup.bench.includes(id)) lineup.bench.push(id);
+  }
+  lineup.slots = lineup.slots.map(() => null);
 }
 
 /** Onko pelaaja merkitty mukaan otteluun (kentälle tai penkille)? */
@@ -1813,7 +1827,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -2451,7 +2465,7 @@ const { h, sheet, toast, shortName, initials, pressable } = __req('ui');
 const { icon } = __req('icons');
 const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('formations');
 const {
-  getState, playerById, sortedPlayers, setFormation, assignToSlot,
+  getState, playerById, sortedPlayers, setFormation, assignToSlot, clearSlots,
   toggleSquad, inSquad, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
   sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
@@ -2567,7 +2581,7 @@ function renderLineupEditor(lineup, commit) {
     h('button', { class: 'btn sm', style: 'flex:1', onclick: () => commit(() => autoFill(lineup)) }, 'Automaattitäyttö'),
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => { lineup.slots = lineup.slots.map(() => null); }),
+      onclick: () => commit(() => clearSlots(lineup)),
     }, 'Tyhjennä')));
 
   /* --- Vaihtopenkki: ryhmään valitut, jotka eivät ole kentällä --- */

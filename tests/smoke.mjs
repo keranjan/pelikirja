@@ -204,6 +204,48 @@ await page.waitForTimeout(200);
 console.log('ryhmävalinta toimii napautuksella');
 await shot('05-penkki');
 
+// Kentältä vaihtopelaajaan vaihtaminen jättää edellisen penkille, ei poissaoleviin
+{
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup);
+  const replaced = before.slots[2];
+  const comingIn = before.bench[0];
+  if (!replaced || !comingIn) {
+    console.error('Vaihtotestiin tarvitaan pelaaja kentällä ja penkillä'); process.exit(1);
+  }
+  await page.locator('#view .slot').nth(2).click();
+  await page.waitForTimeout(250);
+  await page.locator('.sheet .list-item', { hasText: 'penkki' }).first().click();
+  await page.waitForTimeout(250);
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup);
+  if (!after.bench.includes(replaced)) {
+    console.error('Kentältä vaihdettu pelaaja ei siirtynyt penkille'); process.exit(1);
+  }
+  if (after.slots.includes(replaced)) {
+    console.error('Vaihdettu pelaaja jäi myös kentälle'); process.exit(1);
+  }
+  if (after.bench.includes(after.slots[2]) || !after.slots[2]) {
+    console.error('Sisään tullut pelaaja ei mennyt kentälle'); process.exit(1);
+  }
+  console.log('vaihto kentältä penkille: pelaajamäärä ryhmässä säilyi',
+    before.slots.filter(Boolean).length + before.bench.length, '->',
+    after.slots.filter(Boolean).length + after.bench.length);
+
+  // Kentän tyhjennys ei myöskään pudota pelaajia pois ryhmästä.
+  await page.locator('#view .btn', { hasText: 'Tyhjennä' }).first().click();
+  await page.waitForTimeout(250);
+  const cleared = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup);
+  if (cleared.slots.filter(Boolean).length !== 0) {
+    console.error('Tyhjennys ei tyhjentänyt kenttää'); process.exit(1);
+  }
+  if (cleared.bench.length !== after.slots.filter(Boolean).length + after.bench.length) {
+    console.error('Tyhjennys pudotti pelaajia ryhmästä: penkillä ' + cleared.bench.length); process.exit(1);
+  }
+  console.log('kentän tyhjennys siirsi kaikki penkille:', cleared.bench.length, 'pelaajaa');
+  await tapText('Automaattitäyttö');
+  await page.waitForTimeout(250);
+}
+
+
 // Ryhmä-välilehti mahtuu ruudulle myös pitkillä nimillä.
 await page.evaluate(() => { location.hash = '#/pelaajat'; });
 await page.waitForTimeout(250);

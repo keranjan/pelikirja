@@ -3,7 +3,7 @@ import { h, sheet, toast, shortName, initials, pressable } from '../ui.js';
 import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
-  getState, playerById, sortedPlayers, setFormation, assignToSlot,
+  getState, playerById, sortedPlayers, setFormation, assignToSlot, clearSlots,
   toggleSquad, inSquad, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
   sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
@@ -120,7 +120,7 @@ export function renderLineupEditor(lineup, commit) {
     h('button', { class: 'btn sm', style: 'flex:1', onclick: () => commit(() => autoFill(lineup)) }, 'Automaattitäyttö'),
     h('button', {
       class: 'btn sm ghost', style: 'flex:1',
-      onclick: () => commit(() => { lineup.slots = lineup.slots.map(() => null); }),
+      onclick: () => commit(() => clearSlots(lineup)),
     }, 'Tyhjennä')));
 
   /* --- Vaihtopenkki: ryhmään valitut, jotka eivät ole kentällä --- */
