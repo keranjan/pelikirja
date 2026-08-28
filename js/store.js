@@ -33,8 +33,7 @@ export function emptyLineup(formationId = '4-4-2') {
   return {
     formation: f.id,
     slots: f.slots.map(() => null),
-    bench: [],
-    unavailable: [],
+    bench: [],       // ryhmässä mutta ei aloituskokoonpanossa
     positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
     drawings: [],    // taktiikkapiirrokset
     staff: [],       // otteluun mukaan merkityt valmentajat ja toimihenkilöt
@@ -57,11 +56,12 @@ function migrate(data) {
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
-    if (!Array.isArray(m.lineup.unavailable)) m.lineup.unavailable = [];
-    if (!Array.isArray(m.lineup.bench)) m.lineup.bench = [];
   }
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
+    if (!Array.isArray(l.bench)) l.bench = [];
+    // Poissaolot päätellään nykyään ryhmävalinnasta, joten vanha lista poistetaan.
+    if (l.unavailable) delete l.unavailable;
     if (!Array.isArray(l.drawings)) l.drawings = [];
     if (!Array.isArray(l.staff)) l.staff = [];
     if (!l.positions || typeof l.positions !== 'object') l.positions = {};
@@ -150,7 +150,6 @@ export function removePlayer(id) {
       if (!lu) return;
       lu.slots = lu.slots.map((v) => (v === id ? null : v));
       lu.bench = lu.bench.filter((v) => v !== id);
-      lu.unavailable = (lu.unavailable || []).filter((v) => v !== id);
     };
     st.lineups.forEach((l) => clean(l.lineup));
     st.matches.forEach((m) => {
@@ -229,6 +228,7 @@ export function addMatch(data) {
     date: new Date().toISOString().slice(0, 10),
     time: '18:00',
     opponent: '',
+    team: '',                 // oma joukkue, kun seurassa on useampi (esim. Ilves Beta)
     home: true,
     venue: '',
     type: 'ottelu',           // ottelu | turnaus | harjoitus
@@ -241,6 +241,12 @@ export function addMatch(data) {
   };
   update((st) => { st.matches.push(m); });
   return m;
+}
+
+/** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
+export function matchTeams(matches = getState().matches) {
+  return [...new Set(matches.map((m) => (m.team || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'fi'));
 }
 
 export function updateMatch(id, data) {
@@ -397,38 +403,37 @@ export function assignToSlot(lineup, slotIndex, playerId) {
   if (playerId) {
     lineup.slots = lineup.slots.map((v, i) => (v === playerId && i !== slotIndex ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
-    lineup.unavailable = (lineup.unavailable || []).filter((v) => v !== playerId);
   }
   lineup.slots[slotIndex] = playerId;
 }
 
-export function toggleBench(lineup, playerId) {
-  if (lineup.bench.includes(playerId)) {
+/** Onko pelaaja merkitty mukaan otteluun (kentälle tai penkille)? */
+export const inSquad = (lineup, playerId) =>
+  lineup.slots.includes(playerId) || lineup.bench.includes(playerId);
+
+/**
+ * Napautus vihreäksi: pelaaja mukaan otteluryhmään tai pois siitä.
+ * Mukaan otettu pelaaja menee vaihtopenkille, kunnes hänet asetetaan kentälle.
+ */
+export function toggleSquad(lineup, playerId) {
+  if (inSquad(lineup, playerId)) {
+    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
   } else {
-    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
-    lineup.unavailable = (lineup.unavailable || []).filter((v) => v !== playerId);
     lineup.bench.push(playerId);
   }
 }
 
-export function toggleUnavailable(lineup, playerId) {
-  lineup.unavailable = lineup.unavailable || [];
-  if (lineup.unavailable.includes(playerId)) {
-    lineup.unavailable = lineup.unavailable.filter((v) => v !== playerId);
-  } else {
-    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
-    lineup.bench = lineup.bench.filter((v) => v !== playerId);
-    lineup.unavailable.push(playerId);
-  }
+/** Poissaolijat päätellään: käytettävissä olevat pelaajat, joita ei ole valittu ryhmään. */
+export function absentIds(lineup, players = getState().players) {
+  return players.filter((p) => p.active !== false && !inSquad(lineup, p.id)).map((p) => p.id);
 }
 
+/** Pelaajan tila tässä ottelussa: kentällä, penkillä vai poissa. */
 export const lineupRole = (lineup, playerId) => {
-  const i = lineup.slots.indexOf(playerId);
-  if (i >= 0) return 'aloittava';
+  if (lineup.slots.includes(playerId)) return 'aloittava';
   if (lineup.bench.includes(playerId)) return 'vaihto';
-  if ((lineup.unavailable || []).includes(playerId)) return 'poissa';
-  return null;
+  return 'poissa';
 };
 
 export const cloneLineup = (lu) => JSON.parse(JSON.stringify(lu));

@@ -162,8 +162,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #app { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 }
 
-/* Kortit ruudukkoon: yksi sarake puhelimessa, kaksi tai kolme tabletilla. */
-.cards { display: grid; gap: 12px; }
+/* Kortit ruudukkoon: yksi sarake puhelimessa, kaksi tai kolme tabletilla.
+   minmax(0, 1fr) pitää sarakkeen ruudun levyisenä: ilman sitä pitkä nimi
+   levittäisi kortin yli näytön ja näkymän voisi vierittää sivusuunnassa. */
+.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* Kortit saavat kutistua sisältöään kapeammiksi (teksti katkeaa kolmella pisteellä). */
+.cards > *, .stack > * { min-width: 0; }
 
 /* ---------- Yläpalkki ---------- */
 
@@ -275,6 +279,8 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
   font-size: 11px; font-weight: 600; white-space: nowrap;
 }
 .badge.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* Oman joukkueen merkki, kun seurassa on useampi joukkue. */
+.badge.team { background: var(--paper); border-color: var(--line-strong); color: var(--ink-2); }
 .badge.win  { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 .badge.draw { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 .badge.loss { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
@@ -287,6 +293,19 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
   font-variant-numeric: tabular-nums;
 }
 .numchip.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* Kapea versio listoihin, joissa rivejä on paljon. */
+.numchip.sm { width: 30px; height: 30px; font-size: 13px; }
+
+/* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
+.card.pick { border-color: var(--line); transition: background-color .12s ease, border-color .12s ease; }
+.card.pick.on { background: var(--accent-soft); border-color: var(--accent); }
+.card.pick.on .badge { background: var(--surface); }
+.card.pick:active { transform: scale(.99); }
+
+/* Tiivis kortti: listariveille, jotta koko ryhmä mahtuu ruudulle. */
+.cards.tight { gap: 8px; }
+.card.compact { padding: 10px 12px; }
+.card.row.compact { gap: 10px; }
 
 /* ---------- Ottelupäivä-etusivu ---------- */
 
@@ -396,6 +415,13 @@ a.btn { text-decoration: none; }
 .btn-row > .btn { flex: 1; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Joukkuesuodatin: rivi pysyy yhdellä rivillä ja vierii tarvittaessa. */
+.chips.scroll-x {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -16px; padding: 2px 16px;
+}
+.chips.scroll-x::-webkit-scrollbar { display: none; }
+.chips.scroll-x .chip { flex: none; min-height: 34px; padding: 6px 12px; font-size: 12.5px; }
 .chip {
   min-height: 40px; padding: 8px 14px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
@@ -582,6 +608,7 @@ html.board-open, html.board-open body { overflow: hidden; }
   .stack { gap: 14px; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card { padding: 18px; }
+  .card.compact { padding: 12px 14px; }
   .section-title { margin: 28px 2px 10px; font-size: 12px; }
   .kpi-grid { gap: 14px; }
   .kpi .v { font-size: 26px; }

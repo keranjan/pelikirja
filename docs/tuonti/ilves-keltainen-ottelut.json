@@ -1,0 +1,147 @@
+[
+  {
+    "id": "tp405912",
+    "date": "2026-08-31",
+    "time": "18:00",
+    "opponent": "RiPS/Sininen",
+    "team": "Ilves Keltainen",
+    "home": false,
+    "venue": "Keskuskenttä TN B",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp405902",
+    "date": "2026-09-13",
+    "time": "13:00",
+    "opponent": "Ilves/P2015 Beta",
+    "team": "Ilves Keltainen",
+    "home": true,
+    "venue": "Vuores TN A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp405891",
+    "date": "2026-09-21",
+    "time": "20:00",
+    "opponent": "Ilves Vihreä",
+    "team": "Ilves Keltainen",
+    "home": false,
+    "venue": "Vuores TN B",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp405904",
+    "date": "2026-10-04",
+    "time": "12:00",
+    "opponent": "JanPa",
+    "team": "Ilves Keltainen",
+    "home": true,
+    "venue": "Kaukajärvi TN B",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp405863",
+    "date": "2026-10-11",
+    "time": "12:00",
+    "opponent": "HJS/sinivalkoinen",
+    "team": "Ilves Keltainen",
+    "home": false,
+    "venue": "Pulleri TN 1 A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  }
+]

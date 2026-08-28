@@ -1,0 +1,205 @@
+[
+  {
+    "id": "tp398240",
+    "date": "2026-08-28",
+    "time": "19:30",
+    "opponent": "Akaa YJ",
+    "team": "Ilves Beta",
+    "home": false,
+    "venue": "Pallokenttä TN A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398246",
+    "date": "2026-09-06",
+    "time": "12:00",
+    "opponent": "FC Inter",
+    "team": "Ilves Beta",
+    "home": true,
+    "venue": "Rantaperkiö TN B",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398251",
+    "date": "2026-09-11",
+    "time": "19:15",
+    "opponent": "FC Jazz",
+    "team": "Ilves Beta",
+    "home": false,
+    "venue": "Herralahti TN A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398257",
+    "date": "2026-09-20",
+    "time": "18:00",
+    "opponent": "KaaPo",
+    "team": "Ilves Beta",
+    "home": false,
+    "venue": "Reunakivi-areena TN A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398265",
+    "date": "2026-09-26",
+    "time": "14:15",
+    "opponent": "ÅIFK/svart",
+    "team": "Ilves Beta",
+    "home": true,
+    "venue": "Vuores TN B",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398274",
+    "date": "2026-09-29",
+    "time": "18:30",
+    "opponent": "TuKV",
+    "team": "Ilves Beta",
+    "home": false,
+    "venue": "Impivaara Areena A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  },
+  {
+    "id": "tp398262",
+    "date": "2026-10-06",
+    "time": "20:00",
+    "opponent": "MuSa/Black",
+    "team": "Ilves Beta",
+    "home": true,
+    "venue": "Vuores TN A",
+    "type": "ottelu",
+    "videoUrl": "",
+    "notes": "",
+    "lineup": {
+      "formation": "8-2-3-2",
+      "slots": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bench": [],
+      "positions": {},
+      "drawings": []
+    },
+    "result": null
+  }
+]

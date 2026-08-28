@@ -1,12 +1,15 @@
 // Otteluluettelo: tulevat tapahtumat ja pelatut ottelut.
 import { icon } from '../icons.js';
 import { h, sheet, toast, fmtShortDate, countdownText, videoInfo } from '../ui.js';
-import { getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff } from '../store.js';
+import {
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+} from '../store.js';
 import { getFormation } from '../formations.js';
 import { navigate } from '../router.js';
 
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
 let tab = 'tulevat';
+let teamFilter = '';   // '' = kaikki joukkueet
 
 export function matchesView() {
   const body = h('div', { class: 'stack' });
@@ -17,7 +20,26 @@ export function matchesView() {
     h('button', { class: tab === 'pelatut' ? 'on' : '', onclick: () => { tab = 'pelatut'; navigate('#/ottelut'); } }, 'Pelatut'));
   body.append(seg);
 
-  const list = tab === 'tulevat' ? upcomingMatches() : pastMatches();
+  let list = tab === 'tulevat' ? upcomingMatches() : pastMatches();
+
+  // Jos otteluita on useammalle omalle joukkueelle, niitä voi suodattaa.
+  const teams = matchTeams();
+  if (teams.length > 1) {
+    if (teamFilter && !teams.includes(teamFilter)) teamFilter = '';
+    const chips = h('div', { class: 'chips scroll-x' },
+      h('button', {
+        class: `chip${teamFilter ? '' : ' on'}`,
+        onclick: () => { teamFilter = ''; navigate('#/ottelut'); },
+      }, 'Kaikki'),
+      ...teams.map((name) => h('button', {
+        class: `chip${teamFilter === name ? ' on' : ''}`,
+        onclick: () => { teamFilter = name; navigate('#/ottelut'); },
+      }, name)));
+    body.append(chips);
+    if (teamFilter) list = list.filter((m) => (m.team || '').trim() === teamFilter);
+  } else {
+    teamFilter = '';
+  }
 
   if (!list.length) {
     body.append(h('div', { class: 'empty' },
@@ -77,6 +99,7 @@ function matchCard(m) {
     h('div', { class: 'row', style: 'gap:6px;margin-top:8px' },
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
+      m.team ? h('span', { class: 'badge team', text: m.team }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }
@@ -89,6 +112,16 @@ export function openMatchSheet(match) {
     const dateI = h('input', { type: 'date', value: match?.date || new Date().toISOString().slice(0, 10) });
     const timeI = h('input', { type: 'time', value: match?.time || '18:00' });
     const oppI = h('input', { type: 'text', value: match?.opponent || '', placeholder: 'Vastustajan nimi', autocomplete: 'off' });
+    // Oma joukkue: seurassa voi olla useampi joukkue, esim. Ilves Beta ja Ilves Keltainen.
+    const known = matchTeams();
+    const teamI = h('input', {
+      type: 'text', value: match?.team || '', autocomplete: 'off',
+      list: known.length ? 'omat-joukkueet' : null,
+      placeholder: getState().team.name || 'Oma joukkue',
+    });
+    const teamList = known.length
+      ? h('datalist', { id: 'omat-joukkueet' }, ...known.map((n) => h('option', { value: n })))
+      : null;
     const venueI = h('input', { type: 'text', value: match?.venue || '', placeholder: 'Kenttä tai halli', autocomplete: 'off' });
     const notesI = h('textarea', { placeholder: 'Kokoontuminen, varusteet, muuta huomioitavaa', text: match?.notes || '' });
     const videoI = h('input', {
@@ -109,6 +142,9 @@ export function openMatchSheet(match) {
 
     body.append(
       h('label', { class: 'field' }, h('span', { text: 'Vastustaja' }), oppI),
+      h('label', { class: 'field' },
+        h('span', { text: 'Oma joukkue' }), teamI, teamList,
+        h('span', { class: 'tiny muted', text: 'Kumman joukkueen ottelu tämä on. Voit jättää tyhjäksi, jos joukkueita on vain yksi.' })),
       h('div', { class: 'field-row' },
         h('label', { class: 'field', style: 'flex:1.3' }, h('span', { text: 'Päivä' }), dateI),
         h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Aika' }), timeI)),
@@ -133,6 +169,7 @@ export function openMatchSheet(match) {
             date: dateI.value || new Date().toISOString().slice(0, 10),
             time: timeI.value || '18:00',
             opponent: oppI.value.trim(),
+            team: teamI.value.trim(),
             venue: venueI.value.trim(),
             type: typeSel.value,
             home,

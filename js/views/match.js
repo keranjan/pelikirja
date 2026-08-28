@@ -4,7 +4,7 @@ import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js
 import {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES,
+  staffById, STAFF_ROLES, absentIds,
 } from '../store.js';
 import { getFormation } from '../formations.js';
 import { matchEvents } from '../timing.js';
@@ -37,7 +37,7 @@ export function matchView(id) {
 
   return {
     title: `${m.home ? 'vs' : '@'} ${m.opponent || 'Vastustaja'}`,
-    subtitle: `${fmtDate(m.date)} klo ${m.time}`,
+    subtitle: `${m.team ? m.team + ' · ' : ''}${fmtDate(m.date)} klo ${m.time}`,
     back: '#/ottelut',
     body,
   };
@@ -172,7 +172,7 @@ function lineupText(m) {
     return `${p.number != null ? p.number + ' ' : ''}${p.name}`;
   };
   const lines = [
-    `${st.team.name || 'Oma joukkue'} ${m.home ? 'vs' : '@'} ${m.opponent || 'vastustaja'}`,
+    `${m.team || st.team.name || 'Oma joukkue'} ${m.home ? 'vs' : '@'} ${m.opponent || 'vastustaja'}`,
     `${fmtDate(m.date)} klo ${m.time}${m.venue ? ' · ' + m.venue : ''}`,
     `Kokoonpano ${f.name}`,
     '',
@@ -189,7 +189,8 @@ function lineupText(m) {
       .map((person) => `${person.name} (${STAFF_ROLES[person.role] || 'toimihenkilö'})`);
     if (staff.length) lines.push('', `Valmennus: ${staff.join(', ')}`);
   }
-  if ((m.lineup.unavailable || []).length) lines.push(`Poissa: ${m.lineup.unavailable.map(who).join(', ')}`);
+  const absent = absentIds(m.lineup);
+  if (absent.length) lines.push('', `Poissa: ${absent.map(who).join(', ')}`);
   if (m.notes) lines.push('', m.notes);
   return lines.join('\n');
 }
@@ -282,6 +283,7 @@ function infoTab(m) {
 
   wrap.append(
     row('Vastustaja', m.opponent),
+    row('Oma joukkue', m.team),
     row('Päivä', fmtDate(m.date)),
     row('Alkaa', m.time),
     row('Paikka', m.venue),

@@ -134,9 +134,12 @@ await page.locator('.sheet input[type=text]').first().fill('FC Naapuri');
 const d = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
 await page.locator('.sheet input[type=date]').fill(d);
 await page.locator('.sheet input[type=time]').fill('14:30');
-await page.locator('.sheet input[type=text]').nth(1).fill('Keskuskenttä 2');
+await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Beta');   // oma joukkue
+await page.locator('.sheet input[type=text]').nth(2).fill('Keskuskenttä 2');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(300);
+const savedTeam = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].team);
+if (savedTeam !== 'Ilves Beta') { console.error('Ottelun oma joukkue ei tallentunut: ' + savedTeam); process.exit(1); }
 await shot('02-ottelu-kokoonpano-tyhja');
 
 // 8 vs 8 -systeemit ovat valittavissa
@@ -165,14 +168,59 @@ await shot('04-pelaajavalinta');
 await page.locator('.sheet .list-item').first().click();
 await page.waitForTimeout(200);
 
-// Ryhmä -> vaihtopenkki
-await tapText('Hallitse ryhmää');
+// Ryhmä: napautus vihreäksi vie pelaajan mukaan otteluun (penkille)
+await page.locator('#view button.btn', { hasText: 'Hallitse ryhmää' }).first().click();
+await page.waitForTimeout(250);
+const benchBefore = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.bench.length);
+const offCard = page.locator('#overlay .card.pick:not(.on)').first();
+if (!(await offCard.count())) { console.error('Ryhmässä ei ole valitsematonta pelaajaa'); process.exit(1); }
+const offName = (await offCard.locator('.bold').textContent()).trim();
+await offCard.click();
 await page.waitForTimeout(200);
-await page.locator('.sheet .card .segmented button', { hasText: 'Vaihtopenkki' }).first().click();
-await page.waitForTimeout(150);
+const picked = page.locator('#overlay .card.pick', { hasText: offName }).first();
+if (!(await picked.evaluate((el) => el.classList.contains('on')))) {
+  console.error('Napautettu pelaaja ei muuttunut vihreäksi'); process.exit(1);
+}
+if (await page.locator('#overlay .segmented button', { hasText: 'Vaihtopenkki' }).count()) {
+  console.error('Vanha Vaihtopenkki/Poissa-valinta on yhä näkyvissä'); process.exit(1);
+}
+await shot('05-ryhma-valinta');
+const state1 = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup);
+if (state1.bench.length !== benchBefore + 1) {
+  console.error('Vihreäksi napautettu pelaaja ei siirtynyt vaihtopenkille'); process.exit(1);
+}
+// Toinen napautus palauttaa pelaajan poissaoleviin.
+await picked.click();
+await page.waitForTimeout(200);
+const state2 = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup);
+if (state2.bench.length !== benchBefore) {
+  console.error('Toinen napautus ei poistanut pelaajaa ryhmästä'); process.exit(1);
+}
+await picked.click();
+await page.waitForTimeout(200);
 await page.locator('#overlay .iconbtn').first().click();
 await page.waitForTimeout(200);
+console.log('ryhmävalinta toimii napautuksella');
 await shot('05-penkki');
+
+// Ryhmä-välilehti mahtuu ruudulle myös pitkillä nimillä.
+await page.evaluate(() => { location.hash = '#/pelaajat'; });
+await page.waitForTimeout(250);
+const overflow = await page.evaluate(() => {
+  const view = document.querySelector('#view');
+  return {
+    view: view.scrollWidth - view.clientWidth,
+    doc: document.documentElement.scrollWidth - window.innerWidth,
+  };
+});
+if (overflow.view > 1 || overflow.doc > 1) {
+  console.error('Ryhmä-näkymää voi vierittää sivusuunnassa: ' + JSON.stringify(overflow));
+  process.exit(1);
+}
+console.log('ryhmälista mahtuu ruudulle');
+await page.evaluate(() => { history.back(); });
+await page.waitForTimeout(300);
 
 // --- Taktiikkataulu ---
 await page.locator('#view .mode-switch button', { hasText: 'Taktiikka' }).click();
@@ -568,6 +616,43 @@ const afterImport = await page.evaluate(() => JSON.parse(localStorage.getItem('p
 console.log('varmuuskopio: tyhjennyksen jälkeen', afterReset, 'pelaajaa, tuonnin jälkeen', afterImport);
 if (afterReset !== 0 || afterImport !== players.length) { console.error('Varmuuskopion vienti/tuonti ei toimi'); process.exit(1); }
 
+// --- Kahden joukkueen ottelut erottuvat ja suodattuvat ---
+await tap('#tabbar a[href="#/ottelut"]');
+await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
+await page.locator('.sheet input[type=text]').first().fill('Tampere United');
+await page.locator('.sheet input[type=date]').fill(new Date(Date.now() + 9 * 86400000).toISOString().slice(0, 10));
+await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Keltainen');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(300);
+await tap('#tabbar a[href="#/ottelut"]');
+await page.locator('#view .segmented button', { hasText: 'Tulevat' }).click();
+await page.waitForTimeout(250);
+const teamChips = await page.locator('#view .chips .chip').allTextContents();
+if (!teamChips.includes('Ilves Beta') || !teamChips.includes('Ilves Keltainen')) {
+  console.error('Joukkuesuodatin puuttuu: ' + JSON.stringify(teamChips)); process.exit(1);
+}
+await page.locator('#view .chips .chip', { hasText: 'Ilves Keltainen' }).click();
+await page.waitForTimeout(250);
+const shownTeams = await page.locator('#view .cards .badge.team').allTextContents();
+if (!shownTeams.length || shownTeams.some((t) => t !== 'Ilves Keltainen')) {
+  console.error('Joukkuesuodatus ei rajaa otteluita: ' + JSON.stringify(shownTeams)); process.exit(1);
+}
+await shot('10-joukkuesuodatin');
+await page.locator('#view .chips .chip', { hasText: 'Kaikki' }).click();
+await page.waitForTimeout(250);
+console.log('joukkuesuodatin:', teamChips.join(' | '));
+// Ylimääräinen ottelu pois, jotta loput tarkistukset katsovat alkuperäistä dataa.
+await page.locator('#view .card', { hasText: 'Tampere United' }).click();
+await page.waitForTimeout(300);
+await page.locator('#view .segmented button', { hasText: 'Tiedot' }).click();
+await page.waitForTimeout(200);
+const infoTeam = await page.locator('#view .card.row.between', { hasText: 'Oma joukkue' }).textContent();
+if (!infoTeam.includes('Ilves Keltainen')) { console.error('Oma joukkue puuttuu ottelun tiedoista'); process.exit(1); }
+await page.locator('#view .btn.danger', { hasText: 'Poista tapahtuma' }).click();
+await page.waitForTimeout(200);
+await page.locator('#overlay .btn.danger').click();
+await page.waitForTimeout(300);
+
 // --- Ottelulista (pelatut) ---
 await tap('#tabbar a[href="#/ottelut"]');
 await page.locator('#view .segmented button', { hasText: 'Pelatut' }).click();
@@ -603,7 +688,7 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
     version: 1, team: { name: 'Tabletti', season: '2026', theme: 'light' }, matches: [],
     players: Array.from({ length: 8 }, (_, i) => ({ id: 'p' + i, name: 'Pelaaja ' + i, number: i + 1, roles: ['KK'], active: true })),
     lineups: [{ id: 'l1', name: 'Asetelma', lineup: {
-      formation: '4-3-3', slots: Array(11).fill(null), bench: [], unavailable: [], positions: {}, drawings: [] } }],
+      formation: '4-3-3', slots: Array(11).fill(null), bench: [], positions: {}, drawings: [] } }],
   });
   await tp.reload();
   await tp.waitForTimeout(400);
@@ -663,7 +748,7 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
   await tp.evaluate(() => localStorage.setItem('pelikirja.v1', JSON.stringify({
     version: 1, team: { name: 'Kosketus', season: '2026', theme: 'light' }, players: [], matches: [],
     lineups: [{ id: 'tl', name: 'Taktiikka', lineup: {
-      formation: '4-3-3', slots: Array(11).fill(null), bench: [], unavailable: [], positions: {}, drawings: [] } }],
+      formation: '4-3-3', slots: Array(11).fill(null), bench: [], positions: {}, drawings: [] } }],
   })));
   // Hash-navigointi ei lataa sivua uudelleen, joten tila luetaan reloadilla.
   await tp.reload();

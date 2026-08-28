@@ -4,7 +4,7 @@ import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
-  toggleBench, toggleUnavailable, lineupRole,
+  toggleSquad, inSquad, absentIds, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
   sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
 } from '../store.js';
@@ -123,31 +123,32 @@ export function renderLineupEditor(lineup, commit) {
       onclick: () => commit(() => { lineup.slots = lineup.slots.map(() => null); }),
     }, 'Tyhjennä')));
 
-  /* --- Vaihtopenkki --- */
+  /* --- Vaihtopenkki: ryhmään valitut, jotka eivät ole kentällä --- */
   wrap.append(h('div', { class: 'section-title', text: `Vaihtopenkki (${lineup.bench.length})` }));
   if (lineup.bench.length === 0) {
-    wrap.append(h('div', { class: 'card small muted', text: 'Ei vaihtopelaajia. Lisää pelaajia alta.' }));
+    wrap.append(h('div', { class: 'card small muted compact', text: 'Ei vaihtopelaajia. Merkitse pelaajat mukaan Hallitse ryhmää -painikkeesta.' }));
   } else {
     for (const pid of lineup.bench) {
       const p = playerById(pid);
       if (!p) continue;
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: p.number ?? '–' }),
+      wrap.append(h('div', { class: 'card row compact' },
+        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
         h('span', { class: 'grow ellip', text: p.name }),
-        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleBench(lineup, pid)) }, 'Poista')));
+        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Poista')));
     }
   }
 
-  const unavailable = lineup.unavailable || [];
-  if (unavailable.length) {
-    wrap.append(h('div', { class: 'section-title', text: `Poissa (${unavailable.length})` }));
-    for (const pid of unavailable) {
+  /* --- Poissa: päätellään ryhmävalinnasta, ei omaa listaa --- */
+  const absent = absentIds(lineup);
+  if (absent.length) {
+    wrap.append(h('div', { class: 'section-title', text: `Poissa (${absent.length})` }));
+    for (const pid of absent) {
       const p = playerById(pid);
       if (!p) continue;
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: p.number ?? '–' }),
+      wrap.append(h('div', { class: 'card row compact' },
+        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
         h('span', { class: 'grow ellip muted', text: p.name }),
-        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleUnavailable(lineup, pid)) }, 'Palauta')));
+        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Mukaan')));
     }
   }
 
@@ -513,16 +514,16 @@ function openPicker(lineup, slotIndex, commit) {
     const item = (p) => {
       const role = lineupRole(lineup, p.id);
       return h('button', {
-        class: `list-item${p.id === current ? ' sel' : ''}${role === 'poissa' ? ' off' : ''}`,
+        class: `list-item${p.id === current ? ' sel' : ''}`,
         onclick: () => { commit(() => assignToSlot(lineup, slotIndex, p.id)); close(); },
       },
         h('span', { class: `numchip${p.id === current ? ' accent' : ''}`, text: p.number ?? '–' }),
         h('span', { class: 'grow' },
           h('div', { class: 'bold ellip', text: p.name }),
           h('div', { class: 'tiny muted', text: (p.roles || []).join(' · ') || 'ei pelipaikkoja' })),
-        role && role !== 'poissa'
+        role !== 'poissa'
           ? h('span', { class: 'badge', text: role === 'aloittava' ? 'kentällä' : 'penkki' })
-          : role === 'poissa' ? h('span', { class: 'badge', text: 'poissa' }) : null);
+          : null);
     };
 
     if (fits.length) {
@@ -538,37 +539,55 @@ function openPicker(lineup, slotIndex, commit) {
 
 /* ---------- Koko ryhmän hallinta ---------- */
 
+/**
+ * Ryhmän valinta: pelaajaa napautetaan vihreäksi, jolloin hän on mukana
+ * ottelussa. Tilat kentällä / penkillä / poissa syntyvät valinnasta ja
+ * kenttäkokoonpanosta, joten erillistä penkki- tai poissa-valintaa ei ole.
+ */
 function openSquadSheet(lineup, commit) {
-  sheet('Ryhmä', (body) => {
+  sheet('Hallitse ryhmää', (body) => {
     const draw = () => {
       body.replaceChildren();
       const players = sortedPlayers(getState().players.filter((p) => p.active !== false));
       if (!players.length) {
-        body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia Pelaajat-välilehdellä.' }));
+        body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia Ryhmä-välilehdellä.' }));
         return;
       }
-      body.append(h('p', { class: 'tiny muted', text: 'Valitse jokaiselle pelaajalle rooli tähän otteluun.' }));
+      const picked = players.filter((p) => inSquad(lineup, p.id)).length;
+      body.append(h('p', { class: 'tiny muted', text: 'Napauta pelaaja vihreäksi, niin hän on mukana ottelussa. Vihreistä ne, jotka eivät ole kentällä, ovat vaihtopenkillä – muut ovat poissa.' }));
+      body.append(h('div', { class: 'btn-row', style: 'margin-bottom:10px' },
+        h('button', {
+          class: 'btn sm', style: 'flex:1',
+          onclick: () => { commit(() => players.forEach((p) => { if (!inSquad(lineup, p.id)) toggleSquad(lineup, p.id); })); draw(); },
+        }, 'Kaikki mukaan'),
+        h('button', {
+          class: 'btn sm ghost', style: 'flex:1',
+          onclick: () => { commit(() => players.forEach((p) => { if (inSquad(lineup, p.id)) toggleSquad(lineup, p.id); })); draw(); },
+        }, 'Tyhjennä')));
+      body.append(h('div', { class: 'tiny muted bold', style: 'margin-bottom:6px', text: `MUKANA ${picked}/${players.length}` }));
+
+      const list = h('div', { class: 'cards tight' });
       for (const p of players) {
         const role = lineupRole(lineup, p.id);
-        body.append(h('div', { class: 'card', style: 'margin-bottom:8px' },
-          h('div', { class: 'row', style: 'margin-bottom:8px' },
-            h('span', { class: 'numchip', text: p.number ?? '–' }),
-            h('span', { class: 'grow ellip bold', text: p.name }),
-            role === 'aloittava' ? h('span', { class: 'badge accent', text: 'kentällä' }) : null),
-          h('div', { class: 'segmented' },
-            h('button', {
-              class: lineup.bench.includes(p.id) ? 'on' : '',
-              onclick: () => { commit(() => toggleBench(lineup, p.id)); draw(); },
-            }, 'Vaihtopenkki'),
-            h('button', {
-              class: (lineup.unavailable || []).includes(p.id) ? 'on' : '',
-              onclick: () => { commit(() => toggleUnavailable(lineup, p.id)); draw(); },
-            }, 'Poissa'))));
+        const on = role !== 'poissa';
+        list.append(h('button', {
+          class: `card row compact pick${on ? ' on' : ''}`,
+          'aria-pressed': on ? 'true' : 'false',
+          onclick: () => { commit(() => toggleSquad(lineup, p.id)); draw(); },
+        },
+          h('span', { class: `numchip sm${on ? ' accent' : ''}`, text: p.number ?? '–' }),
+          h('span', { class: 'grow' },
+            h('div', { class: 'bold ellip', text: p.name }),
+            h('div', { class: 'tiny muted ellip', text: (p.roles || []).join(' · ') || 'ei pelipaikkoja' })),
+          h('span', { class: `badge${role === 'aloittava' ? ' accent' : ''}`, text: STATE_LABEL[role] })));
       }
+      body.append(list);
     };
     draw();
   });
 }
+
+const STATE_LABEL = { aloittava: 'kentällä', vaihto: 'penkillä', poissa: 'poissa' };
 
 /* ---------- Valmentajien valinta otteluun ---------- */
 
@@ -604,9 +623,12 @@ function openStaffPicker(lineup, commit) {
 function autoFill(lineup) {
   const formation = getFormation(lineup.formation);
   const used = new Set(lineup.slots.filter(Boolean));
-  const unavailable = new Set(lineup.unavailable || []);
-  const pool = sortedPlayers(getState().players.filter(
-    (p) => p.active !== false && !used.has(p.id) && !unavailable.has(p.id)));
+  const free = getState().players.filter((p) => p.active !== false && !used.has(p.id));
+  // Ryhmään merkityt täytetään ensin; jos heitä ei riitä, otetaan muita mukaan.
+  const pool = [
+    ...sortedPlayers(free.filter((p) => inSquad(lineup, p.id))),
+    ...sortedPlayers(free.filter((p) => !inSquad(lineup, p.id))),
+  ];
 
   formation.slots.forEach((slot, i) => {
     if (lineup.slots[i]) return;

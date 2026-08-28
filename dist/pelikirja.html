@@ -212,8 +212,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   #app { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 }
 
-/* Kortit ruudukkoon: yksi sarake puhelimessa, kaksi tai kolme tabletilla. */
-.cards { display: grid; gap: 12px; }
+/* Kortit ruudukkoon: yksi sarake puhelimessa, kaksi tai kolme tabletilla.
+   minmax(0, 1fr) pitää sarakkeen ruudun levyisenä: ilman sitä pitkä nimi
+   levittäisi kortin yli näytön ja näkymän voisi vierittää sivusuunnassa. */
+.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* Kortit saavat kutistua sisältöään kapeammiksi (teksti katkeaa kolmella pisteellä). */
+.cards > *, .stack > * { min-width: 0; }
 
 /* ---------- Yläpalkki ---------- */
 
@@ -325,6 +329,8 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
   font-size: 11px; font-weight: 600; white-space: nowrap;
 }
 .badge.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* Oman joukkueen merkki, kun seurassa on useampi joukkue. */
+.badge.team { background: var(--paper); border-color: var(--line-strong); color: var(--ink-2); }
 .badge.win  { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
 .badge.draw { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 .badge.loss { background: var(--red-soft); border-color: var(--red-line); color: var(--red); }
@@ -337,6 +343,19 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
   font-variant-numeric: tabular-nums;
 }
 .numchip.accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+/* Kapea versio listoihin, joissa rivejä on paljon. */
+.numchip.sm { width: 30px; height: 30px; font-size: 13px; }
+
+/* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
+.card.pick { border-color: var(--line); transition: background-color .12s ease, border-color .12s ease; }
+.card.pick.on { background: var(--accent-soft); border-color: var(--accent); }
+.card.pick.on .badge { background: var(--surface); }
+.card.pick:active { transform: scale(.99); }
+
+/* Tiivis kortti: listariveille, jotta koko ryhmä mahtuu ruudulle. */
+.cards.tight { gap: 8px; }
+.card.compact { padding: 10px 12px; }
+.card.row.compact { gap: 10px; }
 
 /* ---------- Ottelupäivä-etusivu ---------- */
 
@@ -446,6 +465,13 @@ a.btn { text-decoration: none; }
 .btn-row > .btn { flex: 1; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Joukkuesuodatin: rivi pysyy yhdellä rivillä ja vierii tarvittaessa. */
+.chips.scroll-x {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -16px; padding: 2px 16px;
+}
+.chips.scroll-x::-webkit-scrollbar { display: none; }
+.chips.scroll-x .chip { flex: none; min-height: 34px; padding: 6px 12px; font-size: 12.5px; }
 .chip {
   min-height: 40px; padding: 8px 14px; border-radius: 999px;
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2);
@@ -632,6 +658,7 @@ html.board-open, html.board-open body { overflow: hidden; }
   .stack { gap: 14px; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card { padding: 18px; }
+  .card.compact { padding: 12px 14px; }
   .section-title { margin: 28px 2px 10px; font-size: 12px; }
   .kpi-grid { gap: 14px; }
   .kpi .v { font-size: 26px; }
@@ -1278,8 +1305,7 @@ function emptyLineup(formationId = '4-4-2') {
   return {
     formation: f.id,
     slots: f.slots.map(() => null),
-    bench: [],
-    unavailable: [],
+    bench: [],       // ryhmässä mutta ei aloituskokoonpanossa
     positions: {},   // paikkaindeksi -> { x, y }, kun pelaajaa on siirretty kentällä
     drawings: [],    // taktiikkapiirrokset
     staff: [],       // otteluun mukaan merkityt valmentajat ja toimihenkilöt
@@ -1302,11 +1328,12 @@ function migrate(data) {
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
-    if (!Array.isArray(m.lineup.unavailable)) m.lineup.unavailable = [];
-    if (!Array.isArray(m.lineup.bench)) m.lineup.bench = [];
   }
   for (const l of [...st.lineups.map((x) => x.lineup), ...st.matches.map((m) => m.lineup)]) {
     if (!l) continue;
+    if (!Array.isArray(l.bench)) l.bench = [];
+    // Poissaolot päätellään nykyään ryhmävalinnasta, joten vanha lista poistetaan.
+    if (l.unavailable) delete l.unavailable;
     if (!Array.isArray(l.drawings)) l.drawings = [];
     if (!Array.isArray(l.staff)) l.staff = [];
     if (!l.positions || typeof l.positions !== 'object') l.positions = {};
@@ -1395,7 +1422,6 @@ function removePlayer(id) {
       if (!lu) return;
       lu.slots = lu.slots.map((v) => (v === id ? null : v));
       lu.bench = lu.bench.filter((v) => v !== id);
-      lu.unavailable = (lu.unavailable || []).filter((v) => v !== id);
     };
     st.lineups.forEach((l) => clean(l.lineup));
     st.matches.forEach((m) => {
@@ -1474,6 +1500,7 @@ function addMatch(data) {
     date: new Date().toISOString().slice(0, 10),
     time: '18:00',
     opponent: '',
+    team: '',                 // oma joukkue, kun seurassa on useampi (esim. Ilves Beta)
     home: true,
     venue: '',
     type: 'ottelu',           // ottelu | turnaus | harjoitus
@@ -1486,6 +1513,12 @@ function addMatch(data) {
   };
   update((st) => { st.matches.push(m); });
   return m;
+}
+
+/** Otteluissa esiintyvät omat joukkueet aakkosjärjestyksessä. */
+function matchTeams(matches = getState().matches) {
+  return [...new Set(matches.map((m) => (m.team || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'fi'));
 }
 
 function updateMatch(id, data) {
@@ -1642,38 +1675,37 @@ function assignToSlot(lineup, slotIndex, playerId) {
   if (playerId) {
     lineup.slots = lineup.slots.map((v, i) => (v === playerId && i !== slotIndex ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
-    lineup.unavailable = (lineup.unavailable || []).filter((v) => v !== playerId);
   }
   lineup.slots[slotIndex] = playerId;
 }
 
-function toggleBench(lineup, playerId) {
-  if (lineup.bench.includes(playerId)) {
+/** Onko pelaaja merkitty mukaan otteluun (kentälle tai penkille)? */
+const inSquad = (lineup, playerId) =>
+  lineup.slots.includes(playerId) || lineup.bench.includes(playerId);
+
+/**
+ * Napautus vihreäksi: pelaaja mukaan otteluryhmään tai pois siitä.
+ * Mukaan otettu pelaaja menee vaihtopenkille, kunnes hänet asetetaan kentälle.
+ */
+function toggleSquad(lineup, playerId) {
+  if (inSquad(lineup, playerId)) {
+    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
     lineup.bench = lineup.bench.filter((v) => v !== playerId);
   } else {
-    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
-    lineup.unavailable = (lineup.unavailable || []).filter((v) => v !== playerId);
     lineup.bench.push(playerId);
   }
 }
 
-function toggleUnavailable(lineup, playerId) {
-  lineup.unavailable = lineup.unavailable || [];
-  if (lineup.unavailable.includes(playerId)) {
-    lineup.unavailable = lineup.unavailable.filter((v) => v !== playerId);
-  } else {
-    lineup.slots = lineup.slots.map((v) => (v === playerId ? null : v));
-    lineup.bench = lineup.bench.filter((v) => v !== playerId);
-    lineup.unavailable.push(playerId);
-  }
+/** Poissaolijat päätellään: käytettävissä olevat pelaajat, joita ei ole valittu ryhmään. */
+function absentIds(lineup, players = getState().players) {
+  return players.filter((p) => p.active !== false && !inSquad(lineup, p.id)).map((p) => p.id);
 }
 
+/** Pelaajan tila tässä ottelussa: kentällä, penkillä vai poissa. */
 const lineupRole = (lineup, playerId) => {
-  const i = lineup.slots.indexOf(playerId);
-  if (i >= 0) return 'aloittava';
+  if (lineup.slots.includes(playerId)) return 'aloittava';
   if (lineup.bench.includes(playerId)) return 'vaihto';
-  if ((lineup.unavailable || []).includes(playerId)) return 'poissa';
-  return null;
+  return 'poissa';
 };
 
 const cloneLineup = (lu) => JSON.parse(JSON.stringify(lu));
@@ -1716,7 +1748,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, toggleBench, toggleUnavailable, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -2355,7 +2387,7 @@ const { icon } = __req('icons');
 const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('formations');
 const {
   getState, playerById, sortedPlayers, setFormation, assignToSlot,
-  toggleBench, toggleUnavailable, lineupRole,
+  toggleSquad, inSquad, absentIds, lineupRole,
   addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, update,
   sortedStaff, staffById, toggleLineupStaff, STAFF_ROLES,
 } = __req('store');
@@ -2473,31 +2505,32 @@ function renderLineupEditor(lineup, commit) {
       onclick: () => commit(() => { lineup.slots = lineup.slots.map(() => null); }),
     }, 'Tyhjennä')));
 
-  /* --- Vaihtopenkki --- */
+  /* --- Vaihtopenkki: ryhmään valitut, jotka eivät ole kentällä --- */
   wrap.append(h('div', { class: 'section-title', text: `Vaihtopenkki (${lineup.bench.length})` }));
   if (lineup.bench.length === 0) {
-    wrap.append(h('div', { class: 'card small muted', text: 'Ei vaihtopelaajia. Lisää pelaajia alta.' }));
+    wrap.append(h('div', { class: 'card small muted compact', text: 'Ei vaihtopelaajia. Merkitse pelaajat mukaan Hallitse ryhmää -painikkeesta.' }));
   } else {
     for (const pid of lineup.bench) {
       const p = playerById(pid);
       if (!p) continue;
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: p.number ?? '–' }),
+      wrap.append(h('div', { class: 'card row compact' },
+        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
         h('span', { class: 'grow ellip', text: p.name }),
-        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleBench(lineup, pid)) }, 'Poista')));
+        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Poista')));
     }
   }
 
-  const unavailable = lineup.unavailable || [];
-  if (unavailable.length) {
-    wrap.append(h('div', { class: 'section-title', text: `Poissa (${unavailable.length})` }));
-    for (const pid of unavailable) {
+  /* --- Poissa: päätellään ryhmävalinnasta, ei omaa listaa --- */
+  const absent = absentIds(lineup);
+  if (absent.length) {
+    wrap.append(h('div', { class: 'section-title', text: `Poissa (${absent.length})` }));
+    for (const pid of absent) {
       const p = playerById(pid);
       if (!p) continue;
-      wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', text: p.number ?? '–' }),
+      wrap.append(h('div', { class: 'card row compact' },
+        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
         h('span', { class: 'grow ellip muted', text: p.name }),
-        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleUnavailable(lineup, pid)) }, 'Palauta')));
+        h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Mukaan')));
     }
   }
 
@@ -2863,16 +2896,16 @@ function openPicker(lineup, slotIndex, commit) {
     const item = (p) => {
       const role = lineupRole(lineup, p.id);
       return h('button', {
-        class: `list-item${p.id === current ? ' sel' : ''}${role === 'poissa' ? ' off' : ''}`,
+        class: `list-item${p.id === current ? ' sel' : ''}`,
         onclick: () => { commit(() => assignToSlot(lineup, slotIndex, p.id)); close(); },
       },
         h('span', { class: `numchip${p.id === current ? ' accent' : ''}`, text: p.number ?? '–' }),
         h('span', { class: 'grow' },
           h('div', { class: 'bold ellip', text: p.name }),
           h('div', { class: 'tiny muted', text: (p.roles || []).join(' · ') || 'ei pelipaikkoja' })),
-        role && role !== 'poissa'
+        role !== 'poissa'
           ? h('span', { class: 'badge', text: role === 'aloittava' ? 'kentällä' : 'penkki' })
-          : role === 'poissa' ? h('span', { class: 'badge', text: 'poissa' }) : null);
+          : null);
     };
 
     if (fits.length) {
@@ -2888,37 +2921,55 @@ function openPicker(lineup, slotIndex, commit) {
 
 /* ---------- Koko ryhmän hallinta ---------- */
 
+/**
+ * Ryhmän valinta: pelaajaa napautetaan vihreäksi, jolloin hän on mukana
+ * ottelussa. Tilat kentällä / penkillä / poissa syntyvät valinnasta ja
+ * kenttäkokoonpanosta, joten erillistä penkki- tai poissa-valintaa ei ole.
+ */
 function openSquadSheet(lineup, commit) {
-  sheet('Ryhmä', (body) => {
+  sheet('Hallitse ryhmää', (body) => {
     const draw = () => {
       body.replaceChildren();
       const players = sortedPlayers(getState().players.filter((p) => p.active !== false));
       if (!players.length) {
-        body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia Pelaajat-välilehdellä.' }));
+        body.append(h('p', { class: 'muted', text: 'Lisää ensin pelaajia Ryhmä-välilehdellä.' }));
         return;
       }
-      body.append(h('p', { class: 'tiny muted', text: 'Valitse jokaiselle pelaajalle rooli tähän otteluun.' }));
+      const picked = players.filter((p) => inSquad(lineup, p.id)).length;
+      body.append(h('p', { class: 'tiny muted', text: 'Napauta pelaaja vihreäksi, niin hän on mukana ottelussa. Vihreistä ne, jotka eivät ole kentällä, ovat vaihtopenkillä – muut ovat poissa.' }));
+      body.append(h('div', { class: 'btn-row', style: 'margin-bottom:10px' },
+        h('button', {
+          class: 'btn sm', style: 'flex:1',
+          onclick: () => { commit(() => players.forEach((p) => { if (!inSquad(lineup, p.id)) toggleSquad(lineup, p.id); })); draw(); },
+        }, 'Kaikki mukaan'),
+        h('button', {
+          class: 'btn sm ghost', style: 'flex:1',
+          onclick: () => { commit(() => players.forEach((p) => { if (inSquad(lineup, p.id)) toggleSquad(lineup, p.id); })); draw(); },
+        }, 'Tyhjennä')));
+      body.append(h('div', { class: 'tiny muted bold', style: 'margin-bottom:6px', text: `MUKANA ${picked}/${players.length}` }));
+
+      const list = h('div', { class: 'cards tight' });
       for (const p of players) {
         const role = lineupRole(lineup, p.id);
-        body.append(h('div', { class: 'card', style: 'margin-bottom:8px' },
-          h('div', { class: 'row', style: 'margin-bottom:8px' },
-            h('span', { class: 'numchip', text: p.number ?? '–' }),
-            h('span', { class: 'grow ellip bold', text: p.name }),
-            role === 'aloittava' ? h('span', { class: 'badge accent', text: 'kentällä' }) : null),
-          h('div', { class: 'segmented' },
-            h('button', {
-              class: lineup.bench.includes(p.id) ? 'on' : '',
-              onclick: () => { commit(() => toggleBench(lineup, p.id)); draw(); },
-            }, 'Vaihtopenkki'),
-            h('button', {
-              class: (lineup.unavailable || []).includes(p.id) ? 'on' : '',
-              onclick: () => { commit(() => toggleUnavailable(lineup, p.id)); draw(); },
-            }, 'Poissa'))));
+        const on = role !== 'poissa';
+        list.append(h('button', {
+          class: `card row compact pick${on ? ' on' : ''}`,
+          'aria-pressed': on ? 'true' : 'false',
+          onclick: () => { commit(() => toggleSquad(lineup, p.id)); draw(); },
+        },
+          h('span', { class: `numchip sm${on ? ' accent' : ''}`, text: p.number ?? '–' }),
+          h('span', { class: 'grow' },
+            h('div', { class: 'bold ellip', text: p.name }),
+            h('div', { class: 'tiny muted ellip', text: (p.roles || []).join(' · ') || 'ei pelipaikkoja' })),
+          h('span', { class: `badge${role === 'aloittava' ? ' accent' : ''}`, text: STATE_LABEL[role] })));
       }
+      body.append(list);
     };
     draw();
   });
 }
+
+const STATE_LABEL = { aloittava: 'kentällä', vaihto: 'penkillä', poissa: 'poissa' };
 
 /* ---------- Valmentajien valinta otteluun ---------- */
 
@@ -2954,9 +3005,12 @@ function openStaffPicker(lineup, commit) {
 function autoFill(lineup) {
   const formation = getFormation(lineup.formation);
   const used = new Set(lineup.slots.filter(Boolean));
-  const unavailable = new Set(lineup.unavailable || []);
-  const pool = sortedPlayers(getState().players.filter(
-    (p) => p.active !== false && !used.has(p.id) && !unavailable.has(p.id)));
+  const free = getState().players.filter((p) => p.active !== false && !used.has(p.id));
+  // Ryhmään merkityt täytetään ensin; jos heitä ei riitä, otetaan muita mukaan.
+  const pool = [
+    ...sortedPlayers(free.filter((p) => inSquad(lineup, p.id))),
+    ...sortedPlayers(free.filter((p) => !inSquad(lineup, p.id))),
+  ];
 
   formation.slots.forEach((slot, i) => {
     if (lineup.slots[i]) return;
@@ -3505,28 +3559,29 @@ function playersView() {
   const active = players.filter((p) => p.active !== false);
   const inactive = players.filter((p) => p.active === false);
 
+  // Lyhyet pelipaikkakoodit pitävät rivin kapeana myös puhelimessa.
   const card = (p) => h('button', {
-    class: 'card row', onclick: () => openPlayerSheet(p),
+    class: 'card row compact', onclick: () => openPlayerSheet(p),
   },
-    h('span', { class: 'numchip accent', text: p.number ?? '–' }),
+    h('span', { class: 'numchip accent sm', text: p.number ?? '–' }),
     h('span', { class: 'grow' },
       h('div', { class: 'bold ellip', text: p.name }),
-      h('div', { class: 'tiny muted ellip', text: (p.roles || []).map((r) => ROLE_NAMES[r] || r).join(' · ') || 'Ei pelipaikkoja' })),
+      h('div', { class: 'tiny muted ellip', text: (p.roles || []).join(' · ') || 'Ei pelipaikkoja' })),
     h('span', { class: 'muted', text: '›' }));
 
   body.append(h('div', { class: 'section-title', text: `Pelaajat (${active.length})` }));
-  body.append(h('div', { class: 'cards' }, active.map(card)));
+  body.append(h('div', { class: 'cards tight' }, active.map(card)));
 
   if (inactive.length) {
     body.append(h('div', { class: 'section-title', text: `Ei käytettävissä (${inactive.length})` }));
-    body.append(h('div', { class: 'cards' }, inactive.map(card)));
+    body.append(h('div', { class: 'cards tight' }, inactive.map(card)));
   }
 
   body.append(h('div', { class: 'section-title', text: `Valmentajat ja toimihenkilöt (${staff.length})` }));
   if (staff.length) {
-    body.append(h('div', { class: 'cards' }, staff.map((person) =>
-      h('button', { class: 'card row', onclick: () => openStaffSheet(person) },
-        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+    body.append(h('div', { class: 'cards tight' }, staff.map((person) =>
+      h('button', { class: 'card row compact', onclick: () => openStaffSheet(person) },
+        h('span', { class: 'numchip sm', style: 'width:auto;padding:0 8px;font-size:11px', text: initials(person.name) }),
         h('span', { class: 'grow' },
           h('div', { class: 'bold ellip', text: person.name }),
           h('div', { class: 'tiny muted ellip', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
@@ -3677,11 +3732,14 @@ __mods['matches'] = () => {
 // Otteluluettelo: tulevat tapahtumat ja pelatut ottelut.
 const { icon } = __req('icons');
 const { h, sheet, toast, fmtShortDate, countdownText, videoInfo } = __req('ui');
-const { getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff } = __req('store');
+const {
+  getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
+} = __req('store');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
 let tab = 'tulevat';
+let teamFilter = '';   // '' = kaikki joukkueet
 
 function matchesView() {
   const body = h('div', { class: 'stack' });
@@ -3692,7 +3750,26 @@ function matchesView() {
     h('button', { class: tab === 'pelatut' ? 'on' : '', onclick: () => { tab = 'pelatut'; navigate('#/ottelut'); } }, 'Pelatut'));
   body.append(seg);
 
-  const list = tab === 'tulevat' ? upcomingMatches() : pastMatches();
+  let list = tab === 'tulevat' ? upcomingMatches() : pastMatches();
+
+  // Jos otteluita on useammalle omalle joukkueelle, niitä voi suodattaa.
+  const teams = matchTeams();
+  if (teams.length > 1) {
+    if (teamFilter && !teams.includes(teamFilter)) teamFilter = '';
+    const chips = h('div', { class: 'chips scroll-x' },
+      h('button', {
+        class: `chip${teamFilter ? '' : ' on'}`,
+        onclick: () => { teamFilter = ''; navigate('#/ottelut'); },
+      }, 'Kaikki'),
+      ...teams.map((name) => h('button', {
+        class: `chip${teamFilter === name ? ' on' : ''}`,
+        onclick: () => { teamFilter = name; navigate('#/ottelut'); },
+      }, name)));
+    body.append(chips);
+    if (teamFilter) list = list.filter((m) => (m.team || '').trim() === teamFilter);
+  } else {
+    teamFilter = '';
+  }
 
   if (!list.length) {
     body.append(h('div', { class: 'empty' },
@@ -3752,6 +3829,7 @@ function matchCard(m) {
     h('div', { class: 'row', style: 'gap:6px;margin-top:8px' },
       h('span', { class: 'badge', text: TYPES[m.type] || m.type }),
       h('span', { class: 'badge', text: m.home ? 'Koti' : 'Vieras' }),
+      m.team ? h('span', { class: 'badge team', text: m.team }) : null,
       cd && !m.result ? h('span', { class: 'badge accent', text: cd }) : null,
       videoInfo(m.videoUrl) ? h('span', { class: 'badge' }, icon('play', 11), 'Video') : null));
 }
@@ -3764,6 +3842,16 @@ function openMatchSheet(match) {
     const dateI = h('input', { type: 'date', value: match?.date || new Date().toISOString().slice(0, 10) });
     const timeI = h('input', { type: 'time', value: match?.time || '18:00' });
     const oppI = h('input', { type: 'text', value: match?.opponent || '', placeholder: 'Vastustajan nimi', autocomplete: 'off' });
+    // Oma joukkue: seurassa voi olla useampi joukkue, esim. Ilves Beta ja Ilves Keltainen.
+    const known = matchTeams();
+    const teamI = h('input', {
+      type: 'text', value: match?.team || '', autocomplete: 'off',
+      list: known.length ? 'omat-joukkueet' : null,
+      placeholder: getState().team.name || 'Oma joukkue',
+    });
+    const teamList = known.length
+      ? h('datalist', { id: 'omat-joukkueet' }, ...known.map((n) => h('option', { value: n })))
+      : null;
     const venueI = h('input', { type: 'text', value: match?.venue || '', placeholder: 'Kenttä tai halli', autocomplete: 'off' });
     const notesI = h('textarea', { placeholder: 'Kokoontuminen, varusteet, muuta huomioitavaa', text: match?.notes || '' });
     const videoI = h('input', {
@@ -3784,6 +3872,9 @@ function openMatchSheet(match) {
 
     body.append(
       h('label', { class: 'field' }, h('span', { text: 'Vastustaja' }), oppI),
+      h('label', { class: 'field' },
+        h('span', { text: 'Oma joukkue' }), teamI, teamList,
+        h('span', { class: 'tiny muted', text: 'Kumman joukkueen ottelu tämä on. Voit jättää tyhjäksi, jos joukkueita on vain yksi.' })),
       h('div', { class: 'field-row' },
         h('label', { class: 'field', style: 'flex:1.3' }, h('span', { text: 'Päivä' }), dateI),
         h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Aika' }), timeI)),
@@ -3808,6 +3899,7 @@ function openMatchSheet(match) {
             date: dateI.value || new Date().toISOString().slice(0, 10),
             time: timeI.value || '18:00',
             opponent: oppI.value.trim(),
+            team: teamI.value.trim(),
             venue: venueI.value.trim(),
             type: typeSel.value,
             home,
@@ -3894,7 +3986,7 @@ function nextMatchHero(m) {
 
   hero.append(h('div', { class: 'row between', style: 'align-items:flex-start' },
     h('div', { class: 'grow' },
-      h('div', { class: 'eyebrow', text: m.type === 'turnaus' ? 'Seuraava turnaus' : 'Seuraava ottelu' }),
+      h('div', { class: 'eyebrow', text: (m.team ? `${m.team} · ` : '') + (m.type === 'turnaus' ? 'seuraava turnaus' : 'seuraava ottelu') }),
       h('h2', { class: 'opponent', text: m.opponent || 'Vastustaja avoin' }),
       h('div', { class: 'when' },
         `${m.home ? 'Kotona' : 'Vieraissa'} · ${fmtDate(m.date)} klo ${m.time}`,
@@ -4041,7 +4133,7 @@ const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES,
+  staffById, STAFF_ROLES, absentIds,
 } = __req('store');
 const { getFormation } = __req('formations');
 const { matchEvents } = __req('timing');
@@ -4073,7 +4165,7 @@ function matchView(id) {
 
   return {
     title: `${m.home ? 'vs' : '@'} ${m.opponent || 'Vastustaja'}`,
-    subtitle: `${fmtDate(m.date)} klo ${m.time}`,
+    subtitle: `${m.team ? m.team + ' · ' : ''}${fmtDate(m.date)} klo ${m.time}`,
     back: '#/ottelut',
     body,
   };
@@ -4208,7 +4300,7 @@ function lineupText(m) {
     return `${p.number != null ? p.number + ' ' : ''}${p.name}`;
   };
   const lines = [
-    `${st.team.name || 'Oma joukkue'} ${m.home ? 'vs' : '@'} ${m.opponent || 'vastustaja'}`,
+    `${m.team || st.team.name || 'Oma joukkue'} ${m.home ? 'vs' : '@'} ${m.opponent || 'vastustaja'}`,
     `${fmtDate(m.date)} klo ${m.time}${m.venue ? ' · ' + m.venue : ''}`,
     `Kokoonpano ${f.name}`,
     '',
@@ -4225,7 +4317,8 @@ function lineupText(m) {
       .map((person) => `${person.name} (${STAFF_ROLES[person.role] || 'toimihenkilö'})`);
     if (staff.length) lines.push('', `Valmennus: ${staff.join(', ')}`);
   }
-  if ((m.lineup.unavailable || []).length) lines.push(`Poissa: ${m.lineup.unavailable.map(who).join(', ')}`);
+  const absent = absentIds(m.lineup);
+  if (absent.length) lines.push('', `Poissa: ${absent.map(who).join(', ')}`);
   if (m.notes) lines.push('', m.notes);
   return lines.join('\n');
 }
@@ -4318,6 +4411,7 @@ function infoTab(m) {
 
   wrap.append(
     row('Vastustaja', m.opponent),
+    row('Oma joukkue', m.team),
     row('Päivä', fmtDate(m.date)),
     row('Alkaa', m.time),
     row('Paikka', m.venue),

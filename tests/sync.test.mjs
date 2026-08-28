@@ -87,7 +87,7 @@ await a.edit((st) => {
   st.players.push({ id: 'p2', name: 'Bertta Broman', number: 2, roles: ['LP'], active: true });
   st.matches.push({ id: 'm1', date: '2026-09-05', time: '18:00', opponent: 'PJK', home: true,
     venue: '', type: 'ottelu', videoUrl: '', notes: '', result: null,
-    lineup: { formation: '4-3-3', slots: Array(11).fill(null), bench: [], unavailable: [], positions: {}, drawings: [] } });
+    lineup: { formation: '4-3-3', slots: Array(11).fill(null), bench: [], positions: {}, drawings: [] } });
 });
 await a.connect();
 await a.signUp('valmentaja@example.com');

@@ -29,28 +29,29 @@ export function playersView() {
   const active = players.filter((p) => p.active !== false);
   const inactive = players.filter((p) => p.active === false);
 
+  // Lyhyet pelipaikkakoodit pitävät rivin kapeana myös puhelimessa.
   const card = (p) => h('button', {
-    class: 'card row', onclick: () => openPlayerSheet(p),
+    class: 'card row compact', onclick: () => openPlayerSheet(p),
   },
-    h('span', { class: 'numchip accent', text: p.number ?? '–' }),
+    h('span', { class: 'numchip accent sm', text: p.number ?? '–' }),
     h('span', { class: 'grow' },
       h('div', { class: 'bold ellip', text: p.name }),
-      h('div', { class: 'tiny muted ellip', text: (p.roles || []).map((r) => ROLE_NAMES[r] || r).join(' · ') || 'Ei pelipaikkoja' })),
+      h('div', { class: 'tiny muted ellip', text: (p.roles || []).join(' · ') || 'Ei pelipaikkoja' })),
     h('span', { class: 'muted', text: '›' }));
 
   body.append(h('div', { class: 'section-title', text: `Pelaajat (${active.length})` }));
-  body.append(h('div', { class: 'cards' }, active.map(card)));
+  body.append(h('div', { class: 'cards tight' }, active.map(card)));
 
   if (inactive.length) {
     body.append(h('div', { class: 'section-title', text: `Ei käytettävissä (${inactive.length})` }));
-    body.append(h('div', { class: 'cards' }, inactive.map(card)));
+    body.append(h('div', { class: 'cards tight' }, inactive.map(card)));
   }
 
   body.append(h('div', { class: 'section-title', text: `Valmentajat ja toimihenkilöt (${staff.length})` }));
   if (staff.length) {
-    body.append(h('div', { class: 'cards' }, staff.map((person) =>
-      h('button', { class: 'card row', onclick: () => openStaffSheet(person) },
-        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+    body.append(h('div', { class: 'cards tight' }, staff.map((person) =>
+      h('button', { class: 'card row compact', onclick: () => openStaffSheet(person) },
+        h('span', { class: 'numchip sm', style: 'width:auto;padding:0 8px;font-size:11px', text: initials(person.name) }),
         h('span', { class: 'grow' },
           h('div', { class: 'bold ellip', text: person.name }),
           h('div', { class: 'tiny muted ellip', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),

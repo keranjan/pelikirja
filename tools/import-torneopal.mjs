@@ -6,7 +6,10 @@
 //   curl -s "<torneopal getMatches -osoite>" | node tools/import-torneopal.mjs --team "Ilves Beta"
 //
 // Valinnat:
-//   --team <nimi>       oma joukkue: ratkaisee koti/vieras ja rajaa ottelut (pakollinen)
+//   --team <nimi>       oma joukkue: ratkaisee koti/vieras, rajaa ottelut ja
+//                       tallentuu otteluiden team-kenttään (pakollinen)
+//   --name <nimi>       otteluihin merkittävä joukkueen nimi, jos se poikkeaa
+//                       otteluohjelman kirjoitusasusta
 //   --formation <id>    kokoonpanon pelisysteemi, oletus 8-2-3-2 (8 vs 8)
 //   --all               ota mukaan myös jo pelatut ottelut (oletus: vain tulevat)
 //   --sql               tulosta SQL, joka lisää ottelut Supabase-riville
@@ -22,6 +25,7 @@ const flag = (name, fallback = null) => {
 const has = (name) => args.includes(`--${name}`);
 
 const team = flag('team');
+const teamName = flag('name');
 const formation = flag('formation', '8-2-3-2');
 const file = args.find((a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'));
 
@@ -132,7 +136,6 @@ const emptyLineup = () => ({
   formation,
   slots: Array(slotCount(formation)).fill(null),
   bench: [],
-  unavailable: [],
   positions: {},
   drawings: [],
 });
@@ -168,6 +171,8 @@ for (const row of rows) {
     date: r.date,
     time: r.time,
     opponent: home ? r.awayTeam : r.homeTeam,
+    // Oma joukkue sellaisena kuin se on otteluohjelmassa, esim. "Ilves Beta".
+    team: teamName || (home ? r.homeTeam : r.awayTeam),
     home,
     venue: r.venue,
     type: 'ottelu',
@@ -188,12 +193,36 @@ if (has('sql')) {
   const user = flag('user');
   const where = user ? `user_id = '${user}'` : 'user_id = auth.uid()';
   const json = JSON.stringify(matches).replace(/'/g, "''");
-  console.log(`-- ${matches.length} ottelua joukkueelle ${team}
+  // Sama lause voidaan ajaa uudestaan: tunnisteeltaan tutut ottelut vain
+  // päivitetään (joukkuetieto), jolloin kokoonpanot ja tulokset säilyvät.
+  console.log(`-- ${matches.length} ottelua joukkueelle ${teamName || team}
+-- Voidaan ajaa turvallisesti uudelleen: jo tuodut ottelut päivitetään, ei kahdenneta.
 update public.pelikirja
 set data = jsonb_set(
       data,
       '{matches}',
-      coalesce(data->'matches', '[]'::jsonb) || '${json}'::jsonb
+      (
+        select coalesce(jsonb_agg(rivi order by rivi->>'date', rivi->>'time'), '[]'::jsonb)
+        from (
+          -- Jo tallennetut ottelut: vain joukkuetieto päivitetään.
+          select case
+                   when uusi.m is null then vanha.e
+                   else vanha.e || jsonb_build_object('team', uusi.m->>'team')
+                 end as rivi
+          from jsonb_array_elements(coalesce(data->'matches', '[]'::jsonb)) as vanha(e)
+          left join jsonb_array_elements('${json}'::jsonb) as uusi(m)
+                 on uusi.m->>'id' = vanha.e->>'id'
+          union all
+          -- Uudet ottelut lisätään sellaisenaan.
+          select uusi.m
+          from jsonb_array_elements('${json}'::jsonb) as uusi(m)
+          where not exists (
+            select 1
+            from jsonb_array_elements(coalesce(data->'matches', '[]'::jsonb)) as v(e)
+            where v.e->>'id' = uusi.m->>'id'
+          )
+        ) s
+      )
     ),
     rev = rev + 1,
     updated_at = now()

@@ -173,10 +173,16 @@ curl -s "<torneopalin getMatches -osoite>" | node tools/import-torneopal.mjs --t
 node tools/import-torneopal.mjs ohjelma.json --team "Ilves Beta" --sql
 ```
 
-Oma joukkue (`--team`) ratkaisee koti- ja vierasottelut ja rajaa muut sarjan
-ottelut pois. Oletuksena mukaan tulevat vain tulevat ottelut; `--all` ottaa
-myös pelatut. Kokoonpanon pelisysteemi on oletuksena `8-2-3-2`, jonka voi
-vaihtaa valinnalla `--formation`.
+Oma joukkue (`--team`) ratkaisee koti- ja vierasottelut, rajaa muut sarjan
+ottelut pois ja tallentuu ottelun `team`-kenttään – näin saman seuran kahden
+joukkueen ottelut erottuvat toisistaan sovelluksessa. Nimen voi kirjoittaa
+otteluohjelmasta poikkeavaksi valinnalla `--name`. Oletuksena mukaan tulevat
+vain tulevat ottelut; `--all` ottaa myös pelatut. Kokoonpanon pelisysteemi on
+oletuksena `8-2-3-2`, jonka voi vaihtaa valinnalla `--formation`.
+
+SQL-lauseen voi ajaa turvallisesti uudelleen: jo tuodut ottelut tunnistetaan
+ottelunumerosta, jolloin niiden kokoonpanot ja tulokset säilyvät ja vain
+joukkuetieto päivittyy. Valmiit tuonnit ovat kansiossa `docs/tuonti/`.
 
 ## Kehitys
 
@@ -209,6 +215,7 @@ js/views/               näkymät: ottelupäivä, ottelut, ottelu, seuranta, kok
                         ryhmä, kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
+docs/tuonti/            valmiiksi muunnetut otteluohjelmat (JSON ja SQL)
 tests/timing.test.mjs   peliajan laskennan yksikkötestit
 tests/tactics.test.mjs  taktiikkapiirrosten polkujen yksikkötestit
 tests/smoke.mjs         päävirran savutesti

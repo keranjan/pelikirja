@@ -59,7 +59,7 @@ function nextMatchHero(m) {
 
   hero.append(h('div', { class: 'row between', style: 'align-items:flex-start' },
     h('div', { class: 'grow' },
-      h('div', { class: 'eyebrow', text: m.type === 'turnaus' ? 'Seuraava turnaus' : 'Seuraava ottelu' }),
+      h('div', { class: 'eyebrow', text: (m.team ? `${m.team} · ` : '') + (m.type === 'turnaus' ? 'seuraava turnaus' : 'seuraava ottelu') }),
       h('h2', { class: 'opponent', text: m.opponent || 'Vastustaja avoin' }),
       h('div', { class: 'when' },
         `${m.home ? 'Kotona' : 'Vieraissa'} · ${fmtDate(m.date)} klo ${m.time}`,
