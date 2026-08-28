@@ -647,6 +647,26 @@ if (asSeconds.some((v, i) => i > 0 && v < asSeconds[i - 1])) {
   console.error('Tapahtumat eivät ole aikajärjestyksessä: ' + JSON.stringify(timelineTimes));
   process.exit(1);
 }
+// Oman joukkueen maalit on korostettu, vastustajan ei
+const goalRows = await page.locator('#view .card.event').evaluateAll((els) => els.map((el) => ({
+  text: el.textContent.replace(/\s+/g, ' ').trim().slice(0, 40),
+  ourgoal: el.classList.contains('ourgoal'),
+  away: el.classList.contains('away'),
+})));
+const ourGoalRows = goalRows.filter((r) => r.ourgoal);
+if (ourGoalRows.length !== 1 || !ourGoalRows[0].text.includes('⚽')) {
+  console.error('Oman joukkueen maalia ei korostettu: ' + JSON.stringify(goalRows)); process.exit(1);
+}
+if (goalRows.some((r) => r.away && r.ourgoal)) {
+  console.error('Vastustajan maali korostettiin omana: ' + JSON.stringify(goalRows)); process.exit(1);
+}
+const goalStyle = await page.locator('#view .card.event.ourgoal').first()
+  .evaluate((el) => getComputedStyle(el).backgroundColor);
+if (goalStyle === 'rgba(0, 0, 0, 0)' || goalStyle === 'rgb(255, 255, 255)') {
+  console.error('Korostuksen tausta ei erotu: ' + goalStyle); process.exit(1);
+}
+console.log('oman joukkueen maali korostettu:', ourGoalRows[0].text, '| tausta', goalStyle);
+
 const shownScore = await page.locator('#view .card.center').first().textContent();
 console.log(`tulokset: ${timelineTimes.length} tapahtumaa aikajärjestyksessä, tulos ${shownScore.replace(/\s+/g, ' ').trim().slice(0, 24)}`);
 // Veo-videolinkki

@@ -473,6 +473,17 @@ a.btn { text-decoration: none; }
 .card.event.away { background: var(--surface-2); }
 .card.event.away .numchip { background: var(--surface); }
 
+/* Oman joukkueen maali: vihreä pohja ja reunapalkki erottavat sen muista. */
+.card.event.ourgoal {
+  background: var(--accent-soft); border-color: var(--accent-line);
+  box-shadow: inset 4px 0 0 var(--accent), var(--shadow-sm);
+}
+.card.event.ourgoal .numchip {
+  background: var(--surface); border-color: var(--accent-line); color: var(--accent);
+}
+.card.event.ourgoal .bold { color: var(--accent); }
+.card.event.ourgoal .muted { color: var(--ink-2); }
+
 /* ---------- Kenttä ---------- */
 
 .pitch-wrap { position: relative; }

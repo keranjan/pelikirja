@@ -292,8 +292,10 @@ export function eventList(match, commit, { editable = false } = {}) {
     if (pairedSub) i++;
 
     const ours = e.team !== 'them';
+    // Oman joukkueen maalit korostetaan, jotta ne erottuvat tapahtumalistasta.
+    const ourGoal = ours && e.type === 'goal';
     const row = h(editable ? 'button' : 'div', {
-      class: `card row event${ours ? '' : ' away'}`,
+      class: `card row event${ours ? '' : ' away'}${ourGoal ? ' ourgoal' : ''}`,
       onclick: editable ? () => openEventSheet(match, e, commit) : null,
     },
       h('span', { class: 'numchip tnum', style: 'width:auto;padding:0 8px', text: fmtClock(e.at) }),
