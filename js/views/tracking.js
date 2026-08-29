@@ -1,5 +1,5 @@
 // Otteluseuranta: ottelukello, maalit, kortit, vaihdot ja peliaika.
-import { h, add, sheet, toast, confirmSheet, pressable } from '../ui.js';
+import { h, add, sheet, toast, confirmSheet, pressable, videoInfo } from '../ui.js';
 import {
   matchById, update, playerById, getState,
   startTiming, pauseTiming, endTiming, resetTiming, substitute,
@@ -294,12 +294,26 @@ export function eventList(match, commit, { editable = false } = {}) {
     const ours = e.team !== 'them';
     // Oman joukkueen maalit korostetaan, jotta ne erottuvat tapahtumalistasta.
     const ourGoal = ours && e.type === 'goal';
+    // Maalille voi tallentaa oman videolinkin; se avataan omaan ikkunaansa.
+    // Painike on span, jottei nappia tule napin sisään.
+    const clip = ourGoal ? videoInfo(e.videoUrl) : null;
     const row = h(editable ? 'button' : 'div', {
       class: `card row event${ours ? '' : ' away'}${ourGoal ? ' ourgoal' : ''}`,
       onclick: editable ? () => openEventSheet(match, e, commit) : null,
     },
       h('span', { class: 'numchip tnum', style: 'width:auto;padding:0 8px', text: fmtClock(e.at) }),
       h('span', { class: 'grow' }, pairedSub ? subText(next.playerId, e.playerId) : eventText(match, e)),
+      clip ? h('span', {
+        class: 'videobtn', role: 'button', tabindex: '0',
+        title: `Avaa maali ${clip.service}-palvelussa`,
+        'aria-label': `Avaa maalin video ${clip.service}-palvelussa`,
+        onclick: (ev) => { ev.stopPropagation(); openClip(clip); },
+        onkeydown: (ev) => {
+          if (ev.key !== 'Enter' && ev.key !== ' ') return;
+          ev.preventDefault(); ev.stopPropagation(); openClip(clip);
+        },
+        text: '🎥',
+      }) : null,
       editable ? h('span', { class: 'muted', text: '›' }) : null);
     list.append(row);
   }
@@ -495,16 +509,27 @@ function openEventSheet(match, e, commit) {
 
     // Pelaajakentät tapahtuman tyypin mukaan; vastustajan maalilla ei ole pelaajaa.
     const fields = [];
+    let videoField = null;
     const ours = e.team !== 'them';
     if (e.type === 'goal' && ours) {
       const scorerI = playerOptions(match, e.playerId, { emptyLabel: 'Ei pelaajaa' });
       const assistI = playerOptions(match, e.assistId, { emptyLabel: 'Ei syöttäjää' });
+      // Maalikohtainen videolinkki, esimerkiksi Veon leike juuri tästä maalista.
+      const videoI = h('input', {
+        type: 'text', value: e.videoUrl || '', autocomplete: 'off',
+        inputmode: 'url', placeholder: 'https://app.veo.co/matches/...',
+      });
       add(body,
         h('label', { class: 'field' }, h('span', { text: 'Maalintekijä' }), scorerI),
-        h('label', { class: 'field' }, h('span', { text: 'Syöttäjä' }), assistI));
+        h('label', { class: 'field' }, h('span', { text: 'Syöttäjä' }), assistI),
+        h('label', { class: 'field' },
+          h('span', { text: 'Maalin videolinkki' }), videoI,
+          h('span', { class: 'tiny muted', text: 'Esimerkiksi Veon leike tästä maalista. Tapahtumalistaan tulee 🎥, josta linkki avautuu.' })));
+      videoField = videoI;
       fields.push(() => ({ id: e.id, patch: {
         playerId: scorerI.value || null,
         assistId: assistI.value && assistI.value !== scorerI.value ? assistI.value : null,
+        videoUrl: videoI.value.trim(),
       } }));
     } else if (e.type === 'card' && ours) {
       const playerI = playerOptions(match, e.playerId, { emptyLabel: 'Ei pelaajaa' });
@@ -528,6 +553,12 @@ function openEventSheet(match, e, commit) {
         h('span', { text: 'Minuutti' }), minuteI,
         h('span', { class: 'tiny muted', text: 'Ottelukellon minuutti, jolloin tapahtuma sattui.' })),
       pressable(h('button', { class: 'btn primary' }, 'Tallenna'), () => {
+        const link = videoField ? videoField.value.trim() : '';
+        if (link && !videoInfo(link)) {
+          toast('Videolinkin pitää alkaa https://');
+          videoField.focus();
+          return;
+        }
         const changes = fields.map((read) => read());
         commit((m) => {
           for (const { id, patch } of changes) updateTimingEvent(m, id, patch);
@@ -545,6 +576,12 @@ function openEventSheet(match, e, commit) {
 }
 
 /** Vaihto poistetaan parina, muut tapahtumat yksin. */
+/** Avaa maalin videon omaan ikkunaansa (selain tai palvelun oma sovellus). */
+function openClip(clip) {
+  const win = window.open(clip.url, '_blank', 'noopener,noreferrer');
+  if (!win) toast('Selain esti ikkunan avaamisen');
+}
+
 function pairedIds(match, e) {
   if (e.type !== 'in' && e.type !== 'out') return [e.id];
   const pair = (match.timing?.events || []).find((x) =>

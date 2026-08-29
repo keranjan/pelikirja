@@ -96,6 +96,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
   Tulos-välilehdellä aikajärjestyksessä
 - Tapahtumia voi korjata jälkikäteen myös Tulos-välilehden aikajanalta:
   maalintekijä, syöttäjä, kortin saaja, vaihdon pelaajat, minuutti ja poisto
+- Omalle maalille voi tallentaa oman videolinkin (esim. Veon leike siitä
+  maalista): tapahtumariville tulee 🎥, josta leike avautuu omaan ikkunaansa
 - Jokaisen pelaajan peliaika kertyy reaaliajassa, myös taustalla ja
   sovelluksen ollessa kiinni
 - Vaihtopenkki järjestyy vähiten pelanneen mukaan ja vähiten peliaikaa saanut

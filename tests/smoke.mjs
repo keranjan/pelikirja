@@ -694,6 +694,51 @@ const editedGoal = await page.evaluate(() => {
 if (editedGoal.playerId !== otherScorer || editedGoal.at !== 23 * 60) {
   console.error('Maalin muokkaus ei tallentunut: ' + JSON.stringify(editedGoal)); process.exit(1);
 }
+// Maalille voi tallentaa oman videolinkin, joka avautuu omaan ikkunaansa
+const GOAL_CLIP = 'https://app.veo.co/matches/20260824-ilves-keltainen-vs-pjk-v40f1ec0/#t=1234';
+await page.locator('#view .card.event.ourgoal').first().click();
+await page.waitForTimeout(350);
+const clipInput = page.locator('#overlay input[type=text]').last();
+await clipInput.fill('ei-mikaan-osoite');
+await page.locator('#overlay .btn.primary').click();
+await page.waitForTimeout(250);
+if (!(await page.locator('#overlay .sheet').count())) {
+  console.error('Kelvoton maalin videolinkki hyväksyttiin'); process.exit(1);
+}
+await clipInput.fill(GOAL_CLIP);
+await page.locator('#overlay .btn.primary').click();
+await page.waitForTimeout(350);
+const storedClip = await page.evaluate(() => {
+  const m = JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0];
+  return (m.timing.events || []).find((e) => e.type === 'goal' && e.team !== 'them')?.videoUrl;
+});
+if (storedClip !== GOAL_CLIP) { console.error('Maalin videolinkki ei tallentunut: ' + storedClip); process.exit(1); }
+const clipBtn = page.locator('#view .card.event.ourgoal .videobtn');
+if (await clipBtn.count() !== 1) { console.error('Video-emoji puuttuu maalin kohdalta'); process.exit(1); }
+if ((await clipBtn.textContent()).trim() !== '🎥') {
+  console.error('Video-emoji väärä: ' + await clipBtn.textContent()); process.exit(1);
+}
+// Napautus avaa linkin omaan ikkunaansa eikä muokkauspaneelia.
+// window.open korvataan, koska verkkoon ei testissä päästä.
+await page.evaluate(() => {
+  window.__opened = [];
+  window.open = (url, target, features) => { window.__opened.push([url, target, features]); return {}; };
+});
+await clipBtn.click();
+await page.waitForTimeout(250);
+const opened = await page.evaluate(() => window.__opened);
+if (opened.length !== 1 || opened[0][0] !== GOAL_CLIP || opened[0][1] !== '_blank') {
+  console.error('Video ei avautunut omaan ikkunaan: ' + JSON.stringify(opened)); process.exit(1);
+}
+if (await page.locator('#overlay .sheet').count()) {
+  console.error('Videopainike avasi myös muokkauspaneelin'); process.exit(1);
+}
+// Vastustajan maalilla ei ole videolinkkiä
+if (await page.locator('#view .card.event.away .videobtn').count()) {
+  console.error('Vastustajan maalilla on videopainike'); process.exit(1);
+}
+console.log('maalin videolinkki: 🎥 avaa', new URL(GOAL_CLIP).hostname, 'omaan ikkunaan');
+
 // Poisto vie tapahtuman aikajanalta ja korjaa tuloksen (vastustajan maali)
 const beforeDelete = await page.locator('#view .card.event').count();
 const scoreBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].result.ga);

@@ -473,6 +473,16 @@ a.btn { text-decoration: none; }
 .card.event.away { background: var(--surface-2); }
 .card.event.away .numchip { background: var(--surface); }
 
+/* Maalin videolinkki tapahtumarivillä. */
+.videobtn {
+  flex: none; width: 40px; height: 40px; border-radius: 12px;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  font-size: 17px; line-height: 1;
+  touch-action: manipulation;
+}
+.videobtn:active { background: var(--surface-2); transform: scale(.94); }
+
 /* Oman joukkueen maali: vihreä pohja ja reunapalkki erottavat sen muista. */
 .card.event.ourgoal {
   background: var(--accent-soft); border-color: var(--accent-line);
