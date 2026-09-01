@@ -1892,6 +1892,11 @@ const byId = (list = []) => new Map(list.map((item) => [item.id, item]));
  * molemmilla puolilla – niistä säilytetään tämän laitteen versio.
  */
 function mergeList(baseList, localList, remoteList) {
+  // Jos toinen puoli ei tunne listaa lainkaan (esimerkiksi vanhempi versio,
+  // joka ei vielä tallentanut valmentajia), sitä ei tulkita poistoiksi.
+  if (!Array.isArray(remoteList)) return { list: [...(localList || [])], conflicts: 0 };
+  if (!Array.isArray(localList)) return { list: [...remoteList], conflicts: 0 };
+
   const base = byId(baseList);
   const local = byId(localList);
   const remote = byId(remoteList);
@@ -2897,10 +2902,9 @@ function renderLineupEditor(lineup, commit) {
   } else {
     for (const pid of lineup.bench) {
       const p = playerById(pid);
-      if (!p) continue;
       wrap.append(h('div', { class: 'card row compact' },
-        h('span', { class: 'numchip sm', text: p.number ?? '–' }),
-        h('span', { class: 'grow ellip', text: p.name }),
+        h('span', { class: 'numchip sm', text: p ? (p.number ?? '–') : '?' }),
+        h('span', { class: `grow ellip${p ? '' : ' muted'}`, text: p ? p.name : 'Poistettu pelaaja' }),
         h('button', { class: 'btn sm ghost', onclick: () => commit(() => toggleSquad(lineup, pid)) }, 'Poista')));
     }
   }
@@ -2913,12 +2917,17 @@ function renderLineupEditor(lineup, commit) {
   } else {
     for (const id of staffIds) {
       const person = staffById(id);
-      if (!person) continue;
+      // Jos henkilöä ei löydy (esim. poistettu toisella laitteella), rivi
+      // näytetään silti – muuten lukumäärä ja lista eivät täsmäisi.
       wrap.append(h('div', { class: 'card row' },
-        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px', text: initials(person.name) }),
+        h('span', { class: 'numchip', style: 'width:auto;padding:0 10px;font-size:11px',
+          text: person ? initials(person.name) : '?' }),
         h('span', { class: 'grow' },
-          h('div', { class: 'bold ellip', text: person.name }),
-          h('div', { class: 'tiny muted', text: STAFF_ROLES[person.role] || 'Toimihenkilö' })),
+          h('div', { class: `bold ellip${person ? '' : ' muted'}`,
+            text: person ? person.name : 'Poistettu valmentaja' }),
+          h('div', { class: 'tiny muted', text: person
+            ? (STAFF_ROLES[person.role] || 'Toimihenkilö')
+            : 'Henkilöä ei löydy ryhmästä' })),
         h('button', {
           class: 'btn sm ghost',
           onclick: () => commit(() => toggleLineupStaff(lineup, id)),

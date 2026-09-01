@@ -1205,6 +1205,62 @@ for (const [label, size] of [['tabletti pysty', { width: 800, height: 1280 }],
   await ctx3.close();
 }
 
+// --- Kadonnut valmentaja näkyy silti kokoonpanossa ---
+{
+  const ctx4 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fi-FI' });
+  const gp = await ctx4.newPage();
+  gp.on('pageerror', (e) => errors.push('kadonnut valmentaja: ' + e.message));
+  await gp.goto('http://localhost:8777/index.html');
+  await gp.evaluate(() => {
+    const players = Array.from({ length: 8 }, (_, i) => ({
+      id: 'p' + i, name: 'Pelaaja ' + i, number: i + 1, roles: ['KK'], active: true }));
+    localStorage.setItem('pelikirja.v1', JSON.stringify({
+      version: 1, team: { name: 'Ilves', season: '2026' }, players, lineups: [],
+      // Valmentaja s1 on kadonnut ryhmästä, mutta kokoonpano viittaa häneen yhä.
+      staff: [{ id: 's2', name: 'Aino Valmentaja', role: 'apuvalmentaja', active: true }],
+      matches: [{ id: 'm1', date: '2026-05-01', time: '12:00', opponent: 'FC Testi', home: true,
+        venue: '', type: 'ottelu', videoUrl: '', notes: '', timing: null,
+        lineup: { formation: '8-2-3-2', slots: players.map((p) => p.id), bench: ['pX'],
+          positions: {}, drawings: [], staff: ['s1', 's2'] },
+        result: { gf: 2, ga: 0, events: [], rating: null, ratingMax: 10, notes: '' } }],
+    }));
+  });
+  await gp.reload();
+  await gp.waitForTimeout(400);
+  await gp.evaluate(() => { location.hash = '#/ottelut'; });
+  await gp.waitForTimeout(300);
+  await gp.locator('#view .segmented button', { hasText: 'Pelatut' }).click();
+  await gp.waitForTimeout(300);
+  await gp.locator('#view .cards .card').first().click();
+  await gp.waitForTimeout(500);
+  const sections = await gp.locator('#view .section-title').allTextContents();
+  const staffTitle = sections.find((t) => t.startsWith('Valmentajat'));
+  const benchTitle = sections.find((t) => t.startsWith('Vaihtopenkki'));
+  const rows = await gp.locator('#view .card.row').allTextContents();
+  const staffRows = rows.filter((t) => t.includes('Valmentaja') || t.includes('Poistettu valmentaja'));
+  if (staffTitle !== 'Valmentajat (2)' || staffRows.length !== 2) {
+    console.error(`Valmentajien lukumäärä ja lista eivät täsmää: ${staffTitle}, rivejä ${staffRows.length}`);
+    process.exit(1);
+  }
+  if (!rows.some((t) => t.includes('Poistettu valmentaja'))) {
+    console.error('Kadonnut valmentaja puuttuu listalta: ' + JSON.stringify(rows)); process.exit(1);
+  }
+  if (benchTitle !== 'Vaihtopenkki (1)' || !rows.some((t) => t.includes('Poistettu pelaaja'))) {
+    console.error(`Kadonnut vaihtopelaaja puuttuu: ${benchTitle}, ${JSON.stringify(rows)}`); process.exit(1);
+  }
+  // Poista siivoaa viittauksen pois
+  await gp.locator('#view .card.row', { hasText: 'Poistettu valmentaja' })
+    .locator('.btn', { hasText: 'Poista' }).click();
+  await gp.waitForTimeout(300);
+  const left = await gp.evaluate(() =>
+    JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.staff);
+  if (left.join(',') !== 's2') {
+    console.error('Kadonneen valmentajan poisto ei toiminut: ' + JSON.stringify(left)); process.exit(1);
+  }
+  console.log('kadonnut valmentaja näkyy listalla ja on poistettavissa');
+  await ctx4.close();
+}
+
 // --- Vanha tähtiarvosana muuttuu kouluasteikolle ---
 {
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fi-FI' });

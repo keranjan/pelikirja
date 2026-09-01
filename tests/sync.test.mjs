@@ -199,6 +199,26 @@ if (arvio?.rating !== 8.5 || !arvio.notes.startsWith('Hyvä paineistus')) {
   console.log('valmentajan arvio siirtyi laitteelle B:', `arvosana ${arvio.rating}`, `"${arvio.notes.slice(0, 24)}…"`);
 }
 
+// --- Vanha versio pilvessä ei saa pyyhkiä valmentajia ---
+// Vanhempi sovellusversio ei tallentanut staff-listaa lainkaan. Silloin
+// puuttuvaa listaa ei saa tulkita poistoiksi, tai kokoonpanoihin jäisi
+// viittauksia valmentajiin, joita ei enää ole.
+{
+  const merge = await a.page.evaluate(async () => {
+    const m = await import('/js/merge.js');
+    const base = { version: 1, team: { name: 'Ilves' }, players: [], staff: [{ id: 's9', name: 'Vanha Valmentaja' }], matches: [], lineups: [] };
+    const local = JSON.parse(JSON.stringify(base));
+    const remote = { version: 1, team: { name: 'Ilves' }, players: [], matches: [], lineups: [] };  // ei staff-kenttää
+    const out = m.mergeStates(base, local, remote);
+    return out.state.staff.map((x) => x.id);
+  });
+  if (merge.join(',') !== 's9') {
+    fail('vanha pilviversio pyyhki valmentajat: ' + JSON.stringify(merge));
+  } else {
+    console.log('vanha pilviversio ei pyyhi valmentajia');
+  }
+}
+
 // --- Poisto leviää toiselle laitteelle ---
 await a.edit((st) => { st.players = st.players.filter((p) => p.id !== 'p1'); });
 await a.sync();

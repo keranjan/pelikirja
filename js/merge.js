@@ -21,6 +21,11 @@ const byId = (list = []) => new Map(list.map((item) => [item.id, item]));
  * molemmilla puolilla – niistä säilytetään tämän laitteen versio.
  */
 function mergeList(baseList, localList, remoteList) {
+  // Jos toinen puoli ei tunne listaa lainkaan (esimerkiksi vanhempi versio,
+  // joka ei vielä tallentanut valmentajia), sitä ei tulkita poistoiksi.
+  if (!Array.isArray(remoteList)) return { list: [...(localList || [])], conflicts: 0 };
+  if (!Array.isArray(localList)) return { list: [...remoteList], conflicts: 0 };
+
   const base = byId(baseList);
   const local = byId(localList);
   const remote = byId(remoteList);
