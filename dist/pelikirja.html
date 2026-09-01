@@ -280,6 +280,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   text-decoration: none; color: var(--ink-3);
   font-size: 10.5px; font-weight: 600; letter-spacing: .01em;
+  min-width: 0; padding: 0 2px; text-align: center;
+}
+/* Kuusi välilehteä mahtuu kapeallekin puhelimelle hieman pienemmällä tekstillä. */
+@media (max-width: 430px) {
+  #tabbar a { font-size: 9.5px; letter-spacing: -.01em; }
+  #tabbar a .ic { padding: 4px 10px; }
 }
 #tabbar a .ic { display: grid; place-items: center; padding: 4px 14px; border-radius: 999px; }
 #tabbar a.active { color: var(--accent); }
@@ -643,6 +649,75 @@ a.btn { text-decoration: none; }
 .swatch.on:active, .swatch.on.pressing { transform: scale(1.02); }
 .swatch:disabled { opacity: .35; }
 
+/* ---------- Alkulämmittelyn suunnittelu ---------- */
+
+.drill-wrap { display: flex; justify-content: center; }
+.drill-surface {
+  position: relative; width: 100%; max-width: 100%;
+  border-radius: var(--radius); overflow: hidden;
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 8%, rgba(0,0,0,0) 8% 16%),
+    linear-gradient(165deg, var(--pitch-a), var(--pitch-b));
+  border: 1px solid var(--line);
+  touch-action: none;            /* merkkien raahaus ja piirto sormella */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.drill-surface .lines { position: absolute; inset: 0; }
+.drill-surface .lines * { stroke: var(--pitch-line); fill: none; stroke-width: .6; }
+.drill-surface .ink { position: absolute; inset: 0; pointer-events: none; }
+
+/* Kentälle asetetut merkit */
+.mark {
+  position: absolute; transform: translate(-50%, -50%);
+  display: grid; place-items: center; cursor: grab;
+}
+.mark.dragging { cursor: grabbing; filter: brightness(1.08); }
+.mark .disc {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 13px;
+  border: 2px solid rgba(255,255,255,.85); box-shadow: 0 2px 6px rgba(0,0,0,.28);
+}
+.mark .ball {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #FFFFFF; border: 2px solid #14261C;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.mark .cone {
+  width: 0; height: 0;
+  border-left: 9px solid transparent; border-right: 9px solid transparent;
+  border-bottom: 17px solid #E2620B;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.35));
+}
+.mark .goal {
+  width: 54px; height: 14px;
+  border: 3px solid #FFFFFF; border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+  /* Kevyt verkko erottaa maalin kentän omista viivoista. */
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.75) 0 1px, rgba(255,255,255,0) 1px 7px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.75) 0 1px, rgba(255,255,255,0) 1px 7px);
+  box-shadow: 0 1px 5px rgba(0,0,0,.35);
+}
+
+/* Työkalupaletti: merkit ja piirtokuviot */
+.toolgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.toolgrid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.toolgrid.five .toolbtn .tl { font-size: 9.5px; }
+.toolgrid .toolbtn { min-height: 62px; gap: 4px; }
+.toolgrid .toolbtn .gl { font-size: 19px; line-height: 1; }
+.toolgrid .toolbtn .tl { font-size: 10.5px; font-weight: 600; text-align: center; }
+.toolgrid .toolbtn .dot {
+  width: 19px; height: 19px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.85); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.swatches { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
+
+@media (min-width: 720px) {
+  .drill-surface { max-width: 720px; }
+  .toolgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
 /* ---------- Koko ruudun taktiikkataulu ---------- */
 
 html.board-open, html.board-open body { overflow: hidden; }
@@ -878,6 +953,7 @@ const PATHS = {
   lineup: '<rect x="4.4" y="4.4" width="15.2" height="16.2" rx="2.6"/><path d="M9 4.4V3.1h6v1.3"/><circle cx="8.8" cy="11" r="1.15"/><circle cx="15.2" cy="11" r="1.15"/><circle cx="12" cy="16.2" r="1.15"/>',
   players: '<circle cx="9.2" cy="8.4" r="3.1"/><path d="M3.4 19.8c0-3.1 2.6-5.2 5.8-5.2s5.8 2.1 5.8 5.2"/><circle cx="17.4" cy="9.6" r="2.3"/><path d="M16 15.1c2.7-.5 4.9 1.4 4.9 4.7"/>',
   chart: '<path d="M5.2 20.2v-8.4M12 20.2V4.8M18.8 20.2v-5.6"/>',
+  cone: '<path d="M12 3.6l5.4 13.2H6.6z"/><path d="M4.2 19.9h15.6"/><path d="M9.3 12.6h5.4"/>',
   settings: '<path d="M4 7.5h9M17.5 7.5h2.5M4 16.5h2.5M11 16.5h9"/><circle cx="15" cy="7.5" r="2.3"/><circle cx="8.8" cy="16.5" r="2.3"/>',
   back: '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
   note: '<path d="M6 3.6h8.5L19 8.1v12.3H6z"/><path d="M14.2 3.8v4.4h4.4M9 12.5h6M9 16h4"/>',
@@ -1305,9 +1381,201 @@ const fmtMinutes = (seconds) => `${Math.round((seconds || 0) / 60)} min`;
 return { DEFAULT_PERIODS, DEFAULT_PERIOD_MINUTES, emptyTiming, clockSeconds, playingTimes, onField, substitutions, periodOf, totalSeconds, CARDS, matchEvents, goalsFrom, fmtClock, fmtMinutes };
 };
 
+__mods['drills'] = () => {
+// Alkulämmittelyn suunnittelu: kenttäalueet, harjoituksen elementit ja
+// kuvioiden geometria. Kaikki tässä on puhdasta laskentaa, jotta sen voi
+// testata ilman selainta.
+//
+// Elementit ovat yhdessä listassa lisäysjärjestyksessä, jolloin "Kumoa"
+// poistaa aina viimeksi lisätyn riippumatta siitä oliko se merkki vai veto.
+// Sijainnit ovat prosentteja alueen leveydestä ja korkeudesta (0–100), joten
+// ne säilyvät suhteessa, vaikka alueen kokoa vaihtaisi.
+
+/** Kenttäalueet piirretään kentän mittakaavassa (leveys 68 m). */
+const AREAS = {
+  kolmannes: { id: 'kolmannes', name: 'Kolmannes', w: 68, h: 32 },
+  puolikas: { id: 'puolikas', name: 'Puoli kenttää', w: 68, h: 47.5 },
+  kokonainen: { id: 'kokonainen', name: 'Koko kenttä', w: 68, h: 95 },
+};
+const DEFAULT_AREA = 'kolmannes';
+const getArea = (id) => AREAS[id] || AREAS[DEFAULT_AREA];
+
+/** Pelaajamerkkien värit: kolme eri joukkuetta tai ryhmää. */
+const PLAYER_COLORS = {
+  vihrea: { id: 'vihrea', name: 'Vihreät', fill: '#0B7A45', ink: '#FFFFFF' },
+  sininen: { id: 'sininen', name: 'Siniset', fill: '#1D5FD0', ink: '#FFFFFF' },
+  oranssi: { id: 'oranssi', name: 'Oranssit', fill: '#D2620A', ink: '#FFFFFF' },
+};
+const playerColor = (id) => PLAYER_COLORS[id] || PLAYER_COLORS.vihrea;
+
+/** Kentälle lisättävät merkit. */
+const ITEMS = {
+  pelaaja: { id: 'pelaaja', name: 'Pelaaja' },
+  pallo: { id: 'pallo', name: 'Pallo' },
+  totsa: { id: 'totsa', name: 'Tötsä' },
+  maali: { id: 'maali', name: 'Maali' },
+};
+
+/** Piirtotyökalut: vapaa kynä ja kolme kuviota. */
+const SHAPES = {
+  kyna: { id: 'kyna', name: 'Kynä', free: true },
+  nelio: { id: 'nelio', name: 'Neliö', free: false },
+  ympyra: { id: 'ympyra', name: 'Ympyrä', free: false },
+  kolmio: { id: 'kolmio', name: 'Kolmio', free: false },
+};
+
+/** Piirrosten värit. */
+// Jokaisella värillä on kevyt reunus, jotta veto erottuu nurmelta.
+const DRAW_COLORS = {
+  musta: { id: 'musta', name: 'Musta', value: '#14261C', halo: 'rgba(255,255,255,.85)' },
+  valkoinen: { id: 'valkoinen', name: 'Valkoinen', value: '#FFFFFF', halo: 'rgba(10,30,20,.45)' },
+  punainen: { id: 'punainen', name: 'Punainen', value: '#C7412F', halo: 'rgba(255,255,255,.85)' },
+  keltainen: { id: 'keltainen', name: 'Keltainen', value: '#E7B008', halo: 'rgba(20,38,28,.6)' },
+};
+const STROKE_WIDTH = 0.85;
+const HALO_WIDTH = 1.9;
+const drawColor = (id) => DRAW_COLORS[id] || DRAW_COLORS.musta;
+
+const emptyDrill = (id, name = '') => ({
+  id,
+  name,
+  area: DEFAULT_AREA,
+  elements: [],
+  notes: '',
+  createdAt: new Date().toISOString(),
+});
+
+/* ---------- Elementtien lisäys ---------- */
+
+const clamp = (v) => Math.min(100, Math.max(0, v));
+
+/** Lisää merkin. Pelaajat numeroidaan väreittäin juoksevasti. */
+function addItem(drill, { kind, color = 'vihrea', x, y, id }) {
+  const el = { id, kind, x: clamp(x), y: clamp(y) };
+  if (kind === 'pelaaja') {
+    el.color = color;
+    el.label = String(drill.elements.filter(
+      (e) => e.kind === 'pelaaja' && e.color === color).length + 1);
+  }
+  drill.elements.push(el);
+  return el;
+}
+
+/** Lisää piirroksen. Kuvioille riittää alku- ja loppupiste. */
+function addStroke(drill, { shape, color = 'musta', points, id }) {
+  const pts = (points || []).map(([x, y]) => [clamp(x), clamp(y)]);
+  if (pts.length < 2) return null;
+  const el = {
+    id, kind: 'stroke', shape, color,
+    points: SHAPES[shape]?.free ? pts : [pts[0], pts[pts.length - 1]],
+  };
+  drill.elements.push(el);
+  return el;
+}
+
+const undoLast = (drill) => { drill.elements.pop(); };
+const clearDrill = (drill) => { drill.elements = []; };
+const removeElement = (drill, id) => {
+  drill.elements = drill.elements.filter((e) => e.id !== id);
+};
+
+/* ---------- Kuvioiden geometria ---------- */
+
+/** Suorakulmio kahden pisteen väliin: { x, y, w, h } prosentteina. */
+function boxOf([a, b]) {
+  const x = Math.min(a[0], b[0]);
+  const y = Math.min(a[1], b[1]);
+  return { x, y, w: Math.abs(b[0] - a[0]), h: Math.abs(b[1] - a[1]) };
+}
+
+/** Kolmion kärkipisteet: kärki ylhäällä keskellä, kanta alhaalla. */
+function trianglePoints([a, b]) {
+  const box = boxOf([a, b]);
+  return [
+    [box.x + box.w / 2, box.y],
+    [box.x + box.w, box.y + box.h],
+    [box.x, box.y + box.h],
+  ];
+}
+
+/** Vapaan vedon polku SVG:lle alueen mittayksiköissä. */
+function penPath(points, area) {
+  const a = getArea(area?.id ? area.id : area);
+  const sx = (v) => (v / 100) * a.w;
+  const sy = (v) => (v / 100) * a.h;
+  return points.map(([x, y], i) => `${i ? 'L' : 'M'}${sx(x).toFixed(2)} ${sy(y).toFixed(2)}`).join(' ');
+}
+
+/* ---------- Osuman haku ---------- */
+
+/** Etäisyys pisteestä janalle alueen mittayksiköissä. */
+function distanceToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = dx * dx + dy * dy;
+  const t = len ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len)) : 0;
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+/**
+ * Etsii ylimmän elementin annetusta kohdasta. Etäisyys lasketaan kentän
+ * metreissä, jotta osuma toimii samoin leveällä ja kapealla alueella.
+ * @returns {object|null}
+ */
+function hitElement(drill, x, y, { radius = 3.2 } = {}) {
+  const a = getArea(drill.area);
+  const toX = (v) => (v / 100) * a.w;
+  const toY = (v) => (v / 100) * a.h;
+  const px = toX(x);
+  const py = toY(y);
+
+  for (let i = drill.elements.length - 1; i >= 0; i--) {
+    const el = drill.elements[i];
+    if (el.kind !== 'stroke') {
+      if (Math.hypot(px - toX(el.x), py - toY(el.y)) <= radius) return el;
+      continue;
+    }
+    // Kuviot ovat ääriviivoja: osuma haetaan reunalta, ei sisältä.
+    if (el.shape === 'ympyra') {
+      const box = boxOf(el.points);
+      const cx = toX(box.x + box.w / 2);
+      const cy = toY(box.y + box.h / 2);
+      const rx = Math.max(0.1, toX(box.w) / 2);
+      const ry = Math.max(0.1, toY(box.h) / 2);
+      const ang = Math.atan2((py - cy) / ry, (px - cx) / rx);
+      const edge = Math.hypot(px - (cx + rx * Math.cos(ang)), py - (cy + ry * Math.sin(ang)));
+      if (edge <= radius) return el;
+      continue;
+    }
+
+    let ring;
+    if (el.shape === 'kolmio') ring = [...trianglePoints(el.points), trianglePoints(el.points)[0]];
+    else if (el.shape === 'nelio') {
+      const box = boxOf(el.points);
+      ring = [
+        [box.x, box.y], [box.x + box.w, box.y],
+        [box.x + box.w, box.y + box.h], [box.x, box.y + box.h], [box.x, box.y],
+      ];
+    } else ring = el.points;                    // vapaa veto
+
+    for (let j = 0; j < ring.length - 1; j++) {
+      const d = distanceToSegment(px, py,
+        toX(ring[j][0]), toY(ring[j][1]), toX(ring[j + 1][0]), toY(ring[j + 1][1]));
+      if (d <= radius) return el;
+    }
+  }
+  return null;
+}
+
+return { AREAS, DEFAULT_AREA, getArea, PLAYER_COLORS, playerColor, ITEMS, SHAPES, DRAW_COLORS, STROKE_WIDTH, HALO_WIDTH, drawColor, emptyDrill, addItem, addStroke, undoLast, clearDrill, removeElement, boxOf, trianglePoints, penPath, hitElement };
+};
+
 __mods['store'] = () => {
 // Tilanhallinta ja tallennus (localStorage).
 const { getFormation } = __req('formations');
+const { emptyDrill } = __req('drills');
 const { DEFAULT_TEAM_NAME } = __req('merge');
 const { emptyTiming, clockSeconds, onField } = __req('timing');
 const KEY = 'pelikirja.v1';
@@ -1333,6 +1601,7 @@ const emptyState = () => ({
   players: [],
   staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
+  drills: [],    // alkulämmittelyt ja muut harjoitukset
   matches: [],
 });
 
@@ -1361,6 +1630,10 @@ function migrate(data) {
     if (Array.isArray(p.roles)) p.roles = p.roles.map((r) => RENAMED[r] || r);
   }
   st.lineups = Array.isArray(data.lineups) ? data.lineups : [];
+  st.drills = Array.isArray(data.drills) ? data.drills : [];
+  for (const d of st.drills) {
+    if (!Array.isArray(d.elements)) d.elements = [];
+  }
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
@@ -1538,6 +1811,30 @@ function addLineup(name, formationId) {
 
 function removeLineup(id) {
   update((st) => { st.lineups = st.lineups.filter((l) => l.id !== id); });
+}
+
+/* ---------- Harjoitukset (alkulämmittely) ---------- */
+
+const drillById = (id) => state.drills.find((d) => d.id === id) || null;
+
+const sortedDrills = () =>
+  [...state.drills].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+function addDrill(name) {
+  const d = emptyDrill(uid(), name);
+  update((st) => { st.drills.push(d); });
+  return d;
+}
+
+function updateDrill(id, data, opts) {
+  update((st) => {
+    const d = st.drills.find((x) => x.id === id);
+    if (d) Object.assign(d, data);
+  }, opts);
+}
+
+function removeDrill(id) {
+  update((st) => { st.drills = st.drills.filter((d) => d.id !== id); });
 }
 
 /* ---------- Ottelut ---------- */
@@ -1865,7 +2162,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, scoreText, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, updateTimingEvent, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, drillById, sortedDrills, addDrill, updateDrill, removeDrill, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, scoreText, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, updateTimingEvent, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -1956,7 +2253,9 @@ function mergeStates(base, local, remote) {
   const staff = mergeList(b.staff, local.staff, remote.staff);
   const matches = mergeList(b.matches, local.matches, remote.matches);
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
-  conflicts += players.conflicts + staff.conflicts + matches.conflicts + lineups.conflicts;
+  const drills = mergeList(b.drills, local.drills, remote.drills);
+  conflicts += players.conflicts + staff.conflicts + matches.conflicts
+    + lineups.conflicts + drills.conflicts;
 
   // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
   // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
@@ -1966,6 +2265,7 @@ function mergeStates(base, local, remote) {
     && !(local.staff || []).length
     && !(local.matches || []).length
     && !(local.lineups || []).length
+    && !(local.drills || []).length
     && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
 
   // Joukkueen tiedot ovat yksi kokonaisuus: uusin muutos voittaa.
@@ -1990,6 +2290,7 @@ function mergeStates(base, local, remote) {
     staff: sortById(staff.list),
     matches: sortById(matches.list),
     lineups: sortById(lineups.list),
+    drills: sortById(drills.list),
   };
 
   return {
@@ -2010,6 +2311,7 @@ function payload(state) {
     staff: sortById(state.staff || []),
     matches: sortById(state.matches || []),
     lineups: sortById(state.lineups || []),
+    drills: sortById(state.drills || []),
   };
 }
 
@@ -3408,6 +3710,403 @@ function autoFill(lineup) {
 }
 
 return { renderLineupEditor, buildPitch, openBoard, closeBoard, tacticsControls, blockBrowserGestures };
+};
+
+__mods['drills'] = () => {
+// Alkulämmittelyn suunnittelu: kenttäalue, merkit ja piirrokset.
+const { icon } = __req('icons');
+const { h, add, sheet, toast, confirmSheet, pressable, fmtDate } = __req('ui');
+const {
+  getState, sortedDrills, drillById, addDrill, updateDrill, removeDrill, update,
+} = __req('store');
+const {
+  AREAS, getArea, PLAYER_COLORS, playerColor, ITEMS, SHAPES, DRAW_COLORS, drawColor,
+  STROKE_WIDTH, HALO_WIDTH, addItem, addStroke, undoLast, clearDrill, removeElement,
+  boxOf, trianglePoints, penPath, hitElement,
+} = __req('drills');
+const { blockBrowserGestures } = __req('pitch');
+const { navigate } = __req('router');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs) => {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+};
+
+// Valittu työkalu säilyy näkymän uudelleenpiirron yli.
+let tool = 'siirra';
+let teamColor = 'vihrea';
+let inkColor = 'musta';
+
+/* ---------- Luettelo ---------- */
+
+function drillsView() {
+  const drills = sortedDrills();
+  const body = h('div', { class: 'stack' });
+
+  if (!drills.length) {
+    body.append(h('div', { class: 'empty' },
+      h('span', { class: 'big' }, icon('cone', 30)),
+      h('p', { text: 'Ei suunniteltuja harjoituksia.' }),
+      h('p', { class: 'small', text: 'Piirrä alkulämmittely kentälle: pelaajat, pallot, tötsät ja maalit.' }),
+      h('button', { class: 'btn primary', style: 'margin-top:14px;max-width:260px', onclick: openNewDrill },
+        '＋ Uusi harjoitus')));
+    return { title: 'Lämmittely', body };
+  }
+
+  const grid = h('div', { class: 'cards tight' });
+  body.append(grid);
+  for (const d of drills) {
+    const area = getArea(d.area);
+    const players = d.elements.filter((e) => e.kind === 'pelaaja').length;
+    grid.append(h('button', { class: 'card row compact', onclick: () => navigate(`#/harjoitus/${d.id}`) },
+      h('span', { class: 'numchip sm accent' }, icon('cone', 17)),
+      h('span', { class: 'grow' },
+        h('div', { class: 'bold ellip', text: d.name }),
+        h('div', { class: 'tiny muted ellip', text: `${area.name} · ${players} pelaajaa · ${d.elements.length} merkintää` })),
+      h('span', { class: 'muted', text: '›' })));
+  }
+
+  return {
+    title: 'Lämmittely',
+    subtitle: `${drills.length} harjoitusta`,
+    actions: [{ icon: '＋', aria: 'Uusi harjoitus', onClick: openNewDrill }],
+    body,
+  };
+}
+
+function openNewDrill() {
+  sheet('Uusi harjoitus', (body, close) => {
+    const nameI = h('input', { type: 'text', placeholder: 'esim. Lämmittely – syöttöruudut' });
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Nimi' }), nameI),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const d = addDrill(nameI.value.trim() || 'Alkulämmittely');
+          close();
+          navigate(`#/harjoitus/${d.id}`);
+        },
+      }, 'Luo harjoitus'));
+    setTimeout(() => nameI.focus(), 60);
+  });
+}
+
+/* ---------- Harjoituksen suunnittelu ---------- */
+
+function drillView(id) {
+  const drill = drillById(id);
+  if (!drill) return { title: 'Harjoitus', body: h('p', { class: 'muted', text: 'Harjoitusta ei löydy.' }), back: '#/lammittely' };
+
+  const body = h('div', { class: 'stack' });
+  const commit = (fn) => update(() => fn(drillById(id)));
+  const area = getArea(drill.area);
+
+  /* --- Kenttäalue --- */
+  body.append(h('div', { class: 'tiny muted bold', text: 'KENTTÄALUE' }));
+  body.append(h('div', { class: 'segmented' },
+    ...Object.values(AREAS).map((a) => h('button', {
+      class: drill.area === a.id ? 'on' : '',
+      onclick: () => commit((d) => { d.area = a.id; }),
+    }, a.name))));
+
+  body.append(buildSurface(drill, commit));
+
+  /* --- Työkalut --- */
+  body.append(h('div', { class: 'tiny muted bold', style: 'margin-top:4px', text: 'MERKIT' }));
+  const marks = h('div', { class: 'toolgrid' });
+  marks.append(toolBtn('siirra', '✥', 'Siirrä'));
+  for (const c of Object.values(PLAYER_COLORS)) {
+    marks.append(pressable(h('button', {
+      class: `toolbtn${tool === 'pelaaja' && teamColor === c.id ? ' on' : ''}`,
+      'aria-label': `Pelaaja: ${c.name}`,
+    },
+      h('span', { class: 'dot', style: `background:${c.fill}` }),
+      h('span', { class: 'tl', text: c.name })), () => {
+      tool = 'pelaaja';
+      teamColor = c.id;
+      navigate(`#/harjoitus/${id}`);
+    }));
+  }
+  marks.append(toolBtn('pallo', '⚽', ITEMS.pallo.name));
+  marks.append(toolBtn('totsa', '🔺', ITEMS.totsa.name));
+  marks.append(toolBtn('maali', '🥅', ITEMS.maali.name));
+  body.append(marks);
+
+  body.append(h('div', { class: 'tiny muted bold', style: 'margin-top:4px', text: 'PIIRTO' }));
+  const draws = h('div', { class: 'toolgrid five' });
+  draws.append(toolBtn('kyna', '✎', SHAPES.kyna.name));
+  draws.append(toolBtn('nelio', '▭', SHAPES.nelio.name));
+  draws.append(toolBtn('ympyra', '◯', SHAPES.ympyra.name));
+  draws.append(toolBtn('kolmio', '△', SHAPES.kolmio.name));
+  draws.append(toolBtn('poista', '⌫', 'Poista'));
+  body.append(draws);
+
+  // Piirtovärit näkyvät, kun piirtotyökalu on valittuna.
+  if (SHAPES[tool]) {
+    body.append(h('div', { class: 'swatches' },
+      ...Object.values(DRAW_COLORS).map((c) => pressable(h('button', {
+        class: `swatch${inkColor === c.id ? ' on' : ''}`,
+        style: `background:${c.value}`,
+        'aria-label': c.name,
+      }), () => { inkColor = c.id; navigate(`#/harjoitus/${id}`); }))));
+  }
+
+  body.append(h('div', { class: 'btn-row', style: 'margin-top:10px' },
+    pressable(h('button', { class: 'btn sm', style: 'flex:1' }, 'Kumoa'), () => {
+      if (!drillById(id).elements.length) { toast('Ei kumottavaa'); return; }
+      commit(undoLast);
+      toast('Kumottu');
+    }),
+    pressable(h('button', { class: 'btn sm ghost', style: 'flex:1' }, 'Tyhjennä'), async () => {
+      if (!drillById(id).elements.length) return;
+      if (await confirmSheet('Tyhjennä kenttä', 'Kaikki merkit ja piirrokset poistetaan.', 'Tyhjennä')) {
+        commit(clearDrill);
+        toast('Kenttä tyhjennetty');
+      }
+    })));
+
+  /* --- Muistiinpanot --- */
+  const notesI = h('textarea', {
+    rows: 4, placeholder: 'Ohjeet: kesto, kierrokset, painopisteet.', text: drill.notes || '',
+  });
+  notesI.addEventListener('change', () => updateDrill(id, { notes: notesI.value }, { silent: true }));
+  body.append(h('label', { class: 'field', style: 'margin-top:14px' },
+    h('span', { text: 'Muistiinpanot' }), notesI));
+
+  body.append(h('button', {
+    class: 'btn danger',
+    onclick: async () => {
+      if (await confirmSheet('Poista harjoitus', 'Harjoitus ja sen piirrokset poistetaan pysyvästi.')) {
+        removeDrill(id);
+        toast('Harjoitus poistettu');
+        navigate('#/lammittely');
+      }
+    },
+  }, 'Poista harjoitus'));
+
+  return {
+    title: drill.name,
+    subtitle: `${area.name} · ${drill.elements.length} merkintää`,
+    back: '#/lammittely',
+    actions: [{ icon: '✎', aria: 'Muokkaa nimeä', onClick: () => openRename(drill) }],
+    body,
+  };
+
+  function toolBtn(id2, glyph, label) {
+    return pressable(h('button', {
+      class: `toolbtn${tool === id2 ? ' on' : ''}`, 'aria-label': label,
+    }, h('span', { class: 'gl', text: glyph }), h('span', { class: 'tl', text: label })),
+    () => { tool = id2; navigate(`#/harjoitus/${id}`); });
+  }
+}
+
+function openRename(drill) {
+  sheet('Harjoituksen nimi', (body, close) => {
+    const nameI = h('input', { type: 'text', value: drill.name });
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Nimi' }), nameI),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          updateDrill(drill.id, { name: nameI.value.trim() || drill.name });
+          close();
+        },
+      }, 'Tallenna'));
+  });
+}
+
+/* ---------- Kenttäalueen piirto ---------- */
+
+function buildSurface(drill, commit) {
+  const area = getArea(drill.area);
+  const surface = h('div', {
+    class: 'drill-surface',
+    style: `aspect-ratio:${area.w} / ${area.h}`,
+  });
+
+  // Kentän viivat: sama mittakaava kuin kokoonpanokentässä, rajattuna alueeseen.
+  const lines = el('svg', { class: 'lines', viewBox: `0 0 ${area.w} ${area.h}`, preserveAspectRatio: 'none' });
+  lines.innerHTML = `
+    <rect x="2" y="2" width="64" height="91" />
+    <line x1="2" y1="47.5" x2="66" y2="47.5" />
+    <circle cx="34" cy="47.5" r="9" />
+    <rect x="14" y="2" width="40" height="14" />
+    <rect x="23" y="2" width="22" height="6" />`;
+  surface.append(lines);
+
+  const layer = el('svg', { class: 'ink', viewBox: `0 0 ${area.w} ${area.h}`, preserveAspectRatio: 'none' });
+  const drawn = el('g', {});
+  const live = el('g', {});
+  layer.append(drawn, live);
+  surface.append(layer);
+
+  for (const e of drill.elements) {
+    if (e.kind === 'stroke') renderStroke(drawn, e, area);
+    else surface.append(itemToken(e, drill, commit, surface));
+  }
+
+  blockBrowserGestures(surface);
+  bindSurface(surface, live, drill, commit, area);
+  return h('div', { class: 'drill-wrap' }, surface);
+}
+
+/** Piirtää yhden vedon: ensin reunus, sitten väri. */
+function renderStroke(group, stroke, area) {
+  const c = drawColor(stroke.color);
+  const sx = (v) => (v / 100) * area.w;
+  const sy = (v) => (v / 100) * area.h;
+  const shapes = [];
+
+  if (stroke.shape === 'kyna') {
+    shapes.push(['path', { d: penPath(stroke.points, area) }]);
+  } else if (stroke.shape === 'nelio') {
+    const b = boxOf(stroke.points);
+    shapes.push(['rect', { x: sx(b.x), y: sy(b.y), width: sx(b.w), height: sy(b.h), rx: 0.6 }]);
+  } else if (stroke.shape === 'ympyra') {
+    const b = boxOf(stroke.points);
+    shapes.push(['ellipse', {
+      cx: sx(b.x + b.w / 2), cy: sy(b.y + b.h / 2),
+      rx: Math.max(0.4, sx(b.w) / 2), ry: Math.max(0.4, sy(b.h) / 2),
+    }]);
+  } else {
+    shapes.push(['polygon', {
+      points: trianglePoints(stroke.points).map(([x, y]) => `${sx(x)},${sy(y)}`).join(' '),
+    }]);
+  }
+
+  for (const [tag, attrs] of shapes) {
+    const base = { fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', ...attrs };
+    group.append(el(tag, { ...base, stroke: c.halo, 'stroke-width': HALO_WIDTH }));
+    group.append(el(tag, { ...base, stroke: c.value, 'stroke-width': STROKE_WIDTH }));
+  }
+}
+
+/** Kentälle asetettu merkki: pelaaja, pallo, tötsä tai maali. */
+function itemToken(item, drill, commit, surface) {
+  const style = `left:${item.x}%;top:${item.y}%`;
+  let inner;
+  if (item.kind === 'pelaaja') {
+    const c = playerColor(item.color);
+    inner = h('span', {
+      class: 'disc', style: `background:${c.fill};color:${c.ink}`, text: item.label || '',
+    });
+  } else if (item.kind === 'pallo') {
+    inner = h('span', { class: 'ball' });
+  } else if (item.kind === 'totsa') {
+    inner = h('span', { class: 'cone' });
+  } else {
+    inner = h('span', { class: 'goal' });
+  }
+
+  const token = h('div', { class: `mark ${item.kind}`, style }, inner);
+  token.addEventListener('pointerdown', (ev) => {
+    if (tool === 'poista') {
+      ev.preventDefault();
+      ev.stopPropagation();
+      commit((d) => removeElement(d, item.id));
+      return;
+    }
+    if (tool !== 'siirra') return;    // muut työkalut lisäävät uuden merkin
+    ev.preventDefault();
+    ev.stopPropagation();
+    dragToken(ev, token, surface, item, commit);
+  });
+  return token;
+}
+
+/** Merkin raahaus kentällä. */
+function dragToken(startEv, token, surface, item, commit) {
+  token.setPointerCapture(startEv.pointerId);
+  token.classList.add('dragging');
+  let last = { x: item.x, y: item.y };
+
+  const move = (ev) => {
+    const r = surface.getBoundingClientRect();
+    last = {
+      x: Math.min(100, Math.max(0, ((ev.clientX - r.left) / r.width) * 100)),
+      y: Math.min(100, Math.max(0, ((ev.clientY - r.top) / r.height) * 100)),
+    };
+    token.style.left = `${last.x}%`;
+    token.style.top = `${last.y}%`;
+  };
+  const end = () => {
+    token.removeEventListener('pointermove', move);
+    token.removeEventListener('pointerup', end);
+    token.removeEventListener('pointercancel', end);
+    token.classList.remove('dragging');
+    commit((d) => {
+      const target = d.elements.find((e) => e.id === item.id);
+      if (target) { target.x = last.x; target.y = last.y; }
+    });
+  };
+  token.addEventListener('pointermove', move);
+  token.addEventListener('pointerup', end);
+  token.addEventListener('pointercancel', end);
+}
+
+/** Kentän oma kosketuslogiikka: merkin lisäys, piirto ja poisto. */
+function bindSurface(surface, live, drill, commit, area) {
+  const pointOf = (ev) => {
+    const r = surface.getBoundingClientRect();
+    return [
+      Math.min(100, Math.max(0, ((ev.clientX - r.left) / r.width) * 100)),
+      Math.min(100, Math.max(0, ((ev.clientY - r.top) / r.height) * 100)),
+    ];
+  };
+
+  surface.addEventListener('pointerdown', (ev) => {
+    if (ev.button > 0) return;
+    const at = pointOf(ev);
+
+    if (tool === 'poista') {
+      const hit = hitElement(drill, at[0], at[1]);
+      if (hit) commit((d) => removeElement(d, hit.id));
+      return;
+    }
+    if (tool === 'siirra') return;
+
+    if (ITEMS[tool] || tool === 'pelaaja') {
+      ev.preventDefault();
+      commit((d) => addItem(d, { id: uid(), kind: tool, color: teamColor, x: at[0], y: at[1] }));
+      return;
+    }
+    if (!SHAPES[tool]) return;
+
+    // Piirtoveto: seurataan sormea ja piirretään esikatselu.
+    ev.preventDefault();
+    surface.setPointerCapture(ev.pointerId);
+    const points = [at];
+    const shape = tool;
+    const color = inkColor;
+
+    const draw = () => {
+      live.replaceChildren();
+      const preview = { kind: 'stroke', shape, color, points: SHAPES[shape].free ? points : [points[0], points[points.length - 1]] };
+      if (points.length > 1) renderStroke(live, preview, area);
+    };
+    const move = (e2) => {
+      points.push(pointOf(e2));
+      draw();
+    };
+    const end = () => {
+      surface.removeEventListener('pointermove', move);
+      surface.removeEventListener('pointerup', end);
+      surface.removeEventListener('pointercancel', end);
+      live.replaceChildren();
+      if (points.length > 1) {
+        commit((d) => addStroke(d, { id: uid(), shape, color, points }));
+      }
+    };
+    surface.addEventListener('pointermove', move);
+    surface.addEventListener('pointerup', end);
+    surface.addEventListener('pointercancel', end);
+  });
+}
+
+const uid = () => Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 7);
+
+return { drillsView, drillView };
 };
 
 __mods['tracking'] = () => {
@@ -5564,6 +6263,7 @@ const { homeView } = __req('home');
 const { matchesView } = __req('matches');
 const { matchView } = __req('match');
 const { lineupsView, lineupView } = __req('lineups');
+const { drillsView, drillView } = __req('drills');
 const { playersView } = __req('players');
 const { statsView } = __req('stats');
 const { settingsView } = __req('settings');
@@ -5573,6 +6273,7 @@ const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
   { href: '#/ottelut', ic: 'calendar', label: 'Ottelut' },
   { href: '#/kokoonpanot', ic: 'lineup', label: 'Kokoonpanot' },
+  { href: '#/lammittely', ic: 'cone', label: 'Lämmittely' },
   { href: '#/pelaajat', ic: 'players', label: 'Ryhmä' },
   { href: '#/tilastot', ic: 'chart', label: 'Tilastot' },
 ];
@@ -5584,6 +6285,8 @@ const ROUTES = [
   { re: /^#\/ottelu\/([\w-]+)$/,   view: (m) => matchView(m[1]),      tab: '#/ottelut' },
   { re: /^#\/kokoonpanot$/,        view: () => lineupsView(),         tab: '#/kokoonpanot' },
   { re: /^#\/kokoonpano\/([\w-]+)$/, view: (m) => lineupView(m[1]),   tab: '#/kokoonpanot' },
+  { re: /^#\/lammittely$/,         view: () => drillsView(),          tab: '#/lammittely' },
+  { re: /^#\/harjoitus\/([\w-]+)$/, view: (m) => drillView(m[1]),      tab: '#/lammittely' },
   { re: /^#\/pelaajat$/,           view: () => playersView(),         tab: '#/pelaajat' },
   { re: /^#\/tilastot$/,           view: () => statsView(),           tab: '#/tilastot' },
   { re: /^#\/asetukset$/,          view: () => settingsView(),        tab: '#/ottelupaiva' },

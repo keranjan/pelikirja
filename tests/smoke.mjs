@@ -58,7 +58,7 @@ await page.goto('http://localhost:8777/index.html');
 await page.waitForTimeout(400);
 
 // --- Tyhjä tila: jokainen näkymä piirtyy ilman virheitä ---
-for (const hash of ['#/ottelupaiva', '#/ottelut', '#/kokoonpanot', '#/pelaajat', '#/tilastot', '#/asetukset']) {
+for (const hash of ['#/ottelupaiva', '#/ottelut', '#/kokoonpanot', '#/lammittely', '#/pelaajat', '#/tilastot', '#/asetukset']) {
   await page.evaluate((hh) => { location.hash = hh; }, hash);
   await page.waitForTimeout(180);
   const title = (await page.locator('#topbar h1').textContent()).trim();
@@ -812,6 +812,125 @@ await page.locator('#view .btn', { hasText: '＋ 0,5' }).click();
 await page.waitForTimeout(250);
 console.log('valmentajan arvio: arvosana', await rating(), 'ja analyysi tallessa');
 await shot('06-tulos');
+
+// --- Alkulämmittelyn suunnittelu ---
+await tap('#tabbar a[href="#/lammittely"]');
+await page.waitForTimeout(250);
+await tapText('＋ Uusi harjoitus');
+await page.waitForTimeout(300);
+await page.locator('.sheet input[type=text]').fill('Lämmittely – syöttöruudut');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(400);
+
+const drill = () => page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).drills[0]);
+const areaNames = await page.locator('#view .segmented button').allTextContents();
+if (!areaNames.includes('Kolmannes') || !areaNames.includes('Puoli kenttää') || !areaNames.includes('Koko kenttä')) {
+  console.error('Kenttäalueen valinnat puuttuvat: ' + JSON.stringify(areaNames)); process.exit(1);
+}
+await page.locator('#view .segmented button', { hasText: 'Puoli kenttää' }).click();
+await page.waitForTimeout(250);
+if ((await drill()).area !== 'puolikas') { console.error('Kenttäalue ei vaihtunut'); process.exit(1); }
+
+// Merkkien lisääminen kentälle
+const surface = page.locator('#view .drill-surface');
+const dropAt = async (label, xPct, yPct) => {
+  await page.locator('#view .toolbtn', { hasText: label }).first().click();
+  await page.waitForTimeout(150);
+  const box = await surface.boundingBox();
+  await page.mouse.click(box.x + box.width * xPct, box.y + box.height * yPct);
+  await page.waitForTimeout(200);
+};
+await dropAt('Vihreät', 0.25, 0.3);
+await dropAt('Vihreät', 0.35, 0.3);
+await dropAt('Siniset', 0.65, 0.3);
+await dropAt('Oranssit', 0.5, 0.7);
+await dropAt('Pallo', 0.5, 0.5);
+await dropAt('Tötsä', 0.2, 0.6);
+await dropAt('Maali', 0.5, 0.12);
+
+let dd = await drill();
+const kinds = dd.elements.map((e) => e.kind + (e.color ? ':' + e.color + e.label : ''));
+if (kinds.join(' ') !== 'pelaaja:vihrea1 pelaaja:vihrea2 pelaaja:sininen1 pelaaja:oranssi1 pallo totsa maali') {
+  console.error('Merkkejä ei lisätty odotetusti: ' + JSON.stringify(kinds)); process.exit(1);
+}
+if (await page.locator('#view .mark').count() !== 7) {
+  console.error('Merkkejä ei piirretty kentälle'); process.exit(1);
+}
+
+// Piirtotyökalut: kynä ja kolme kuviota
+const drawShape = async (label, from, to) => {
+  await page.locator('#view .toolbtn', { hasText: label }).first().click();
+  await page.waitForTimeout(150);
+  const box = await surface.boundingBox();
+  await page.mouse.move(box.x + box.width * from[0], box.y + box.height * from[1]);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) {
+    await page.mouse.move(
+      box.x + box.width * (from[0] + ((to[0] - from[0]) * i) / 6),
+      box.y + box.height * (from[1] + ((to[1] - from[1]) * i) / 6));
+    await page.waitForTimeout(20);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(250);
+};
+await drawShape('Kynä', [0.1, 0.8], [0.4, 0.9]);
+await drawShape('Neliö', [0.55, 0.75], [0.85, 0.92]);
+await drawShape('Ympyrä', [0.1, 0.35], [0.25, 0.5]);
+await drawShape('Kolmio', [0.7, 0.5], [0.9, 0.65]);
+
+dd = await drill();
+const shapes = dd.elements.filter((e) => e.kind === 'stroke').map((e) => e.shape);
+if (shapes.join(',') !== 'kyna,nelio,ympyra,kolmio') {
+  console.error('Piirrokset puuttuvat: ' + JSON.stringify(shapes)); process.exit(1);
+}
+const pen = dd.elements.find((e) => e.shape === 'kyna');
+if (pen.points.length < 4) { console.error('Vapaa veto tallensi liian vähän pisteitä'); process.exit(1); }
+if (await page.locator('#view .drill-surface .ink path, #view .drill-surface .ink rect, #view .drill-surface .ink ellipse, #view .drill-surface .ink polygon').count() < 8) {
+  console.error('Piirroksia ei renderöity kentälle'); process.exit(1);
+}
+await shot('12-lammittely');
+
+// Merkin siirto raahaamalla
+await page.locator('#view .toolbtn', { hasText: 'Siirrä' }).first().click();
+await page.waitForTimeout(150);
+const before = (await drill()).elements.find((e) => e.kind === 'pallo');
+const ballBox = await page.locator('#view .mark.pallo').boundingBox();
+await page.mouse.move(ballBox.x + ballBox.width / 2, ballBox.y + ballBox.height / 2);
+await page.mouse.down();
+await page.mouse.move(ballBox.x + 60, ballBox.y + 40, { steps: 8 });
+await page.mouse.up();
+await page.waitForTimeout(300);
+const after = (await drill()).elements.find((e) => e.kind === 'pallo');
+if (Math.abs(after.x - before.x) < 2) {
+  console.error(`Merkin raahaus ei siirtänyt palloa: ${before.x} -> ${after.x}`); process.exit(1);
+}
+
+// Poistotyökalu vie yhden merkin
+await page.locator('#view .toolbtn', { hasText: 'Poista' }).first().click();
+await page.waitForTimeout(150);
+const coneBox = await page.locator('#view .mark.totsa').boundingBox();
+await page.mouse.click(coneBox.x + coneBox.width / 2, coneBox.y + coneBox.height / 2);
+await page.waitForTimeout(300);
+if ((await drill()).elements.some((e) => e.kind === 'totsa')) {
+  console.error('Poistotyökalu ei poistanut tötsää'); process.exit(1);
+}
+
+// Kumoa palauttaa tilanteen ennen viimeisintä lisäystä
+const countBefore = (await drill()).elements.length;
+await page.locator('#view .btn', { hasText: 'Kumoa' }).click();
+await page.waitForTimeout(300);
+if ((await drill()).elements.length !== countBefore - 1) {
+  console.error('Kumoa ei poistanut viimeisintä'); process.exit(1);
+}
+console.log(`lämmittely: ${countBefore} merkintää, alue puolikas, kaikki työkalut toimivat`);
+
+// Harjoitus näkyy listassa ja säilyy uudelleenlatauksen yli
+await page.evaluate(() => { location.hash = '#/lammittely'; });
+await page.waitForTimeout(300);
+if (!(await page.locator('#view .card', { hasText: 'Lämmittely – syöttöruudut' }).count())) {
+  console.error('Harjoitus puuttuu luettelosta'); process.exit(1);
+}
+await shot('13-lammittely-lista');
 
 // --- Tilastot / kokoonpanot / asetukset ---
 await tap('#tabbar a[href="#/tilastot"]');

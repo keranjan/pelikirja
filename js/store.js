@@ -1,5 +1,6 @@
 // Tilanhallinta ja tallennus (localStorage).
 import { getFormation } from './formations.js';
+import { emptyDrill } from './drills.js';
 import { DEFAULT_TEAM_NAME } from './merge.js';
 import { emptyTiming, clockSeconds, onField } from './timing.js';
 
@@ -26,6 +27,7 @@ const emptyState = () => ({
   players: [],
   staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
+  drills: [],    // alkulämmittelyt ja muut harjoitukset
   matches: [],
 });
 
@@ -54,6 +56,10 @@ function migrate(data) {
     if (Array.isArray(p.roles)) p.roles = p.roles.map((r) => RENAMED[r] || r);
   }
   st.lineups = Array.isArray(data.lineups) ? data.lineups : [];
+  st.drills = Array.isArray(data.drills) ? data.drills : [];
+  for (const d of st.drills) {
+    if (!Array.isArray(d.elements)) d.elements = [];
+  }
   st.matches = Array.isArray(data.matches) ? data.matches : [];
   for (const m of st.matches) {
     if (!m.lineup) m.lineup = emptyLineup();
@@ -231,6 +237,30 @@ export function addLineup(name, formationId) {
 
 export function removeLineup(id) {
   update((st) => { st.lineups = st.lineups.filter((l) => l.id !== id); });
+}
+
+/* ---------- Harjoitukset (alkulämmittely) ---------- */
+
+export const drillById = (id) => state.drills.find((d) => d.id === id) || null;
+
+export const sortedDrills = () =>
+  [...state.drills].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+export function addDrill(name) {
+  const d = emptyDrill(uid(), name);
+  update((st) => { st.drills.push(d); });
+  return d;
+}
+
+export function updateDrill(id, data, opts) {
+  update((st) => {
+    const d = st.drills.find((x) => x.id === id);
+    if (d) Object.assign(d, data);
+  }, opts);
+}
+
+export function removeDrill(id) {
+  update((st) => { st.drills = st.drills.filter((d) => d.id !== id); });
 }
 
 /* ---------- Ottelut ---------- */

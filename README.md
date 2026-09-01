@@ -60,6 +60,17 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
   sekä sama kokoonpano tekstinä esimerkiksi joukkueen WhatsApp-ryhmään
   ("Näytä kuvana" avaa esikatselun)
 
+**Alkulämmittely ja harjoitukset**
+- Oma välilehti harjoitusten suunnitteluun: kenttäalueeksi kolmannes,
+  puoli kenttää tai koko kenttä
+- Pelaajamerkit kolmella värillä (vihreät, siniset, oranssit) – merkit
+  numeroituvat väreittäin automaattisesti
+- Pallot, tötsät ja maalit kentälle napauttamalla, siirto raahaamalla
+- Piirtotyökalut: vapaa kynä sekä neliö, ympyrä ja kolmio neljällä värillä
+- Poistotyökalu yksittäisille merkeille ja vedoille, Kumoa ja Tyhjennä
+- Muistiinpanot harjoitukselle; harjoitukset tallentuvat ja synkronoituvat
+  laitteiden välillä
+
 **Taktiikkataulu**
 - Sama kenttäkuva vaihtuu Taktiikka-tilaan, jossa voi piirtää sormella ottelun aikana
 - Koko ruudun taulu, jossa kenttä täyttää puhelimen näytön – toimii sekä pysty- että vaaka-asennossa
@@ -216,6 +227,7 @@ css/fonts.css           upotetut kirjasimet (Archivo, Instrument Sans)
 css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
 js/tactics.js           taktiikkapiirrosten työkalut ja polut
+js/drills.js            alkulämmittelyn alueet, merkit ja kuviot
 js/lineup-image.js      jaettavan kokoonpanokuvan piirto (canvas)
 js/timing.js            peliajan laskenta (kello, vaihdot, pelaaja-ajat)
 js/sync.js              pilvitallennus (Supabasen REST-rajapinta)
@@ -226,12 +238,13 @@ js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
 js/views/               näkymät: ottelupäivä, ottelut, ottelu, seuranta, kokoonpanot,
-                        ryhmä, kenttä, tilastot, asetukset
+                        lämmittely, ryhmä, kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
 docs/tuonti/            valmiiksi muunnetut otteluohjelmat (JSON ja SQL)
 tests/timing.test.mjs   peliajan laskennan yksikkötestit
 tests/tactics.test.mjs  taktiikkapiirrosten polkujen yksikkötestit
+tests/drills.test.mjs   alkulämmittelyn logiikan yksikkötestit
 tests/smoke.mjs         päävirran savutesti
 tests/sync.test.mjs     kahden laitteen synkronointitesti
 tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta

@@ -7,6 +7,7 @@ import { homeView } from './views/home.js';
 import { matchesView } from './views/matches.js';
 import { matchView } from './views/match.js';
 import { lineupsView, lineupView } from './views/lineups.js';
+import { drillsView, drillView } from './views/drills.js';
 import { playersView } from './views/players.js';
 import { statsView } from './views/stats.js';
 import { settingsView } from './views/settings.js';
@@ -17,6 +18,7 @@ const TABS = [
   { href: '#/ottelupaiva', ic: 'ball', label: 'Ottelupäivä' },
   { href: '#/ottelut', ic: 'calendar', label: 'Ottelut' },
   { href: '#/kokoonpanot', ic: 'lineup', label: 'Kokoonpanot' },
+  { href: '#/lammittely', ic: 'cone', label: 'Lämmittely' },
   { href: '#/pelaajat', ic: 'players', label: 'Ryhmä' },
   { href: '#/tilastot', ic: 'chart', label: 'Tilastot' },
 ];
@@ -28,6 +30,8 @@ const ROUTES = [
   { re: /^#\/ottelu\/([\w-]+)$/,   view: (m) => matchView(m[1]),      tab: '#/ottelut' },
   { re: /^#\/kokoonpanot$/,        view: () => lineupsView(),         tab: '#/kokoonpanot' },
   { re: /^#\/kokoonpano\/([\w-]+)$/, view: (m) => lineupView(m[1]),   tab: '#/kokoonpanot' },
+  { re: /^#\/lammittely$/,         view: () => drillsView(),          tab: '#/lammittely' },
+  { re: /^#\/harjoitus\/([\w-]+)$/, view: (m) => drillView(m[1]),      tab: '#/lammittely' },
   { re: /^#\/pelaajat$/,           view: () => playersView(),         tab: '#/pelaajat' },
   { re: /^#\/tilastot$/,           view: () => statsView(),           tab: '#/tilastot' },
   { re: /^#\/asetukset$/,          view: () => settingsView(),        tab: '#/ottelupaiva' },

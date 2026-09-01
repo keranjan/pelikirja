@@ -9,6 +9,7 @@ const PATHS = {
   lineup: '<rect x="4.4" y="4.4" width="15.2" height="16.2" rx="2.6"/><path d="M9 4.4V3.1h6v1.3"/><circle cx="8.8" cy="11" r="1.15"/><circle cx="15.2" cy="11" r="1.15"/><circle cx="12" cy="16.2" r="1.15"/>',
   players: '<circle cx="9.2" cy="8.4" r="3.1"/><path d="M3.4 19.8c0-3.1 2.6-5.2 5.8-5.2s5.8 2.1 5.8 5.2"/><circle cx="17.4" cy="9.6" r="2.3"/><path d="M16 15.1c2.7-.5 4.9 1.4 4.9 4.7"/>',
   chart: '<path d="M5.2 20.2v-8.4M12 20.2V4.8M18.8 20.2v-5.6"/>',
+  cone: '<path d="M12 3.6l5.4 13.2H6.6z"/><path d="M4.2 19.9h15.6"/><path d="M9.3 12.6h5.4"/>',
   settings: '<path d="M4 7.5h9M17.5 7.5h2.5M4 16.5h2.5M11 16.5h9"/><circle cx="15" cy="7.5" r="2.3"/><circle cx="8.8" cy="16.5" r="2.3"/>',
   back: '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
   note: '<path d="M6 3.6h8.5L19 8.1v12.3H6z"/><path d="M14.2 3.8v4.4h4.4M9 12.5h6M9 16h4"/>',
