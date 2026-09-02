@@ -3760,6 +3760,16 @@ const MARK_GLYPHS = { pallo: '⚽', totsa: '🔺', maali: '🥅' };
 
 const isMarkTool = (t) => t === 'pelaaja' || !!ITEMS[t];
 
+/**
+ * Piirtovärin kuvakkeen tyyli. Kuvake saa saman reunuksen kuin kentälle
+ * piirretty veto, jotta musta erottuu myös tummassa teemassa ja valkoinen
+ * vaaleassa.
+ */
+function inkStyle(id) {
+  const c = drawColor(id);
+  return `color:${c.value};text-shadow:0 0 2px ${c.halo}, 0 0 2px ${c.halo}, 0 0 4px ${c.halo}`;
+}
+
 const markName = (kind, color) =>
   (kind === 'pelaaja' ? playerColor(color).name : (ITEMS[kind]?.name || 'Merkki'));
 
@@ -3812,7 +3822,7 @@ function openDrawPicker(drillId) {
         }), () => { inkColor = c.id; draw(); }))));
       for (const shape of Object.values(SHAPES)) {
         body.append(pressable(h('button', { class: `list-item${tool === shape.id ? ' sel' : ''}` },
-          h('span', { class: 'markicon', style: `color:${drawColor(inkColor).value}` },
+          h('span', { class: 'markicon', style: inkStyle(inkColor) },
             h('span', { class: 'gl', text: SHAPE_GLYPHS[shape.id] })),
           h('span', { class: 'grow' },
             h('div', { class: 'bold ellip', text: shape.name }),
@@ -3919,7 +3929,7 @@ function drillView(id) {
 
     pressable(h('button', {
       class: `toolbtn${SHAPES[tool] ? ' on' : ''}`, 'aria-label': 'Valitse piirtotyökalu',
-    }, h('span', { class: 'gl', style: `color:${drawColor(inkColor).value}`,
+    }, h('span', { class: 'gl', style: inkStyle(inkColor),
         text: SHAPE_GLYPHS[SHAPES[tool] ? tool : lastShape] }),
        h('span', { class: 'tl', text: `${shapeLabel} ▾` })),
     () => openDrawPicker(id)),

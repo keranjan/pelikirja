@@ -898,6 +898,12 @@ if (pen.points.length < 4) { console.error('Vapaa veto tallensi liian vähän pi
 if (await page.locator('#view .drill-surface .ink path, #view .drill-surface .ink rect, #view .drill-surface .ink ellipse, #view .drill-surface .ink polygon').count() < 8) {
   console.error('Piirroksia ei renderöity kentälle'); process.exit(1);
 }
+// Mustalla värillä kuvakkeissa on reunus, jotta ne erottuvat myös tummassa teemassa
+const inkShadow = await page.locator('#view .toolbtn[aria-label="Valitse piirtotyökalu"] .gl')
+  .evaluate((node) => getComputedStyle(node).textShadow);
+if (!inkShadow || inkShadow === 'none') {
+  console.error('Piirtokuvakkeelta puuttuu reunus: ' + inkShadow); process.exit(1);
+}
 await shot('12-lammittely');
 
 // Merkin siirto raahaamalla
