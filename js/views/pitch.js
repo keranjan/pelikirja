@@ -1,5 +1,5 @@
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja ryhmän valinta.
-import { h, sheet, toast, shortName, initials, pressable } from '../ui.js';
+import { h, sheet, toast, initials, pressable } from '../ui.js';
 import { icon } from '../icons.js';
 import { getFormation, formationsBySize, roleForPosition, POSITIONS } from '../formations.js';
 import {
@@ -180,8 +180,18 @@ export function renderLineupEditor(lineup, commit) {
 export function buildPitch(lineup, commit, { drawing = false } = {}) {
   const formation = getFormation(lineup.formation);
   const moving = drawing && tool === 'move';
+  // Leveimmän rivin pelaajamäärä ratkaisee, kuinka leveä nimilappu mahtuu
+  // menemättä naapurin päälle.
+  const rowCounts = new Map();
+  formation.slots.forEach((slot, i) => {
+    const y = Math.round(((lineup.positions || {})[i] || slot).y / 6);
+    rowCounts.set(y, (rowCounts.get(y) || 0) + 1);
+  });
+  const cols = Math.max(2, ...rowCounts.values());
+
   const pitch = h('div', {
     class: `pitch${drawing ? ' drawing' : ''}${moving ? ' moving' : ''}`,
+    style: `--cols:${cols}`,
   }, pitchLines());
 
   // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
@@ -209,7 +219,7 @@ export function buildPitch(lineup, commit, { drawing = false } = {}) {
       onclick: drawing ? null : () => openPicker(lineup, i, commit),
     },
       h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
-      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
+      p ? h('span', { class: 'nm', text: p.name }) : null,
       p ? h('span', { class: 'pos', text: slot.pos }) : null);
 
     if (moving) dragToken(token, pitch, lineup, i, commit);

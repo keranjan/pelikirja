@@ -556,6 +556,7 @@ a.btn { text-decoration: none; }
 .pitch-wrap { position: relative; }
 .pitch {
   position: relative; width: 100%; aspect-ratio: 68 / 95;
+  container-type: inline-size;   /* nimilapun leveys suhteessa kentän leveyteen */
   border-radius: var(--radius); overflow: hidden;
   background:
     repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 8%, rgba(0,0,0,0) 8% 16%),
@@ -583,11 +584,17 @@ a.btn { text-decoration: none; }
   font-family: var(--body); font-weight: 600; font-size: 11px;
 }
 .slot.gk:not(.empty) .disc { background: var(--amber); color: #fff; }
+/* Nimi näkyy kokonaan: lappu saa olla merkkiä leveämpi ja pitkä nimi
+   jakautuu kahdelle riville sen sijaan että se katkaistaisiin. Leveys
+   rajataan rivin pelaajamäärän mukaan, jottei viereisten nimet mene
+   päällekkäin. --cols asetetaan pelisysteemin mukaan. */
 .slot .nm {
-  max-width: 100%; padding: 1px 6px; border-radius: 6px;
+  max-width: 84px;
+  max-width: min(104px, calc(100cqw / var(--cols, 4) - 8px));
+  margin-inline: -13px; padding: 1px 6px; border-radius: 6px;
   background: var(--pitch-chip); color: var(--pitch-chip-ink);
-  font-size: 10.5px; font-weight: 600; text-align: center;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.2;
+  white-space: normal; overflow-wrap: anywhere;
 }
 .slot .pos {
   font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
@@ -721,7 +728,9 @@ a.btn { text-decoration: none; }
 .markicon {
   flex: none; width: 34px; display: grid; place-items: center; font-size: 18px; line-height: 1;
 }
-.swatches { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
+ /* Valitun värin rengas kasvaa ympyrää suuremmaksi, joten rivin ympärille
+   jätetään tilaa – muuten se osuisi seuraavaan riviin. */
+.swatches { display: flex; gap: 10px; justify-content: center; margin: 10px 0 16px; }
 
 @media (min-width: 720px) {
   .drill-surface { max-width: 720px; }
@@ -3110,7 +3119,7 @@ __mods['lineup-image'] = () => {
 // suoraan esimerkiksi WhatsAppiin ilman kirjastoja.
 const { getFormation } = __req('formations');
 const { playerById, staffById, STAFF_ROLES, getState } = __req('store');
-const { shortName, initials, fmtDate } = __req('ui');
+const { initials, fmtDate } = __req('ui');
 // Kiinteä vaalea väripaletti: kuva näyttää samalta myös tummassa teemassa.
 const C = {
   paper: '#F4F7F4',
@@ -3205,7 +3214,7 @@ function drawPitch(ctx, x, y, w, h) {
 }
 
 /** Pelaajamerkki: numero ympyrässä ja nimi sen alla. */
-function drawToken(ctx, cx, cy, { number, name, pos, gk }, scale) {
+function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   const r = 21 * scale;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -3221,24 +3230,35 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk }, scale) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(number), cx, cy + 1 * scale);
 
-  // Nimilappu
+  // Nimilappu: koko nimi, tarvittaessa kahdella rivillä kuten sovelluksessa.
   ctx.font = font(600, 12.5 * scale);
-  const label = fit(ctx, name, 96 * scale);
-  const tw = ctx.measureText(label).width;
+  const lines = nameLines(ctx, name, maxLabel);
+  const tw = Math.max(...lines.map((line) => ctx.measureText(line).width));
   const pad = 6 * scale;
-  const bh = 18 * scale;
+  const lh = 15 * scale;
+  const bh = lh * lines.length + 4 * scale;
   const by = cy + r + 5 * scale;
   roundRect(ctx, cx - tw / 2 - pad, by, tw + pad * 2, bh, 6 * scale);
   ctx.fillStyle = C.chip;
   ctx.fill();
   ctx.fillStyle = C.chipInk;
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, cx, by + bh / 2 + 0.5 * scale);
+  lines.forEach((line, i) => ctx.fillText(line, cx, by + 2 * scale + lh * (i + 0.5)));
 
   // Pelipaikan lyhenne nimen alla
   ctx.font = font(700, 10 * scale);
   ctx.fillStyle = 'rgba(20,38,28,.75)';
   ctx.fillText(pos, cx, by + bh + 8 * scale);
+}
+
+/** Nimi yhdelle tai kahdelle riville annettuun leveyteen. */
+function nameLines(ctx, name, maxWidth) {
+  if (ctx.measureText(name).width <= maxWidth) return [name];
+  const words = String(name).trim().split(/\s+/);
+  if (words.length < 2) return [fit(ctx, name, maxWidth)];
+  const first = words[0];
+  const rest = words.slice(1).join(' ');
+  return [fit(ctx, first, maxWidth), fit(ctx, rest, maxWidth)];
 }
 
 /**
@@ -3297,6 +3317,15 @@ function lineupCanvas(m) {
   const py = headerH;
   drawPitch(ctx, px, py, pitchW, pitchH);
 
+  // Nimilapun leveys rivin pelaajamäärän mukaan, jotta nimet eivät mene
+  // päällekkäin – sama sääntö kuin sovelluksen kenttäkuvassa.
+  const rowCounts = new Map();
+  formation.slots.forEach((slot, i) => {
+    const y = Math.round(((lineup.positions || {})[i] || slot).y / 6);
+    rowCounts.set(y, (rowCounts.get(y) || 0) + 1);
+  });
+  const labelWidth = Math.min(150, pitchW / Math.max(2, ...rowCounts.values()) - 14);
+
   formation.slots.forEach((slot, i) => {
     const at = (lineup.positions || {})[i] || slot;
     const cx = px + (at.x / 100) * pitchW;
@@ -3319,9 +3348,10 @@ function lineupCanvas(m) {
     }
     drawToken(ctx, cx, cy, {
       number: p.number ?? initials(p.name),
-      name: shortName(p.name),
+      name: p.name,
       pos: slot.pos,
       gk: slot.pos === 'MV',
+      maxLabel: labelWidth,
     }, 1);
   });
 
@@ -3374,7 +3404,7 @@ return { lineupCanvas, lineupDataUrl, lineupImageFile };
 
 __mods['pitch'] = () => {
 // Kokoonpanoeditori: kenttäkuva, vaihtopenkki ja ryhmän valinta.
-const { h, sheet, toast, shortName, initials, pressable } = __req('ui');
+const { h, sheet, toast, initials, pressable } = __req('ui');
 const { icon } = __req('icons');
 const { getFormation, formationsBySize, roleForPosition, POSITIONS } = __req('formations');
 const {
@@ -3554,8 +3584,18 @@ function renderLineupEditor(lineup, commit) {
 function buildPitch(lineup, commit, { drawing = false } = {}) {
   const formation = getFormation(lineup.formation);
   const moving = drawing && tool === 'move';
+  // Leveimmän rivin pelaajamäärä ratkaisee, kuinka leveä nimilappu mahtuu
+  // menemättä naapurin päälle.
+  const rowCounts = new Map();
+  formation.slots.forEach((slot, i) => {
+    const y = Math.round(((lineup.positions || {})[i] || slot).y / 6);
+    rowCounts.set(y, (rowCounts.get(y) || 0) + 1);
+  });
+  const cols = Math.max(2, ...rowCounts.values());
+
   const pitch = h('div', {
     class: `pitch${drawing ? ' drawing' : ''}${moving ? ' moving' : ''}`,
+    style: `--cols:${cols}`,
   }, pitchLines());
 
   // Taktiikkakerros kentän viivojen päälle, pelaajien alle.
@@ -3583,7 +3623,7 @@ function buildPitch(lineup, commit, { drawing = false } = {}) {
       onclick: drawing ? null : () => openPicker(lineup, i, commit),
     },
       h('span', { class: 'disc', text: p ? (p.number ?? initials(p.name)) : slot.pos }),
-      p ? h('span', { class: 'nm', text: shortName(p.name) }) : null,
+      p ? h('span', { class: 'nm', text: p.name }) : null,
       p ? h('span', { class: 'pos', text: slot.pos }) : null);
 
     if (moving) dragToken(token, pitch, lineup, i, commit);

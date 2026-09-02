@@ -3,7 +3,7 @@
 // suoraan esimerkiksi WhatsAppiin ilman kirjastoja.
 import { getFormation } from './formations.js';
 import { playerById, staffById, STAFF_ROLES, getState } from './store.js';
-import { shortName, initials, fmtDate } from './ui.js';
+import { initials, fmtDate } from './ui.js';
 
 // Kiinteä vaalea väripaletti: kuva näyttää samalta myös tummassa teemassa.
 const C = {
@@ -99,7 +99,7 @@ function drawPitch(ctx, x, y, w, h) {
 }
 
 /** Pelaajamerkki: numero ympyrässä ja nimi sen alla. */
-function drawToken(ctx, cx, cy, { number, name, pos, gk }, scale) {
+function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   const r = 21 * scale;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -115,24 +115,35 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk }, scale) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(number), cx, cy + 1 * scale);
 
-  // Nimilappu
+  // Nimilappu: koko nimi, tarvittaessa kahdella rivillä kuten sovelluksessa.
   ctx.font = font(600, 12.5 * scale);
-  const label = fit(ctx, name, 96 * scale);
-  const tw = ctx.measureText(label).width;
+  const lines = nameLines(ctx, name, maxLabel);
+  const tw = Math.max(...lines.map((line) => ctx.measureText(line).width));
   const pad = 6 * scale;
-  const bh = 18 * scale;
+  const lh = 15 * scale;
+  const bh = lh * lines.length + 4 * scale;
   const by = cy + r + 5 * scale;
   roundRect(ctx, cx - tw / 2 - pad, by, tw + pad * 2, bh, 6 * scale);
   ctx.fillStyle = C.chip;
   ctx.fill();
   ctx.fillStyle = C.chipInk;
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, cx, by + bh / 2 + 0.5 * scale);
+  lines.forEach((line, i) => ctx.fillText(line, cx, by + 2 * scale + lh * (i + 0.5)));
 
   // Pelipaikan lyhenne nimen alla
   ctx.font = font(700, 10 * scale);
   ctx.fillStyle = 'rgba(20,38,28,.75)';
   ctx.fillText(pos, cx, by + bh + 8 * scale);
+}
+
+/** Nimi yhdelle tai kahdelle riville annettuun leveyteen. */
+function nameLines(ctx, name, maxWidth) {
+  if (ctx.measureText(name).width <= maxWidth) return [name];
+  const words = String(name).trim().split(/\s+/);
+  if (words.length < 2) return [fit(ctx, name, maxWidth)];
+  const first = words[0];
+  const rest = words.slice(1).join(' ');
+  return [fit(ctx, first, maxWidth), fit(ctx, rest, maxWidth)];
 }
 
 /**
@@ -191,6 +202,15 @@ export function lineupCanvas(m) {
   const py = headerH;
   drawPitch(ctx, px, py, pitchW, pitchH);
 
+  // Nimilapun leveys rivin pelaajamäärän mukaan, jotta nimet eivät mene
+  // päällekkäin – sama sääntö kuin sovelluksen kenttäkuvassa.
+  const rowCounts = new Map();
+  formation.slots.forEach((slot, i) => {
+    const y = Math.round(((lineup.positions || {})[i] || slot).y / 6);
+    rowCounts.set(y, (rowCounts.get(y) || 0) + 1);
+  });
+  const labelWidth = Math.min(150, pitchW / Math.max(2, ...rowCounts.values()) - 14);
+
   formation.slots.forEach((slot, i) => {
     const at = (lineup.positions || {})[i] || slot;
     const cx = px + (at.x / 100) * pitchW;
@@ -213,9 +233,10 @@ export function lineupCanvas(m) {
     }
     drawToken(ctx, cx, cy, {
       number: p.number ?? initials(p.name),
-      name: shortName(p.name),
+      name: p.name,
       pos: slot.pos,
       gk: slot.pos === 'MV',
+      maxLabel: labelWidth,
     }, 1);
   });
 

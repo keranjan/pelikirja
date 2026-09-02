@@ -161,6 +161,40 @@ await tapText('Automaattitäyttö');
 await page.waitForTimeout(200);
 await shot('03-kokoonpano-taytetty');
 
+// Pelaajien nimet näkyvät kentällä kokonaisina eivätkä mene päällekkäin
+{
+  const namesOnPitch = await page.evaluate(() => {
+    const els = [...document.querySelectorAll('#view .slot .nm')];
+    const boxes = els.map((e) => e.getBoundingClientRect());
+    let overlaps = 0;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]; const b = boxes[j];
+        if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps++;
+      }
+    }
+    return {
+      overlaps,
+      clipped: els.filter((e) => e.scrollWidth > e.clientWidth + 1).length,
+      texts: els.map((e) => e.textContent),
+    };
+  });
+  const stored = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('pelikirja.v1')).matches[0].lineup.slots
+      .filter(Boolean)
+      .map((id) => JSON.parse(localStorage.getItem('pelikirja.v1')).players.find((p) => p.id === id)?.name));
+  const missing = stored.filter((name) => !namesOnPitch.texts.includes(name));
+  if (missing.length) {
+    console.error('Kentällä ei näy koko nimeä: ' + JSON.stringify({ missing, näkyy: namesOnPitch.texts }));
+    process.exit(1);
+  }
+  if (namesOnPitch.clipped || namesOnPitch.overlaps) {
+    console.error('Nimet katkeavat tai menevät päällekkäin: ' + JSON.stringify(namesOnPitch));
+    process.exit(1);
+  }
+  console.log(`kentän nimet kokonaisina (${namesOnPitch.texts.length} kpl, ei päällekkäisyyksiä)`);
+}
+
 // Vaihda pelaaja paikkaan käsin
 await page.locator('.slot').nth(9).click();
 await page.waitForTimeout(200);
@@ -1030,6 +1064,23 @@ const drawShape = async (label, from, to) => {
   await page.mouse.up();
   await page.waitForTimeout(250);
 };
+// Piirtovalikossa värivalinta ei saa osua työkalulistan päälle
+{
+  await page.locator('#view .toolbtn[aria-label="Valitse piirtotyökalu"]').click();
+  await page.waitForTimeout(300);
+  const gap = await page.evaluate(() => {
+    const on = document.querySelector('#overlay .swatch.on') || document.querySelector('#overlay .swatch');
+    const item = document.querySelector('#overlay .list-item');
+    return Math.round(item.getBoundingClientRect().top - on.getBoundingClientRect().bottom);
+  });
+  if (gap < 4) {
+    console.error('Värivalikko osuu työkaluvalikkoon: väli ' + gap + ' px'); process.exit(1);
+  }
+  await page.locator('#overlay .iconbtn').first().click();
+  await page.waitForTimeout(250);
+  console.log('piirtovalikko: värien ja työkalujen väli', gap, 'px');
+}
+
 await drawShape('Kynä', [0.1, 0.8], [0.4, 0.9]);
 await drawShape('Neliö', [0.55, 0.75], [0.85, 0.92]);
 await drawShape('Ympyrä', [0.1, 0.35], [0.25, 0.5]);
