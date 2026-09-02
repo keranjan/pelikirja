@@ -180,6 +180,10 @@ kirjautumista, koska taulun käyttöoikeussäännöt rajaavat rivit käyttäjäk
   versio jää voimaan ja sovellus kertoo, montako ristiriitaa ratkaistiin.
 - Offline-tilassa muutokset jäävät odottamaan ja lähtevät, kun verkko palaa.
 - Ulkoasuvalinta (vaalea/tumma) on laitekohtainen eikä synkronoidu.
+- Synkronoinnin piirissä ovat kaikki tiedot: pelaajat, valmentajat, ottelut
+  (kokoonpanot, seuranta, tulokset ja arviot), kokoonpanopohjat, harjoitukset
+  ja turnaukset lohkoineen. Synkronointitesti tarkistaa jokaisen listan sekä
+  sen, ettei uusi lista voi jäädä vahingossa synkronoinnin ulkopuolelle.
 
 ## Käyttöönotto puhelimessa
 

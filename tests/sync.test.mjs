@@ -199,6 +199,158 @@ if (arvio?.rating !== 8.5 || !arvio.notes.startsWith('Hyvä paineistus')) {
   console.log('valmentajan arvio siirtyi laitteelle B:', `arvosana ${arvio.rating}`, `"${arvio.notes.slice(0, 24)}…"`);
 }
 
+// --- Kaikki tietolajit siirtyvät laitteelta toiselle ---
+// Sovelluksessa on kuusi listaa (pelaajat, valmentajat, ottelut,
+// kokoonpanopohjat, harjoitukset, turnaukset) sekä joukkueen tiedot. Tässä
+// jokaisesta luodaan sisällöllinen esimerkki ja tarkistetaan, että kaikki
+// – myös sisäkkäiset rakenteet – päätyvät toiselle laitteelle sellaisenaan.
+await a.edit((st) => {
+  st.lineups.push({
+    id: 'l1', name: 'Perusasetelma', createdAt: '2026-08-01T10:00:00.000Z',
+    lineup: {
+      formation: '8-2-3-2', slots: ['p1', 'p2', null, null, null, null, null, null],
+      bench: ['p3'], positions: { 0: { x: 34, y: 80 } }, staff: ['s1'],
+      drawings: [{ id: 'd1', tool: 'shot', color: 'punainen', points: [[10, 10], [40, 60]] }],
+    },
+  });
+  st.drills.push({
+    id: 'dr1', name: 'Syöttöruudut', area: 'puolikas', notes: '10 min',
+    createdAt: '2026-08-02T10:00:00.000Z',
+    elements: [
+      { id: 'e1', kind: 'pelaaja', color: 'sininen', label: '1', x: 20, y: 30 },
+      { id: 'e2', kind: 'totsa', x: 50, y: 50 },
+      { id: 'e3', kind: 'stroke', shape: 'nelio', color: 'keltainen', points: [[10, 10], [60, 70]] },
+    ],
+  });
+  st.tournaments.push({
+    id: 't1', name: 'Ilves Cup', startDate: '2026-09-12', endDate: '2026-09-13',
+    venue: 'Vuores', notes: 'Kokoontuminen 8:30', createdAt: '2026-08-03T10:00:00.000Z',
+    groups: [{
+      id: 'g1', name: 'A', teams: ['Ilves Keltainen', 'FC Inter', 'TPV'],
+      results: [{ id: 'gr1', home: 'FC Inter', away: 'TPV', hg: 2, ag: 1 }],
+    }],
+  });
+  st.matches.push({
+    id: 'cup1', date: '2026-09-12', time: '09:30', opponent: 'FC Inter', team: 'Ilves Keltainen',
+    home: true, venue: 'Vuores 1', type: 'turnaus', videoUrl: '', notes: '',
+    tournamentId: 't1', stage: 'lohko', groupId: 'g1', label: '',
+    lineup: { formation: '8-2-3-2', slots: ['p1', 'p2', null, null, null, null, null, null],
+      bench: ['p3'], positions: {}, drawings: [], staff: ['s1'] },
+    timing: {
+      status: 'ended', startedAt: null, elapsed: 1800, periods: 2, periodMinutes: 25,
+      events: [
+        { id: 'i1', at: 0, type: 'in', playerId: 'p1' },
+        { id: 'g1e', at: 300, type: 'goal', team: 'us', playerId: 'p1', assistId: 'p2',
+          videoUrl: 'https://app.veo.co/matches/testi/#t=300' },
+        { id: 'c1', at: 900, type: 'card', team: 'them', card: 'yellow', playerId: null },
+      ],
+    },
+    result: { gf: 1, ga: 0, events: [], rating: 8.5, ratingMax: 10, notes: 'Hyvä avaus.' },
+  });
+});
+await a.sync();
+await b.sync();
+
+{
+  const sa = await a.state();
+  const sb = await b.state();
+  // Vertailu tehdään tunnisteen mukaan järjestettynä: listan järjestys on
+  // laitekohtainen eikä vaikuta sisältöön (pilveen vietävä muoto järjestetään).
+  const byId = (list) => [...list].sort((x, y) => String(x.id).localeCompare(String(y.id)));
+  const pick = (st) => ({
+    players: byId(st.players), staff: byId(st.staff), lineups: byId(st.lineups),
+    drills: byId(st.drills), tournaments: byId(st.tournaments), matches: byId(st.matches),
+    team: { name: st.team.name, season: st.team.season },
+  });
+  const stableOf = (device, data) => device.page.evaluate(async (value) => {
+    const m = await import('/js/merge.js');
+    return m.stable(value);
+  }, data);
+  const [ha, hb] = [await stableOf(a, pick(sa)), await stableOf(b, pick(sb))];
+  if (ha !== hb) {
+    fail('laitteiden tiedot eroavat synkronoinnin jälkeen');
+    for (const key of ['players', 'staff', 'lineups', 'drills', 'tournaments', 'matches']) {
+      const x = JSON.stringify(byId(sa[key]));
+      const y = JSON.stringify(byId(sb[key]));
+      if (x !== y) console.error(`  eroaa: ${key}\n    A: ${x.slice(0, 200)}\n    B: ${y.slice(0, 200)}`);
+    }
+  } else {
+    const counts = ['players', 'staff', 'lineups', 'drills', 'tournaments', 'matches']
+      .map((k) => `${k}=${sb[k].length}`).join(' ');
+    console.log('kaikki tietolajit siirtyivät samanlaisina:', counts);
+  }
+
+  // Sisäkkäiset rakenteet: piirrokset, harjoituksen elementit, lohkon tulokset,
+  // ottelun tapahtumat ja arvosana.
+  const cup = sb.matches.find((m) => m.id === 'cup1');
+  const drill = sb.drills.find((d) => d.id === 'dr1');
+  const tour = sb.tournaments.find((t) => t.id === 't1');
+  const tpl = sb.lineups.find((l) => l.id === 'l1');
+  const nested = {
+    piirros: tpl?.lineup.drawings.length,
+    pohjanValmentaja: tpl?.lineup.staff.join(','),
+    siirretytPaikat: Object.keys(tpl?.lineup.positions || {}).length,
+    harjoituksenMerkit: drill?.elements.length,
+    harjoituksenAlue: drill?.area,
+    lohkonJoukkueet: tour?.groups[0].teams.length,
+    lohkonTulokset: tour?.groups[0].results.length,
+    turnausOttelu: `${cup?.stage}/${cup?.groupId}`,
+    tapahtumat: cup?.timing.events.length,
+    maalinVideo: cup?.timing.events.find((e) => e.type === 'goal')?.videoUrl,
+    arvosana: cup?.result.rating,
+    arvio: cup?.result.notes,
+  };
+  const want = {
+    piirros: 1, pohjanValmentaja: 's1', siirretytPaikat: 1,
+    harjoituksenMerkit: 3, harjoituksenAlue: 'puolikas',
+    lohkonJoukkueet: 3, lohkonTulokset: 1, turnausOttelu: 'lohko/g1',
+    tapahtumat: 3, maalinVideo: 'https://app.veo.co/matches/testi/#t=300',
+    arvosana: 8.5, arvio: 'Hyvä avaus.',
+  };
+  if (JSON.stringify(nested) !== JSON.stringify(want)) {
+    fail('sisäkkäiset tiedot eivät siirtyneet: ' + JSON.stringify(nested));
+  } else {
+    console.log('sisäkkäiset tiedot siirtyivät: piirrokset, harjoitusmerkit, lohkotulokset, tapahtumat ja arvio');
+  }
+}
+
+// --- Eri laitteilla muokataan eri tietolajeja yhtä aikaa ---
+await a.edit((st) => {
+  st.drills[0].elements.push({ id: 'e4', kind: 'pallo', x: 70, y: 20 });
+  st.lineups[0].name = 'Perusasetelma 2-3-2';
+});
+await b.edit((st) => {
+  st.tournaments[0].groups[0].results.push({ id: 'gr2', home: 'TPV', away: 'Ilves Keltainen', hg: 0, ag: 3 });
+  st.matches.find((m) => m.id === 'cup1').result.rating = 9;
+});
+await a.sync();
+await b.sync();
+await a.sync();
+
+{
+  const sa = await a.state();
+  const sb = await b.state();
+  const check = (st, label) => {
+    const drill = st.drills[0];
+    const tour = st.tournaments[0];
+    const cup = st.matches.find((m) => m.id === 'cup1');
+    const ok = drill.elements.length === 4
+      && st.lineups[0].name === 'Perusasetelma 2-3-2'
+      && tour.groups[0].results.length === 2
+      && cup.result.rating === 9;
+    if (!ok) {
+      fail(`${label} ei saanut kaikkia muutoksia: ` + JSON.stringify({
+        merkit: drill.elements.length, pohja: st.lineups[0].name,
+        lohkotulokset: tour.groups[0].results.length, arvosana: cup.result.rating,
+      }));
+    }
+    return ok;
+  };
+  if (check(sa, 'laite A') && check(sb, 'laite B')) {
+    console.log('eri tietolajien yhtäaikaiset muutokset säilyivät molemmilla');
+  }
+}
+
 // --- Vanha versio pilvessä ei saa pyyhkiä valmentajia ---
 // Vanhempi sovellusversio ei tallentanut staff-listaa lainkaan. Silloin
 // puuttuvaa listaa ei saa tulkita poistoiksi, tai kokoonpanoihin jäisi
@@ -307,6 +459,43 @@ await d.page.waitForTimeout(300);
 const nd = (await d.state()).team;
 if (nd.name === 'Oma joukkue') fail('uusi laite jäi oletusnimeen');
 else console.log('uusi laite sai pilven nimen:', nd.name);
+
+// Uusi laite saa myös kaiken muun sisällön, ei pelkkää nimeä
+{
+  const sd = await d.state();
+  const sb2 = await b.state();
+  const counts = (st) => ['players', 'staff', 'lineups', 'drills', 'tournaments', 'matches']
+    .map((k) => `${k}=${(st[k] || []).length}`).join(' ');
+  if (counts(sd) !== counts(sb2)) {
+    fail(`uusi laite sai vajaan sisällön:\n  uusi: ${counts(sd)}\n  vanha: ${counts(sb2)}`);
+  } else {
+    console.log('uusi laite sai koko sisällön:', counts(sd));
+  }
+}
+
+// --- Rakennetarkistus: jokainen tilan lista kulkee pilveen ja yhdistämisen läpi ---
+// Näin uusi lista ei voi jäädä vahingossa synkronoinnin ulkopuolelle.
+{
+  const gaps = await a.page.evaluate(async () => {
+    const store = await import('/js/store.js');
+    const m = await import('/js/merge.js');
+    const st = store.getState();
+    const lists = Object.keys(st).filter((k) => Array.isArray(st[k]));
+    const inPayload = Object.keys(m.payload(st));
+    const merged = m.mergeStates(null, st, m.payload(st)).state;
+    return {
+      lists,
+      puuttuuPayloadista: lists.filter((k) => !inPayload.includes(k)),
+      puuttuuYhdistamisesta: lists.filter((k) => !Array.isArray(merged[k])),
+      hukkuiYhdistamisessa: lists.filter((k) => (merged[k] || []).length !== st[k].length),
+    };
+  });
+  if (gaps.puuttuuPayloadista.length || gaps.puuttuuYhdistamisesta.length || gaps.hukkuiYhdistamisessa.length) {
+    fail('synkronoinnin ulkopuolelle jää tietoa: ' + JSON.stringify(gaps));
+  } else {
+    console.log(`kaikki ${gaps.lists.length} listaa kulkevat pilveen ja yhdistämisen läpi:`, gaps.lists.join(', '));
+  }
+}
 
 await browser.close();
 server.close();
