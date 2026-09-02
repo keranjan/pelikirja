@@ -62,6 +62,10 @@ function migrate(data) {
   st.tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
   for (const t of st.tournaments) {
     if (!Array.isArray(t.groups)) t.groups = [];
+    for (const g of t.groups) {
+      if (!Array.isArray(g.teams)) g.teams = [];
+      if (!Array.isArray(g.results)) g.results = [];
+    }
     if (!t.endDate) t.endDate = t.startDate;
   }
   for (const d of st.drills) {
@@ -302,6 +306,25 @@ export function removeGroup(tournamentId, groupId) {
     const t = st.tournaments.find((x) => x.id === tournamentId);
     if (t) t.groups = t.groups.filter((g) => g.id !== groupId);
     for (const m of st.matches) if (m.groupId === groupId) m.groupId = '';
+  });
+}
+
+/** Muiden joukkueiden ottelutulos lohkoon: pitää lohkotaulukon ajan tasalla. */
+export function addGroupResult(tournamentId, groupId, result) {
+  const row = { id: uid(), ...result };
+  update((st) => {
+    const g = st.tournaments.find((x) => x.id === tournamentId)?.groups.find((x) => x.id === groupId);
+    if (!g) return;
+    if (!Array.isArray(g.results)) g.results = [];
+    g.results.push(row);
+  });
+  return row;
+}
+
+export function removeGroupResult(tournamentId, groupId, resultId) {
+  update((st) => {
+    const g = st.tournaments.find((x) => x.id === tournamentId)?.groups.find((x) => x.id === groupId);
+    if (g) g.results = (g.results || []).filter((r) => r.id !== resultId);
   });
 }
 

@@ -3,10 +3,12 @@ import { icon } from '../icons.js';
 import { h, add, sheet, toast, confirmSheet, fmtDate, fmtShortDate } from '../ui.js';
 import {
   getState, tournamentById, tournamentGames, updateTournament, removeTournament,
-  addGroup, updateGroup, removeGroup, addMatch, matchTeams, scoreText,
+  addGroup, updateGroup, removeGroup, addGroupResult, removeGroupResult,
+  addMatch, matchTeams, scoreText,
 } from '../store.js';
 import {
   STAGES, PLAYOFF_LABELS, tournamentDays, gamesByDay, stageName, allTeams, record, plural,
+  standings,
 } from '../tournaments.js';
 import { navigate } from '../router.js';
 
@@ -59,21 +61,13 @@ export function tournamentView(id) {
     h('button', { class: 'btn primary', style: 'flex:1', onclick: () => openGameSheet(t, null, 'lohko') }, '＋ Lohkopeli'),
     h('button', { class: 'btn', style: 'flex:1', onclick: () => openGameSheet(t, null, 'jatko') }, '＋ Jatkopeli')));
 
-  /* --- Lohkot --- */
+  /* --- Lohkot taulukkoina --- */
   body.append(h('div', { class: 'section-title', text: `Lohkot (${(t.groups || []).length})` }));
   if (!(t.groups || []).length) {
-    body.append(h('div', { class: 'card small muted', text: 'Lisää lohko ja sen joukkueet, niin voit merkitä ottelut lohkoon.' }));
+    body.append(h('div', { class: 'card small muted', text: 'Lisää lohko ja sen joukkueet, niin näet lohkotaulukon tässä.' }));
   } else {
     for (const g of t.groups) {
-      const played = games.filter((m) => m.groupId === g.id);
-      body.append(h('button', { class: 'card row compact', onclick: () => openGroupSheet(t, g) },
-        h('span', { class: 'numchip sm accent', text: g.name || '?' }),
-        h('span', { class: 'grow' },
-          h('div', { class: 'bold ellip', text: `Lohko ${g.name}` }),
-          h('div', { class: 'tiny muted ellip', text: (g.teams || []).length
-            ? `${plural(g.teams.length, 'joukkue', 'joukkuetta')} · ${plural(played.length, 'oma ottelu', 'omaa ottelua')}`
-            : 'Ei joukkueita' })),
-        h('span', { class: 'muted', text: '›' })));
+      body.append(groupTable(t, g, games));
     }
   }
   body.append(h('button', { class: 'btn', style: 'margin-top:8px', onclick: () => openGroupSheet(t, null) },
@@ -120,6 +114,116 @@ function gameCard(t, g) {
         text: scoreText(g),
       })
       : h('span', { class: 'muted', text: '›' }));
+}
+
+/**
+ * Lohkon sarjataulukko. Oma joukkue on korostettu, ja rivit lasketaan omista
+ * otteluista sekä lohkoon kirjatuista muiden joukkueiden tuloksista.
+ */
+function groupTable(t, g, games) {
+  const ownName = ownTeamName(t, games);
+  const rows = standings(g, games.filter((m) => m.groupId === g.id), ownName);
+
+  const table = h('table', { class: 'stats standings' },
+    h('thead', {}, h('tr', {},
+      h('th', { text: `Lohko ${g.name}` }),
+      h('th', { title: 'Ottelut', text: 'O' }),
+      h('th', { title: 'Voitot', text: 'V' }),
+      h('th', { title: 'Tasapelit', text: 'T' }),
+      h('th', { title: 'Tappiot', text: 'H' }),
+      h('th', { title: 'Tehdyt maalit', text: 'TM' }),
+      h('th', { title: 'Päästetyt maalit', text: 'PM' }),
+      h('th', { title: 'Pisteet', text: 'P' }))),
+    h('tbody', {}, ...rows.map((r) => h('tr', { class: r.own ? 'own' : '' },
+      h('td', {}, h('span', { class: 'bold ellip', text: r.name })),
+      h('td', { text: String(r.played) }),
+      h('td', { text: String(r.w) }),
+      h('td', { text: String(r.d) }),
+      h('td', { text: String(r.l) }),
+      h('td', { text: String(r.gf) }),
+      h('td', { text: String(r.ga) }),
+      h('td', { class: 'bold', text: String(r.points) })))));
+
+  return h('div', { class: 'card', style: 'margin-bottom:12px' },
+    h('div', { class: 'table-wrap' }, table),
+    h('div', { class: 'row between', style: 'margin-top:10px;gap:8px' },
+      h('span', { class: 'tiny muted ellip', text: (g.results || []).length
+        ? `${plural((g.results || []).length, 'kirjattu tulos', 'kirjattua tulosta')} muista otteluista`
+        : 'Omat ottelut lasketaan mukaan automaattisesti' }),
+      h('div', { class: 'row', style: 'gap:6px;flex:none' },
+        h('button', { class: 'btn sm ghost nowrap', onclick: () => openResultSheet(t, g) }, 'Muu tulos'),
+        h('button', { class: 'btn sm ghost nowrap', onclick: () => openGroupSheet(t, g) }, 'Muokkaa'))));
+}
+
+/** Oman joukkueen nimi taulukkoon: turnausottelun joukkue tai joukkueen nimi. */
+function ownTeamName(t, games) {
+  const named = games.find((m) => (m.team || '').trim());
+  return (named?.team || getState().team.name || 'Oma joukkue').trim();
+}
+
+/** Muiden joukkueiden ottelutulos lohkoon, jotta taulukko pysyy ajan tasalla. */
+function openResultSheet(t, g) {
+  sheet(`Lohko ${g.name} – muut ottelut`, (body, close) => {
+    const draw = () => {
+      body.replaceChildren();
+      const teams = (g.teams || []).filter(Boolean);
+      const teamSel = (selected) => h('select', {},
+        h('option', { value: '', text: 'Valitse joukkue' }),
+        ...teams.map((n) => h('option', { value: n, text: n, selected: n === selected })));
+      const homeSel = teamSel();
+      const awaySel = teamSel();
+      const hg = h('input', { type: 'number', value: '0', min: '0', max: '99', inputmode: 'numeric' });
+      const ag = h('input', { type: 'number', value: '0', min: '0', max: '99', inputmode: 'numeric' });
+
+      if (!teams.length) {
+        body.append(h('p', { class: 'muted', text: 'Lisää ensin lohkon joukkueet.' }));
+        return;
+      }
+
+      add(body,
+        h('p', { class: 'tiny muted', text: 'Kirjaa muiden joukkueiden ottelut, niin lohkotaulukko on ajan tasalla. Omat ottelusi tulevat mukaan automaattisesti.' }),
+        h('label', { class: 'field' }, h('span', { text: 'Kotijoukkue' }), homeSel),
+        h('label', { class: 'field' }, h('span', { text: 'Vierasjoukkue' }), awaySel),
+        h('div', { class: 'field-row' },
+          h('label', { class: 'field' }, h('span', { text: 'Kotimaalit' }), hg),
+          h('label', { class: 'field' }, h('span', { text: 'Vierasmaalit' }), ag)),
+        h('button', {
+          class: 'btn primary',
+          onclick: () => {
+            if (!homeSel.value || !awaySel.value || homeSel.value === awaySel.value) {
+              toast('Valitse kaksi eri joukkuetta');
+              return;
+            }
+            addGroupResult(t.id, g.id, {
+              home: homeSel.value, away: awaySel.value,
+              hg: Number(hg.value) || 0, ag: Number(ag.value) || 0,
+            });
+            g.results = (tournamentById(t.id)?.groups || []).find((x) => x.id === g.id)?.results || [];
+            draw();
+            toast('Tulos kirjattu');
+          },
+        }, 'Lisää tulos'));
+
+      const current = (tournamentById(t.id)?.groups || []).find((x) => x.id === g.id)?.results || [];
+      if (current.length) {
+        body.append(h('div', { class: 'section-title', text: `Kirjatut tulokset (${current.length})` }));
+        for (const r of current) {
+          body.append(h('div', { class: 'card row compact' },
+            h('span', { class: 'grow ellip', text: `${r.home} – ${r.away}` }),
+            h('span', { class: 'badge tnum', text: `${r.hg}–${r.ag}` }),
+            h('button', {
+              class: 'btn sm ghost',
+              onclick: () => {
+                removeGroupResult(t.id, g.id, r.id);
+                draw();
+              },
+            }, 'Poista')));
+        }
+      }
+      body.append(h('button', { class: 'btn', style: 'margin-top:10px', onclick: close }, 'Valmis'));
+    };
+    draw();
+  });
 }
 
 /* ---------- Turnauksen tiedot ---------- */

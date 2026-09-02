@@ -1,7 +1,7 @@
 // Turnauslogiikan yksikkötestit: päivät, vaiheet, ryhmittely ja saldo.
 import {
   STAGES, emptyTournament, emptyGroup, tournamentDays, dayCount, gamesByDay,
-  stageName, allTeams, record, nextGame, plural,
+  stageName, allTeams, record, nextGame, plural, standings,
 } from '../js/tournaments.js';
 
 let checks = 0;
@@ -78,6 +78,41 @@ eq(dayCount({ startDate: '2026-06-01', endDate: '2027-06-01' }) <= 14, true, 'p�
   eq(nextGame(games)?.id, 'b', 'seuraava on ensimmäinen pelaamaton');
   eq(nextGame(games.map((g) => ({ ...g, result: { gf: 0, ga: 0 } })))?.id, 'c', 'kaikki pelattu -> viimeisin');
   eq(nextGame([]), null, 'tyhjästä ohjelmasta ei löydy ottelua');
+}
+
+// --- Lohkotaulukko ---
+{
+  const group = {
+    name: 'A',
+    teams: ['Ilves Beta', 'FC Inter', 'TPV', 'KaaPo'],
+    results: [{ id: 'r1', home: 'FC Inter', away: 'TPV', hg: 2, ag: 0 }],
+  };
+  const games = [
+    { groupId: 'g1', opponent: 'FC Inter', result: { gf: 3, ga: 1 } },
+    { groupId: 'g1', opponent: 'TPV', result: { gf: 1, ga: 1 } },
+    { groupId: 'g1', opponent: 'KaaPo', result: null },
+  ];
+  const table = standings(group, games, 'Ilves Beta');
+  eq(table.map((r) => r.name), ['Ilves Beta', 'FC Inter', 'TPV', 'KaaPo'],
+    'taulukko järjestyy pisteiden ja maalieron mukaan');
+  eq(table[0], { name: 'Ilves Beta', played: 2, w: 1, d: 1, l: 0, gf: 4, ga: 2, points: 4, own: true },
+    'oma rivi: voitto ja tasapeli, tehdyt ja päästetyt');
+  eq(table[1], { name: 'FC Inter', played: 2, w: 1, d: 0, l: 1, gf: 3, ga: 3, points: 3, own: false },
+    'vastustajan rivi kertyy omasta ottelusta ja muusta tuloksesta');
+  eq(table[3], { name: 'KaaPo', played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, points: 0, own: false },
+    'pelaamaton joukkue näkyy nollarivillä');
+
+  // Sama joukkue eri kirjoitusasulla on sama rivi
+  const messy = standings(
+    { name: 'B', teams: ['tpv'], results: [] },
+    [{ opponent: 'TPV ', result: { gf: 2, ga: 0 } }], 'Ilves');
+  eq(messy.find((r) => r.name.toLowerCase() === 'tpv')?.played, 1, 'nimen kirjoitusasu ei kahdenna riviä');
+
+  // Kirjaamaton lohkolista: pelkät omat ottelut riittävät taulukkoon
+  const bare = standings({ name: 'C', teams: [], results: [] },
+    [{ opponent: 'Pato', result: { gf: 0, ga: 2 } }], 'Ilves Beta');
+  eq(bare.map((r) => `${r.name}:${r.points}`), ['Pato:3', 'Ilves Beta:0'],
+    'ilman joukkuelistaa taulukko syntyy omista otteluista');
 }
 
 // --- Suomen yksikkö ja monikko ---

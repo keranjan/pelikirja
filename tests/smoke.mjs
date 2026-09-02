@@ -870,6 +870,7 @@ await page.waitForTimeout(300);
 await page.locator('.sheet input[type=text]').first().fill('FC Inter');
 await page.locator('.sheet select').first().selectOption({ index: 1 });   // Lohko A
 await page.locator('.sheet input[type=time]').fill('09:30');
+await page.locator('.sheet input[type=text]').nth(2).fill('Ilves Beta');   // oma joukkue
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(400);
 if (!page.url().includes('/ottelu/')) { console.error('Lohkopeli ei avautunut'); process.exit(1); }
@@ -902,8 +903,41 @@ const programme = await page.locator('#view .cards .card').allTextContents();
 if (programme.length !== 2) {
   console.error('Turnauksen ohjelmassa väärä määrä otteluita: ' + JSON.stringify(programme)); process.exit(1);
 }
+// Lohkotaulukko näkyy turnauksen etusivulla
+const headers = await page.locator('#view table.standings th').allTextContents();
+if (headers.join(',') !== 'Lohko A,O,V,T,H,TM,PM,P') {
+  console.error('Lohkotaulukon sarakkeet väärin: ' + JSON.stringify(headers)); process.exit(1);
+}
+const tableTeams = await page.locator('#view table.standings tbody td:first-child').allTextContents();
+if (tableTeams.length !== 6 || !tableTeams.includes('Ilves Beta')) {
+  console.error('Lohkotaulukossa väärä määrä joukkueita: ' + JSON.stringify(tableTeams)); process.exit(1);
+}
+if (!(await page.locator('#view table.standings tr.own').count())) {
+  console.error('Omaa joukkuetta ei korostettu lohkotaulukossa'); process.exit(1);
+}
+
+// Muiden joukkueiden tulos päivittää taulukon
+await page.locator('#view .btn', { hasText: 'Muu tulos' }).first().click();
+await page.waitForTimeout(300);
+await page.locator('#overlay select').first().selectOption('TPV');
+await page.locator('#overlay select').nth(1).selectOption('KaaPo');
+await page.locator('#overlay input[type=number]').first().fill('3');
+await page.locator('#overlay input[type=number]').nth(1).fill('1');
+await page.locator('#overlay .btn.primary').click();
+await page.waitForTimeout(350);
+await page.locator('#overlay .btn', { hasText: 'Valmis' }).click();
+await page.waitForTimeout(350);
+const tpvRow = await page.locator('#view table.standings tbody tr', { hasText: 'TPV' }).first()
+  .locator('td').allTextContents();
+if (tpvRow.slice(1).join(',') !== '1,1,0,0,3,1,3') {
+  console.error('Kirjattu tulos ei päivittänyt taulukkoa: ' + JSON.stringify(tpvRow)); process.exit(1);
+}
+const order = await page.locator('#view table.standings tbody td:first-child').allTextContents();
+if (order[0] !== 'TPV') {
+  console.error('Taulukko ei järjestynyt pisteiden mukaan: ' + JSON.stringify(order)); process.exit(1);
+}
 await shot('14-turnaus');
-console.log('turnaus:', cupGames.join(' | '), '| lohkoja', cup.groups.length);
+console.log('turnaus:', cupGames.join(' | '), '| lohkotaulukko:', order.join(' > '));
 
 // Ottelulistassa turnaus näkyy yhtenä korttina, ei kahtena otteluna
 await tap('#tabbar a[href="#/ottelut"]');

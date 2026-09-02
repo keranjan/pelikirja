@@ -90,8 +90,11 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Uutta tapahtumaa luodessa valitaan ensin tyyppi; turnaus avaa oman
   lomakkeensa (nimi, alku- ja loppupäivä, paikka)
 - Turnaus voi kestää useita päiviä ja siihen kuuluu omat ottelunsa
-- Lohkot joukkuelistoineen: yli kymmenen joukkuetta jakautuu useaan lohkoon,
-  ja lohkon joukkueet tulevat vastustajan valintaan
+- Lohkot sarjataulukkoina turnauksen etusivulla: ottelut, voitot, tasapelit,
+  tappiot, tehdyt ja päästetyt maalit sekä pisteet – oma joukkue korostettuna
+- Taulukko päivittyy omista otteluista automaattisesti, ja muiden joukkueiden
+  tulokset voi kirjata käsin ("Muu tulos")
+- Lohkon joukkueet tulevat vastustajan valintaan uutta ottelua lisätessä
 - Ottelut lisätään lohkopeleinä tai jatkopeleinä (välierä, finaali,
   sijoitusottelu) turnauksen edetessä
 - Ohjelma näkyy päivittäin ryhmiteltynä ja oma saldo (V–T–H, maalit) päivittyy

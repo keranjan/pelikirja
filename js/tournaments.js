@@ -27,7 +27,7 @@ export const emptyTournament = (id, name, date) => ({
   createdAt: new Date().toISOString(),
 });
 
-export const emptyGroup = (id, name) => ({ id, name, teams: [] });
+export const emptyGroup = (id, name) => ({ id, name, teams: [], results: [] });
 
 /* ---------- Päivät ---------- */
 
@@ -78,6 +78,65 @@ export function stageName(tournament, game) {
 export function allTeams(tournament) {
   const teams = (tournament?.groups || []).flatMap((g) => g.teams || []);
   return [...new Set(teams.map((t) => t.trim()).filter(Boolean))];
+}
+
+/* ---------- Lohkotaulukko ---------- */
+
+const teamKey = (name) => String(name || '').trim().toLowerCase();
+
+/**
+ * Lohkosarjataulukko. Mukaan lasketaan omat ottelut sekä lohkoon käsin
+ * kirjatut muiden joukkueiden tulokset. Kaikki lohkon joukkueet näkyvät,
+ * vaikka niiden otteluita ei olisi vielä kirjattu.
+ *
+ * @param {object} group    lohko { name, teams, results }
+ * @param {Array}  games    oman joukkueen ottelut tässä lohkossa
+ * @param {string} ownName  oman joukkueen nimi taulukossa
+ * @returns {Array} rivit järjestyksessä: pisteet, maaliero, tehdyt, nimi
+ */
+export function standings(group, games = [], ownName = 'Oma joukkue') {
+  const rows = new Map();
+  const ensure = (name) => {
+    const key = teamKey(name);
+    if (!key) return null;
+    if (!rows.has(key)) {
+      rows.set(key, {
+        name: String(name).trim(), played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, points: 0,
+        own: key === teamKey(ownName),
+      });
+    }
+    return rows.get(key);
+  };
+
+  // Lohkon joukkueet näkyvät aina; oma rivi syntyy otteluista, jottei sama
+  // joukkue näy kahdesti eri kirjoitusasulla.
+  for (const team of group?.teams || []) ensure(team);
+
+  const add = (name, scored, conceded) => {
+    const row = ensure(name);
+    if (!row) return;
+    row.played++;
+    row.gf += scored;
+    row.ga += conceded;
+    if (scored > conceded) { row.w++; row.points += 3; } else if (scored === conceded) { row.d++; row.points += 1; } else row.l++;
+  };
+
+  for (const g of games) {
+    if (!g?.result) continue;
+    add(ownName, g.result.gf || 0, g.result.ga || 0);
+    add(g.opponent, g.result.ga || 0, g.result.gf || 0);
+  }
+  for (const r of group?.results || []) {
+    if (!teamKey(r.home) || !teamKey(r.away)) continue;
+    add(r.home, Number(r.hg) || 0, Number(r.ag) || 0);
+    add(r.away, Number(r.ag) || 0, Number(r.hg) || 0);
+  }
+
+  return [...rows.values()].sort((a, b) =>
+    b.points - a.points
+    || (b.gf - b.ga) - (a.gf - a.ga)
+    || b.gf - a.gf
+    || a.name.localeCompare(b.name, 'fi'));
 }
 
 /* ---------- Oma saldo ---------- */
