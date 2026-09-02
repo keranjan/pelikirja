@@ -907,19 +907,24 @@ table.stats th {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3);
 }
 
-/* Lohkotaulukko: kapeat numerosarakkeet, oma joukkue korostettuna. */
+/* Lohkotaulukko: numerosarakkeet samanlevyisiä, oma joukkue korostettuna.
+   Kiinteä taulukkoasettelu estää sen, että kaksikirjaimiset otsikot (TM, PM)
+   levittäisivät saraketta muita leveämmäksi. */
 .table-wrap { overflow-x: auto; margin: 0 -4px; }
-table.standings { font-size: 12.5px; }
-table.standings th, table.standings td { padding: 8px 3px; }
-table.standings th:first-child, table.standings td:first-child { padding-left: 4px; max-width: 42vw; }
-table.standings td:first-child .ellip { display: block; max-width: 42vw; }
+table.standings { font-size: 12.5px; table-layout: fixed; min-width: 300px; }
+table.standings th, table.standings td { padding: 8px 3px; width: 30px; }
+table.standings th:first-child, table.standings td:first-child {
+  width: auto; padding-left: 4px;
+}
+table.standings td:first-child .ellip { display: block; }
 table.standings tr.own { background: var(--accent-soft); }
 table.standings tr.own td:first-child .bold { color: var(--accent); }
 table.standings tr.own td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
 table.standings tr.own td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
 @media (min-width: 720px) {
   table.standings { font-size: 14px; }
-  table.standings th, table.standings td { padding: 10px 6px; }
+  table.standings th, table.standings td { padding: 10px 6px; width: 42px; }
+  table.standings th:first-child, table.standings td:first-child { width: auto; }
 }
 
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

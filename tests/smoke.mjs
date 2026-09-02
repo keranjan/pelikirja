@@ -908,6 +908,13 @@ const headers = await page.locator('#view table.standings th').allTextContents()
 if (headers.join(',') !== 'Lohko A,O,V,T,H,TM,PM,P') {
   console.error('Lohkotaulukon sarakkeet väärin: ' + JSON.stringify(headers)); process.exit(1);
 }
+// Numerosarakkeet ovat samanlevyisiä: TM ja PM eivät saa levitä muita isommiksi
+const colWidths = await page.locator('#view table.standings thead th')
+  .evaluateAll((els) => els.slice(1).map((e) => Math.round(e.getBoundingClientRect().width)));
+if (new Set(colWidths).size !== 1) {
+  console.error('Lohkotaulukon numerosarakkeet eri levyisiä: ' + JSON.stringify(colWidths));
+  process.exit(1);
+}
 const tableTeams = await page.locator('#view table.standings tbody td:first-child').allTextContents();
 if (tableTeams.length !== 6 || !tableTeams.includes('Ilves Beta')) {
   console.error('Lohkotaulukossa väärä määrä joukkueita: ' + JSON.stringify(tableTeams)); process.exit(1);
