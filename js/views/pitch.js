@@ -382,13 +382,16 @@ function toolSample(id) {
  * siitä huolimatta. Toinen napautus estetään siksi tapahtumatasolla, ja
  * samalla Safarin omat nipistyseleet piirtoalustan päällä.
  */
-export function blockBrowserGestures(el) {
-  let lastTouchEnd = 0;
-
+/**
+ * Estää selaimen omat eleet: kaksoisnapautuksen zoomauksen, nipistyksen ja
+ * tekstin valinnan. `state` voidaan antaa ulkoa, jolloin napautusten ajoitus
+ * säilyy myös silloin kun elementti piirretään uudelleen.
+ */
+export function blockBrowserGestures(el, state = { lastTouchEnd: 0 }) {
   el.addEventListener('touchend', (e) => {
     const now = Date.now();
-    if (now - lastTouchEnd < 400) e.preventDefault();
-    lastTouchEnd = now;
+    if (now - state.lastTouchEnd < 400) e.preventDefault();
+    state.lastTouchEnd = now;
   }, { passive: false });
 
   // Piirtäessä ei myöskään haluta tekstin valintaa tai suurennuslasia.

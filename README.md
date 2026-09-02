@@ -63,11 +63,14 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 **Alkulämmittely ja harjoitukset**
 - Oma välilehti harjoitusten suunnitteluun: kenttäalueeksi kolmannes,
   puoli kenttää tai koko kenttä
-- Pelaajamerkit kolmella värillä (vihreät, siniset, oranssit) – merkit
-  numeroituvat väreittäin automaattisesti
-- Pallot, tötsät ja maalit kentälle napauttamalla, siirto raahaamalla
-- Piirtotyökalut: vapaa kynä sekä neliö, ympyrä ja kolmio neljällä värillä
-- Poistotyökalu yksittäisille merkeille ja vedoille, Kumoa ja Tyhjennä
+- Neljä työkalupainiketta: siirto, merkkivalikko, piirtovalikko ja poisto –
+  loput valinnat ovat valikoiden takana, jotta kenttäkuva on mahdollisimman iso
+- Merkkivalikko: pelaajat kolmella värillä (vihreät, siniset, oranssit;
+  numeroituvat väreittäin), pallo, tötsä ja maali – napauta kenttää
+- Piirtovalikko: vapaa kynä sekä neliö, ympyrä ja kolmio neljällä värillä
+- Merkkien siirto raahaamalla, poistotyökalu yksittäisille merkeille ja
+  vedoille, Kumoa ja Tyhjennä
+- Kaksoisnapautus ei zoomaa näkymää
 - Muistiinpanot harjoitukselle; harjoitukset tallentuvat ja synkronoituvat
   laitteiden välillä
 

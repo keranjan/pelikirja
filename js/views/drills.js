@@ -19,10 +19,89 @@ const el = (tag, attrs) => {
   return node;
 };
 
-// Valittu työkalu säilyy näkymän uudelleenpiirron yli.
+// Valittu työkalu säilyy näkymän uudelleenpiirron yli. lastMark ja lastShape
+// muistavat valikoiden valinnan, jotta painikkeet näyttävät sen myös silloin,
+// kun käytössä on siirto tai poisto.
 let tool = 'siirra';
 let teamColor = 'vihrea';
 let inkColor = 'musta';
+let lastMark = 'pelaaja';
+let lastShape = 'kyna';
+
+const tapState = { lastTouchEnd: 0 };
+const SHAPE_GLYPHS = { kyna: '✎', nelio: '▭', ympyra: '◯', kolmio: '△' };
+const MARK_GLYPHS = { pallo: '⚽', totsa: '🔺', maali: '🥅' };
+
+const isMarkTool = (t) => t === 'pelaaja' || !!ITEMS[t];
+
+const markName = (kind, color) =>
+  (kind === 'pelaaja' ? playerColor(color).name : (ITEMS[kind]?.name || 'Merkki'));
+
+/** Painikkeen kuvake: pelaajalla värillinen pallero, muilla emoji. */
+function markGlyph(kind, color) {
+  if (kind === 'pelaaja') {
+    return h('span', { class: 'dot', style: `background:${playerColor(color).fill}` });
+  }
+  return h('span', { class: 'gl', text: MARK_GLYPHS[kind] || '⚽' });
+}
+
+/** Kentälle lisättävät merkit yhden valikon takana. */
+function openMarkPicker(drillId) {
+  sheet('Lisättävä merkki', (body, close) => {
+    const pick = (kind, color) => {
+      tool = kind;
+      lastMark = kind;
+      if (color) teamColor = color;
+      close();
+      navigate(`#/harjoitus/${drillId}`);
+    };
+    const item = (kind, color, name, hint) => pressable(h('button', {
+      class: `list-item${tool === kind && (!color || teamColor === color) ? ' sel' : ''}`,
+    },
+      h('span', { class: 'markicon' }, markGlyph(kind, color)),
+      h('span', { class: 'grow' },
+        h('div', { class: 'bold ellip', text: name }),
+        h('div', { class: 'tiny muted', text: hint }))), () => pick(kind, color));
+
+    body.append(h('p', { class: 'tiny muted', text: 'Valitse merkki ja napauta sitten kenttää.' }));
+    for (const c of Object.values(PLAYER_COLORS)) {
+      body.append(item('pelaaja', c.id, `Pelaaja – ${c.name.toLowerCase()}`, 'Merkit numeroituvat väreittäin'));
+    }
+    body.append(item('pallo', null, ITEMS.pallo.name, 'Pallo kentälle'));
+    body.append(item('totsa', null, ITEMS.totsa.name, 'Merkkikartio rajaamaan aluetta'));
+    body.append(item('maali', null, ITEMS.maali.name, 'Maali kentälle'));
+  });
+}
+
+/** Piirtotyökalut ja värit yhden valikon takana. */
+function openDrawPicker(drillId) {
+  sheet('Piirtotyökalu', (body, close) => {
+    const draw = () => {
+      body.replaceChildren();
+      body.append(h('p', { class: 'tiny muted', text: 'Valitse ensin väri, sitten työkalu.' }));
+      body.append(h('div', { class: 'swatches' },
+        ...Object.values(DRAW_COLORS).map((c) => pressable(h('button', {
+          class: `swatch${inkColor === c.id ? ' on' : ''}`,
+          style: `background:${c.value}`, 'aria-label': c.name,
+        }), () => { inkColor = c.id; draw(); }))));
+      for (const shape of Object.values(SHAPES)) {
+        body.append(pressable(h('button', { class: `list-item${tool === shape.id ? ' sel' : ''}` },
+          h('span', { class: 'markicon', style: `color:${drawColor(inkColor).value}` },
+            h('span', { class: 'gl', text: SHAPE_GLYPHS[shape.id] })),
+          h('span', { class: 'grow' },
+            h('div', { class: 'bold ellip', text: shape.name }),
+            h('div', { class: 'tiny muted', text: shape.free ? 'Vapaa veto sormella' : 'Vedä nurkasta nurkkaan' }))),
+        () => {
+          tool = shape.id;
+          lastShape = shape.id;
+          close();
+          navigate(`#/harjoitus/${drillId}`);
+        }));
+      }
+    };
+    draw();
+  });
+}
 
 /* ---------- Luettelo ---------- */
 
@@ -89,7 +168,6 @@ export function drillView(id) {
   const area = getArea(drill.area);
 
   /* --- Kenttäalue --- */
-  body.append(h('div', { class: 'tiny muted bold', text: 'KENTTÄALUE' }));
   body.append(h('div', { class: 'segmented' },
     ...Object.values(AREAS).map((a) => h('button', {
       class: drill.area === a.id ? 'on' : '',
@@ -98,45 +176,32 @@ export function drillView(id) {
 
   body.append(buildSurface(drill, commit));
 
-  /* --- Työkalut --- */
-  body.append(h('div', { class: 'tiny muted bold', style: 'margin-top:4px', text: 'MERKIT' }));
-  const marks = h('div', { class: 'toolgrid' });
-  marks.append(toolBtn('siirra', '✥', 'Siirrä'));
-  for (const c of Object.values(PLAYER_COLORS)) {
-    marks.append(pressable(h('button', {
-      class: `toolbtn${tool === 'pelaaja' && teamColor === c.id ? ' on' : ''}`,
-      'aria-label': `Pelaaja: ${c.name}`,
-    },
-      h('span', { class: 'dot', style: `background:${c.fill}` }),
-      h('span', { class: 'tl', text: c.name })), () => {
-      tool = 'pelaaja';
-      teamColor = c.id;
-      navigate(`#/harjoitus/${id}`);
-    }));
-  }
-  marks.append(toolBtn('pallo', '⚽', ITEMS.pallo.name));
-  marks.append(toolBtn('totsa', '🔺', ITEMS.totsa.name));
-  marks.append(toolBtn('maali', '🥅', ITEMS.maali.name));
-  body.append(marks);
+  /* --- Työkalut: neljä painiketta, valinnat valikoiden takana --- */
+  const markLabel = markName(isMarkTool(tool) ? tool : lastMark, teamColor);
+  const shapeLabel = SHAPES[tool] ? SHAPES[tool].name : SHAPES[lastShape].name;
 
-  body.append(h('div', { class: 'tiny muted bold', style: 'margin-top:4px', text: 'PIIRTO' }));
-  const draws = h('div', { class: 'toolgrid five' });
-  draws.append(toolBtn('kyna', '✎', SHAPES.kyna.name));
-  draws.append(toolBtn('nelio', '▭', SHAPES.nelio.name));
-  draws.append(toolBtn('ympyra', '◯', SHAPES.ympyra.name));
-  draws.append(toolBtn('kolmio', '△', SHAPES.kolmio.name));
-  draws.append(toolBtn('poista', '⌫', 'Poista'));
-  body.append(draws);
+  const tools = h('div', { class: 'toolgrid' },
+    pressable(h('button', { class: `toolbtn${tool === 'siirra' ? ' on' : ''}`, 'aria-label': 'Siirrä merkkejä' },
+      h('span', { class: 'gl', text: '✥' }), h('span', { class: 'tl', text: 'Siirrä' })),
+    () => { tool = 'siirra'; navigate(`#/harjoitus/${id}`); }),
 
-  // Piirtovärit näkyvät, kun piirtotyökalu on valittuna.
-  if (SHAPES[tool]) {
-    body.append(h('div', { class: 'swatches' },
-      ...Object.values(DRAW_COLORS).map((c) => pressable(h('button', {
-        class: `swatch${inkColor === c.id ? ' on' : ''}`,
-        style: `background:${c.value}`,
-        'aria-label': c.name,
-      }), () => { inkColor = c.id; navigate(`#/harjoitus/${id}`); }))));
-  }
+    pressable(h('button', {
+      class: `toolbtn${isMarkTool(tool) ? ' on' : ''}`, 'aria-label': 'Valitse lisättävä merkki',
+    }, markGlyph(isMarkTool(tool) ? tool : lastMark, teamColor),
+       h('span', { class: 'tl', text: `${markLabel} ▾` })),
+    () => openMarkPicker(id)),
+
+    pressable(h('button', {
+      class: `toolbtn${SHAPES[tool] ? ' on' : ''}`, 'aria-label': 'Valitse piirtotyökalu',
+    }, h('span', { class: 'gl', style: `color:${drawColor(inkColor).value}`,
+        text: SHAPE_GLYPHS[SHAPES[tool] ? tool : lastShape] }),
+       h('span', { class: 'tl', text: `${shapeLabel} ▾` })),
+    () => openDrawPicker(id)),
+
+    pressable(h('button', { class: `toolbtn${tool === 'poista' ? ' on' : ''}`, 'aria-label': 'Poista merkkejä' },
+      h('span', { class: 'gl', text: '⌫' }), h('span', { class: 'tl', text: 'Poista' })),
+    () => { tool = 'poista'; navigate(`#/harjoitus/${id}`); }));
+  body.append(tools);
 
   body.append(h('div', { class: 'btn-row', style: 'margin-top:10px' },
     pressable(h('button', { class: 'btn sm', style: 'flex:1' }, 'Kumoa'), () => {
@@ -171,6 +236,11 @@ export function drillView(id) {
     },
   }, 'Poista harjoitus'));
 
+  // Sama tuplanapautuksen ja nipistyksen esto kuin taktiikkataululla, mutta
+  // koko näkymälle. Ajastus on jaettu moduulitasolla, jotta se toimii myös
+  // uudelleenpiirron yli – merkin lisäys piirtää näkymän aina uudelleen.
+  blockBrowserGestures(body, tapState);
+
   return {
     title: drill.name,
     subtitle: `${area.name} · ${drill.elements.length} merkintää`,
@@ -178,13 +248,6 @@ export function drillView(id) {
     actions: [{ icon: '✎', aria: 'Muokkaa nimeä', onClick: () => openRename(drill) }],
     body,
   };
-
-  function toolBtn(id2, glyph, label) {
-    return pressable(h('button', {
-      class: `toolbtn${tool === id2 ? ' on' : ''}`, 'aria-label': label,
-    }, h('span', { class: 'gl', text: glyph }), h('span', { class: 'tl', text: label })),
-    () => { tool = id2; navigate(`#/harjoitus/${id}`); });
-  }
 }
 
 function openRename(drill) {
@@ -206,9 +269,11 @@ function openRename(drill) {
 
 function buildSurface(drill, commit) {
   const area = getArea(drill.area);
+  // Kenttä käyttää käytettävissä olevan korkeuden: leveys rajataan
+  // korkeusbudjetista alueen mittasuhteiden mukaan.
   const surface = h('div', {
     class: 'drill-surface',
-    style: `aspect-ratio:${area.w} / ${area.h}`,
+    style: `aspect-ratio:${area.w} / ${area.h};max-width:min(100%, calc(64dvh * ${area.w} / ${area.h}))`,
   });
 
   // Kentän viivat: sama mittakaava kuin kokoonpanokentässä, rajattuna alueeseen.
@@ -232,7 +297,6 @@ function buildSurface(drill, commit) {
     else surface.append(itemToken(e, drill, commit, surface));
   }
 
-  blockBrowserGestures(surface);
   bindSurface(surface, live, drill, commit, area);
   return h('div', { class: 'drill-wrap' }, surface);
 }

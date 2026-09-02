@@ -831,19 +831,27 @@ await page.locator('#view .segmented button', { hasText: 'Puoli kenttää' }).cl
 await page.waitForTimeout(250);
 if ((await drill()).area !== 'puolikas') { console.error('Kenttäalue ei vaihtunut'); process.exit(1); }
 
-// Merkkien lisääminen kentälle
+// Työkalurivi on tiivis: neljä painiketta, valinnat valikoiden takana
+const toolCount = await page.locator('#view .toolbtn').count();
+if (toolCount !== 4) {
+  console.error('Työkalurivillä pitäisi olla neljä painiketta, oli ' + toolCount); process.exit(1);
+}
+
+// Merkkien lisääminen kentälle valikon kautta
 const surface = page.locator('#view .drill-surface');
 const dropAt = async (label, xPct, yPct) => {
-  await page.locator('#view .toolbtn', { hasText: label }).first().click();
-  await page.waitForTimeout(150);
+  await page.locator('#view .toolbtn[aria-label="Valitse lisättävä merkki"]').click();
+  await page.waitForTimeout(250);
+  await page.locator('#overlay .list-item', { hasText: label }).first().click();
+  await page.waitForTimeout(250);
   const box = await surface.boundingBox();
   await page.mouse.click(box.x + box.width * xPct, box.y + box.height * yPct);
   await page.waitForTimeout(200);
 };
-await dropAt('Vihreät', 0.25, 0.3);
-await dropAt('Vihreät', 0.35, 0.3);
-await dropAt('Siniset', 0.65, 0.3);
-await dropAt('Oranssit', 0.5, 0.7);
+await dropAt('vihreät', 0.25, 0.3);
+await dropAt('vihreät', 0.35, 0.3);
+await dropAt('siniset', 0.65, 0.3);
+await dropAt('oranssit', 0.5, 0.7);
 await dropAt('Pallo', 0.5, 0.5);
 await dropAt('Tötsä', 0.2, 0.6);
 await dropAt('Maali', 0.5, 0.12);
@@ -859,8 +867,10 @@ if (await page.locator('#view .mark').count() !== 7) {
 
 // Piirtotyökalut: kynä ja kolme kuviota
 const drawShape = async (label, from, to) => {
-  await page.locator('#view .toolbtn', { hasText: label }).first().click();
-  await page.waitForTimeout(150);
+  await page.locator('#view .toolbtn[aria-label="Valitse piirtotyökalu"]').click();
+  await page.waitForTimeout(250);
+  await page.locator('#overlay .list-item', { hasText: label }).first().click();
+  await page.waitForTimeout(250);
   const box = await surface.boundingBox();
   await page.mouse.move(box.x + box.width * from[0], box.y + box.height * from[1]);
   await page.mouse.down();
@@ -891,7 +901,7 @@ if (await page.locator('#view .drill-surface .ink path, #view .drill-surface .in
 await shot('12-lammittely');
 
 // Merkin siirto raahaamalla
-await page.locator('#view .toolbtn', { hasText: 'Siirrä' }).first().click();
+await page.locator('#view .toolbtn[aria-label="Siirrä merkkejä"]').click();
 await page.waitForTimeout(150);
 const before = (await drill()).elements.find((e) => e.kind === 'pallo');
 const ballBox = await page.locator('#view .mark.pallo').boundingBox();
@@ -906,7 +916,7 @@ if (Math.abs(after.x - before.x) < 2) {
 }
 
 // Poistotyökalu vie yhden merkin
-await page.locator('#view .toolbtn', { hasText: 'Poista' }).first().click();
+await page.locator('#view .toolbtn[aria-label="Poista merkkejä"]').click();
 await page.waitForTimeout(150);
 const coneBox = await page.locator('#view .mark.totsa').boundingBox();
 await page.mouse.click(coneBox.x + coneBox.width / 2, coneBox.y + coneBox.height / 2);
@@ -923,6 +933,34 @@ if ((await drill()).elements.length !== countBefore - 1) {
   console.error('Kumoa ei poistanut viimeisintä'); process.exit(1);
 }
 console.log(`lämmittely: ${countBefore} merkintää, alue puolikas, kaikki työkalut toimivat`);
+
+// Kaksoisnapautus ei zoomaa – ei kentällä eikä työkalunapeissa
+{
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', {
+    type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, radiusX: 8, radiusY: 8, force: 1 }],
+  });
+  await page.evaluate(() => {
+    window.__drillTaps = [];
+    // Kuuntelija kuplimisvaiheessa, jotta näkymän oma esto ehtii ensin.
+    document.querySelector('#view').addEventListener('touchend',
+      (e) => window.__drillTaps.push(e.defaultPrevented));
+  });
+  const box = await surface.boundingBox();
+  const tx = box.x + box.width * 0.5;
+  const ty = box.y + box.height * 0.5;
+  await touch('touchStart', tx, ty); await touch('touchEnd', tx, ty);
+  await page.waitForTimeout(120);
+  await touch('touchStart', tx, ty); await touch('touchEnd', tx, ty);
+  await page.waitForTimeout(200);
+  const taps = await page.evaluate(() => window.__drillTaps);
+  if (taps.length < 2 || taps[1] !== true) {
+    console.error('Kaksoisnapautusta ei estetty lämmittelynäkymässä: ' + JSON.stringify(taps));
+    process.exit(1);
+  }
+  console.log('kaksoisnapautus estetty lämmittelynäkymässä');
+  await cdp.detach();
+}
 
 // Harjoitus näkyy listassa ja säilyy uudelleenlatauksen yli
 await page.evaluate(() => { location.hash = '#/lammittely'; });
