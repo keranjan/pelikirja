@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node tests/serve.mjs",
     "build": "node tools/build-single.mjs",
-    "test": "node tests/timing.test.mjs && node tests/tactics.test.mjs && node tests/drills.test.mjs && node tests/smoke.mjs && node tests/sync.test.mjs"
+    "test": "node tests/timing.test.mjs && node tests/tactics.test.mjs && node tests/drills.test.mjs && node tests/tournaments.test.mjs && node tests/smoke.mjs && node tests/sync.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"

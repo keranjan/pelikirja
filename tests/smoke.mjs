@@ -132,7 +132,7 @@ await tap('#tabbar a[href="#/ottelut"]');
 await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"], .empty .btn.primary');
 await page.locator('.sheet input[type=text]').first().fill('FC Naapuri');
 const d = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
-await page.locator('.sheet input[type=date]').fill(d);
+await page.locator('.sheet input[type=date]').first().fill(d);
 await page.locator('.sheet input[type=time]').fill('14:30');
 await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Beta');   // oma joukkue
 await page.locator('.sheet input[type=text]').nth(2).fill('Keskuskenttä 2');
@@ -813,6 +813,112 @@ await page.waitForTimeout(250);
 console.log('valmentajan arvio: arvosana', await rating(), 'ja analyysi tallessa');
 await shot('06-tulos');
 
+// --- Turnaus: monipäiväinen tapahtuma, lohkot ja jatkopelit ---
+await tap('#tabbar a[href="#/ottelut"]');
+await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
+await page.waitForTimeout(300);
+// Tyyppi on lomakkeen ensimmäinen kenttä
+const firstField = await page.locator('.sheet .field > span').first().textContent();
+if (!firstField.startsWith('Tapahtuman tyyppi')) {
+  console.error('Tapahtuman tyyppi ei ole ensimmäisenä: ' + firstField); process.exit(1);
+}
+await page.locator('.sheet .segmented button', { hasText: 'Turnaus' }).first().click();
+await page.waitForTimeout(250);
+// Lomake muuttuu turnauksen muotoiseksi
+const tourLabels = await page.locator('.sheet .field > span:first-child').evaluateAll(
+  (els) => els.filter((e) => e.offsetParent !== null).map((e) => e.textContent));
+for (const want of ['Turnauksen nimi', 'Alkaa', 'Päättyy']) {
+  if (!tourLabels.includes(want)) {
+    console.error(`Turnauslomakkeelta puuttuu "${want}": ` + JSON.stringify(tourLabels)); process.exit(1);
+  }
+}
+if (tourLabels.includes('Vastustaja')) {
+  console.error('Turnauslomakkeella näkyy yhä ottelun kentät'); process.exit(1);
+}
+const cupStart = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
+const cupEnd = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+// Turnaustilassa ottelun kentät ovat piilossa, joten käytetään näkyviä.
+await page.locator('.sheet input[type=text]:visible').first().fill('Ilves Cup');
+await page.locator('.sheet input[type=date]:visible').first().fill(cupStart);
+await page.locator('.sheet input[type=date]:visible').nth(1).fill(cupEnd);
+await page.locator('.sheet input[type=text]:visible').nth(1).fill('Vuores');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(400);
+
+const tournament = () => page.evaluate(() => JSON.parse(localStorage.getItem('pelikirja.v1')).tournaments[0]);
+let cup = await tournament();
+if (!cup || cup.name !== 'Ilves Cup') { console.error('Turnausta ei luotu: ' + JSON.stringify(cup)); process.exit(1); }
+if (cup.endDate <= cup.startDate) { console.error('Turnaus ei ole monipäiväinen'); process.exit(1); }
+if (!page.url().includes('/turnaus/')) { console.error('Turnausnäkymä ei auennut: ' + page.url()); process.exit(1); }
+
+// Lohko ja sen joukkueet
+await page.locator('#view .btn', { hasText: 'Lisää lohko' }).click();
+await page.waitForTimeout(300);
+await page.locator('.sheet input[type=text]').first().fill('A');
+await page.locator('.sheet textarea').fill(
+  ['Ilves Beta', 'FC Inter', 'TPV', 'KaaPo', 'Pato', 'JanPa'].join('\n'));
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(350);
+cup = await tournament();
+if (cup.groups.length !== 1 || cup.groups[0].teams.length !== 6) {
+  console.error('Lohko ei tallentunut: ' + JSON.stringify(cup.groups)); process.exit(1);
+}
+
+// Lohkopeli
+await page.locator('#view .btn', { hasText: 'Lohkopeli' }).click();
+await page.waitForTimeout(300);
+await page.locator('.sheet input[type=text]').first().fill('FC Inter');
+await page.locator('.sheet select').first().selectOption({ index: 1 });   // Lohko A
+await page.locator('.sheet input[type=time]').fill('09:30');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(400);
+if (!page.url().includes('/ottelu/')) { console.error('Lohkopeli ei avautunut'); process.exit(1); }
+const gameSub = await page.locator('#topbar .sub').textContent();
+if (!gameSub.includes('Ilves Cup') || !gameSub.includes('Lohko A')) {
+  console.error('Turnausottelun otsikossa ei näy turnausta ja lohkoa: ' + gameSub); process.exit(1);
+}
+await page.locator('#topbar .iconbtn').first().click();   // takaisin turnaukseen
+await page.waitForTimeout(400);
+
+// Jatkopeli lisätään turnauksen edetessä
+await page.locator('#view .btn', { hasText: 'Jatkopeli' }).click();
+await page.waitForTimeout(300);
+await page.locator('.sheet input[type=text]').first().fill('MuSa');
+await page.locator('.sheet input[type=text]').nth(1).fill('Välierä');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(400);
+await page.locator('#topbar .iconbtn').first().click();
+await page.waitForTimeout(400);
+
+const cupGames = await page.evaluate(() => {
+  const st = JSON.parse(localStorage.getItem('pelikirja.v1'));
+  return st.matches.filter((m) => m.tournamentId === st.tournaments[0].id)
+    .map((m) => `${m.stage}:${m.opponent}${m.label ? '/' + m.label : ''}`);
+});
+if (cupGames.length !== 2 || !cupGames.includes('lohko:FC Inter') || !cupGames.includes('jatko:MuSa/Välierä')) {
+  console.error('Turnausottelut eivät tallentuneet: ' + JSON.stringify(cupGames)); process.exit(1);
+}
+const programme = await page.locator('#view .cards .card').allTextContents();
+if (programme.length !== 2) {
+  console.error('Turnauksen ohjelmassa väärä määrä otteluita: ' + JSON.stringify(programme)); process.exit(1);
+}
+await shot('14-turnaus');
+console.log('turnaus:', cupGames.join(' | '), '| lohkoja', cup.groups.length);
+
+// Ottelulistassa turnaus näkyy yhtenä korttina, ei kahtena otteluna
+await tap('#tabbar a[href="#/ottelut"]');
+await page.locator('#view .segmented button', { hasText: 'Tulevat' }).click();
+await page.waitForTimeout(300);
+const cards = await page.locator('#view .cards .card').allTextContents();
+const cupCards = cards.filter((c) => c.includes('Ilves Cup'));
+if (cupCards.length !== 1) {
+  console.error('Turnaus ei näy yhtenä korttina: ' + JSON.stringify(cards)); process.exit(1);
+}
+if (cards.some((c) => c.includes('FC Inter') || c.includes('MuSa'))) {
+  console.error('Turnausottelut näkyvät erikseen listassa: ' + JSON.stringify(cards)); process.exit(1);
+}
+console.log('ottelulistassa turnaus on yksi kortti:', cupCards[0].replace(/\s+/g, ' ').slice(0, 60));
+
 // --- Alkulämmittelyn suunnittelu ---
 await tap('#tabbar a[href="#/lammittely"]');
 await page.waitForTimeout(250);
@@ -1045,7 +1151,7 @@ if (afterReset !== 0 || afterImport !== players.length) { console.error('Varmuus
 await tap('#tabbar a[href="#/ottelut"]');
 await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
 await page.locator('.sheet input[type=text]').first().fill('Tampere United');
-await page.locator('.sheet input[type=date]').fill(new Date(Date.now() + 9 * 86400000).toISOString().slice(0, 10));
+await page.locator('.sheet input[type=date]').first().fill(new Date(Date.now() + 9 * 86400000).toISOString().slice(0, 10));
 await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Keltainen');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(300);
@@ -1053,7 +1159,7 @@ await page.waitForTimeout(300);
 await tap('#tabbar a[href="#/ottelut"]');
 await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
 await page.locator('.sheet input[type=text]').first().fill('Ilves Alfa');
-await page.locator('.sheet input[type=date]').fill(new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10));
+await page.locator('.sheet input[type=date]').first().fill(new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10));
 await page.locator('.sheet input[type=text]').nth(1).fill('Ilves Beta');
 await page.locator('.sheet .btn.primary').click();
 await page.waitForTimeout(300);

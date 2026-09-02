@@ -1,6 +1,7 @@
 // Tilanhallinta ja tallennus (localStorage).
 import { getFormation } from './formations.js';
 import { emptyDrill } from './drills.js';
+import { emptyTournament, emptyGroup } from './tournaments.js';
 import { DEFAULT_TEAM_NAME } from './merge.js';
 import { emptyTiming, clockSeconds, onField } from './timing.js';
 
@@ -28,6 +29,7 @@ const emptyState = () => ({
   staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   drills: [],    // alkulämmittelyt ja muut harjoitukset
+  tournaments: [],  // turnaukset; niiden ottelut ovat tavallisia otteluita
   matches: [],
 });
 
@@ -57,6 +59,11 @@ function migrate(data) {
   }
   st.lineups = Array.isArray(data.lineups) ? data.lineups : [];
   st.drills = Array.isArray(data.drills) ? data.drills : [];
+  st.tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+  for (const t of st.tournaments) {
+    if (!Array.isArray(t.groups)) t.groups = [];
+    if (!t.endDate) t.endDate = t.startDate;
+  }
   for (const d of st.drills) {
     if (!Array.isArray(d.elements)) d.elements = [];
   }
@@ -239,6 +246,65 @@ export function removeLineup(id) {
   update((st) => { st.lineups = st.lineups.filter((l) => l.id !== id); });
 }
 
+/* ---------- Turnaukset ---------- */
+
+export const tournamentById = (id) => state.tournaments.find((t) => t.id === id) || null;
+
+export const sortedTournaments = () =>
+  [...state.tournaments].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+
+/** Turnauksen ottelut aikajärjestyksessä. */
+export const tournamentGames = (id, matches = state.matches) =>
+  matches.filter((m) => m.tournamentId === id)
+    .sort((a, b) => `${a.date}T${a.time || ''}`.localeCompare(`${b.date}T${b.time || ''}`));
+
+export function addTournament(data) {
+  const t = { ...emptyTournament(uid(), '', new Date().toISOString().slice(0, 10)), ...data };
+  update((st) => { st.tournaments.push(t); });
+  return t;
+}
+
+export function updateTournament(id, data, opts) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === id);
+    if (t) Object.assign(t, data);
+  }, opts);
+}
+
+/** Poistaa turnauksen ja sen ottelut. */
+export function removeTournament(id) {
+  update((st) => {
+    st.tournaments = st.tournaments.filter((t) => t.id !== id);
+    st.matches = st.matches.filter((m) => m.tournamentId !== id);
+  });
+}
+
+export function addGroup(tournamentId, name) {
+  const group = emptyGroup(uid(), name);
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    if (t) t.groups.push(group);
+  });
+  return group;
+}
+
+export function updateGroup(tournamentId, groupId, data) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    const g = t?.groups.find((x) => x.id === groupId);
+    if (g) Object.assign(g, data);
+  });
+}
+
+/** Poistaa lohkon ja irrottaa sen ottelut lohkosta. */
+export function removeGroup(tournamentId, groupId) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    if (t) t.groups = t.groups.filter((g) => g.id !== groupId);
+    for (const m of st.matches) if (m.groupId === groupId) m.groupId = '';
+  });
+}
+
 /* ---------- Harjoitukset (alkulämmittely) ---------- */
 
 export const drillById = (id) => state.drills.find((d) => d.id === id) || null;
@@ -274,6 +340,10 @@ export function addMatch(data) {
     time: '18:00',
     opponent: '',
     team: '',                 // oma joukkue, kun seurassa on useampi (esim. Ilves Beta)
+    tournamentId: null,       // turnausottelu kuuluu turnaukseen
+    stage: '',                // turnausottelussa: lohko | jatko
+    groupId: '',              // lohkovaiheen ottelussa lohkon tunniste
+    label: '',                // jatkopelin nimi, esim. Välierä
     home: true,
     venue: '',
     type: 'ottelu',           // ottelu | turnaus | harjoitus

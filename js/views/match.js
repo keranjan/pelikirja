@@ -4,7 +4,7 @@ import { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } from '../ui.js
 import {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds,
+  staffById, STAFF_ROLES, absentIds, tournamentById,
   RATINGS, RATING_MIN, RATING_MAX, RATING_STEP, ratingLabel, fmtRating, clampRating,
 } from '../store.js';
 import { getFormation } from '../formations.js';
@@ -12,6 +12,7 @@ import { matchEvents } from '../timing.js';
 import { renderLineupEditor } from './pitch.js';
 import { trackingTab, eventList } from './tracking.js';
 import { openMatchSheet } from './matches.js';
+import { stageName } from '../tournaments.js';
 import { lineupDataUrl, lineupImageFile } from '../lineup-image.js';
 import { navigate } from '../router.js';
 
@@ -37,10 +38,14 @@ export function matchView(id) {
   else if (tab === 'tulos') body.append(resultTab(m));
   else body.append(infoTab(m));
 
+  // Turnausottelu palaa turnaukseen ja kertoo otsikossa vaiheen.
+  const tournament = m.tournamentId ? tournamentById(m.tournamentId) : null;
+  const stage = tournament ? stageName(tournament, m) : '';
   return {
     title: `${m.home ? 'vs' : '@'} ${m.opponent || 'Vastustaja'}`,
-    subtitle: `${m.team ? m.team + ' · ' : ''}${fmtDate(m.date)} klo ${m.time}`,
-    back: '#/ottelut',
+    subtitle: [tournament ? `${tournament.name} · ${stage}` : (m.team || ''),
+      `${fmtDate(m.date)} klo ${m.time}`].filter(Boolean).join(' · '),
+    back: tournament ? `#/turnaus/${tournament.id}` : '#/ottelut',
     body,
   };
 }

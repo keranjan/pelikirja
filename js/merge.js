@@ -86,8 +86,9 @@ export function mergeStates(base, local, remote) {
   const matches = mergeList(b.matches, local.matches, remote.matches);
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
   const drills = mergeList(b.drills, local.drills, remote.drills);
+  const tournaments = mergeList(b.tournaments, local.tournaments, remote.tournaments);
   conflicts += players.conflicts + staff.conflicts + matches.conflicts
-    + lineups.conflicts + drills.conflicts;
+    + lineups.conflicts + drills.conflicts + tournaments.conflicts;
 
   // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
   // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
@@ -98,6 +99,7 @@ export function mergeStates(base, local, remote) {
     && !(local.matches || []).length
     && !(local.lineups || []).length
     && !(local.drills || []).length
+    && !(local.tournaments || []).length
     && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
 
   // Joukkueen tiedot ovat yksi kokonaisuus: uusin muutos voittaa.
@@ -123,6 +125,7 @@ export function mergeStates(base, local, remote) {
     matches: sortById(matches.list),
     lineups: sortById(lineups.list),
     drills: sortById(drills.list),
+    tournaments: sortById(tournaments.list),
   };
 
   return {
@@ -144,5 +147,6 @@ export function payload(state) {
     matches: sortById(state.matches || []),
     lineups: sortById(state.lineups || []),
     drills: sortById(state.drills || []),
+    tournaments: sortById(state.tournaments || []),
   };
 }

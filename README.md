@@ -86,6 +86,19 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Piirrokset ja siirretyt paikat tallentuvat ottelun tai kokoonpanopohjan mukana ja
   näkyvät myös kokoonpanotilassa
 
+**Turnaukset**
+- Uutta tapahtumaa luodessa valitaan ensin tyyppi; turnaus avaa oman
+  lomakkeensa (nimi, alku- ja loppupäivä, paikka)
+- Turnaus voi kestää useita päiviä ja siihen kuuluu omat ottelunsa
+- Lohkot joukkuelistoineen: yli kymmenen joukkuetta jakautuu useaan lohkoon,
+  ja lohkon joukkueet tulevat vastustajan valintaan
+- Ottelut lisätään lohkopeleinä tai jatkopeleinä (välierä, finaali,
+  sijoitusottelu) turnauksen edetessä
+- Ohjelma näkyy päivittäin ryhmiteltynä ja oma saldo (V–T–H, maalit) päivittyy
+- Jokainen turnausottelu on tavallinen ottelu: kokoonpano, otteluseuranta,
+  peliaika ja tulos toimivat samoin kuin muissakin otteluissa
+- Ottelut-välilehdellä turnaus näkyy yhtenä korttina, ei kymmenenä otteluna
+
 **Ottelut ja tapahtumat**
 - Ottelut, turnaukset ja harjoituspelit: päivä, aika, vastustaja, paikka, koti/vieras, muistiinpanot
 - Tulevat tapahtumat aikajärjestyksessä, mukana lähtölaskenta ja kokoonpanon täyttöaste
@@ -231,6 +244,7 @@ css/styles.css          tyylit ja väriteemat
 js/icons.js             viivakuvakkeet
 js/tactics.js           taktiikkapiirrosten työkalut ja polut
 js/drills.js            alkulämmittelyn alueet, merkit ja kuviot
+js/tournaments.js       turnauksen päivät, lohkot ja saldo
 js/lineup-image.js      jaettavan kokoonpanokuvan piirto (canvas)
 js/timing.js            peliajan laskenta (kello, vaihdot, pelaaja-ajat)
 js/sync.js              pilvitallennus (Supabasen REST-rajapinta)
@@ -241,13 +255,14 @@ js/store.js             tila ja tallennus (localStorage)
 js/formations.js        pelisysteemit ja pelipaikat
 js/ui.js                UI-apurit (elementit, alapaneelit, päivämäärät)
 js/views/               näkymät: ottelupäivä, ottelut, ottelu, seuranta, kokoonpanot,
-                        lämmittely, ryhmä, kenttä, tilastot, asetukset
+                        lämmittely, turnaus, ryhmä, kenttä, tilastot, asetukset
 tools/build-single.mjs  kokoaa yhden tiedoston version
 tools/import-torneopal.mjs  otteluohjelman tuonti Torneopalista
 docs/tuonti/            valmiiksi muunnetut otteluohjelmat (JSON ja SQL)
 tests/timing.test.mjs   peliajan laskennan yksikkötestit
 tests/tactics.test.mjs  taktiikkapiirrosten polkujen yksikkötestit
 tests/drills.test.mjs   alkulämmittelyn logiikan yksikkötestit
+tests/tournaments.test.mjs  turnauslogiikan yksikkötestit
 tests/smoke.mjs         päävirran savutesti
 tests/sync.test.mjs     kahden laitteen synkronointitesti
 tests/fake-supabase.mjs testien jäljitelmä pilvirajapinnasta

@@ -8,6 +8,7 @@ import { matchesView } from './views/matches.js';
 import { matchView } from './views/match.js';
 import { lineupsView, lineupView } from './views/lineups.js';
 import { drillsView, drillView } from './views/drills.js';
+import { tournamentView } from './views/tournaments.js';
 import { playersView } from './views/players.js';
 import { statsView } from './views/stats.js';
 import { settingsView } from './views/settings.js';
@@ -28,6 +29,7 @@ const ROUTES = [
   { re: /^#\/ottelupaiva$/,        view: () => homeView(),            tab: '#/ottelupaiva' },
   { re: /^#\/ottelut$/,            view: () => matchesView(),         tab: '#/ottelut' },
   { re: /^#\/ottelu\/([\w-]+)$/,   view: (m) => matchView(m[1]),      tab: '#/ottelut' },
+  { re: /^#\/turnaus\/([\w-]+)$/,  view: (m) => tournamentView(m[1]),  tab: '#/ottelut' },
   { re: /^#\/kokoonpanot$/,        view: () => lineupsView(),         tab: '#/kokoonpanot' },
   { re: /^#\/kokoonpano\/([\w-]+)$/, view: (m) => lineupView(m[1]),   tab: '#/kokoonpanot' },
   { re: /^#\/lammittely$/,         view: () => drillsView(),          tab: '#/lammittely' },

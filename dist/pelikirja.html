@@ -1581,10 +1581,125 @@ function hitElement(drill, x, y, { radius = 3.2 } = {}) {
 return { AREAS, DEFAULT_AREA, getArea, PLAYER_COLORS, playerColor, ITEMS, SHAPES, DRAW_COLORS, STROKE_WIDTH, HALO_WIDTH, drawColor, emptyDrill, addItem, addStroke, undoLast, clearDrill, removeElement, boxOf, trianglePoints, penPath, hitElement };
 };
 
+__mods['tournaments'] = () => {
+// Turnauksen logiikka: päivät, lohkot, otteluiden ryhmittely ja oma saldo.
+// Puhdasta laskentaa, jotta sen voi testata ilman selainta.
+//
+// Turnaus on oma kokonaisuutensa (state.tournaments) ja sen ottelut ovat
+// tavallisia otteluita, joissa on tournamentId. Näin kokoonpano, seuranta,
+// tulos ja tilastot toimivat turnausotteluissa täsmälleen kuten muissakin.
+
+/** Turnauksen vaiheet. */
+const STAGES = {
+  lohko: 'Lohkovaihe',
+  jatko: 'Jatkopelit',
+};
+
+/** Yleisimmät jatkopelien nimet ehdotuksiksi. */
+const PLAYOFF_LABELS = [
+  'Neljännesvälierä', 'Puolivälierä', 'Välierä', 'Pronssiottelu', 'Finaali', 'Sijoitusottelu',
+];
+
+const emptyTournament = (id, name, date) => ({
+  id,
+  name,
+  startDate: date,
+  endDate: date,
+  venue: '',
+  notes: '',
+  groups: [],                 // { id, name, teams: [] }
+  createdAt: new Date().toISOString(),
+});
+
+const emptyGroup = (id, name) => ({ id, name, teams: [] });
+
+/* ---------- Päivät ---------- */
+
+const dayMs = 86400000;
+
+/** Turnauksen päivät alusta loppuun, enintään 14 päivää. */
+function tournamentDays(t) {
+  const start = t?.startDate;
+  const end = t?.endDate && t.endDate >= start ? t.endDate : start;
+  if (!start) return [];
+  const days = [];
+  for (let d = new Date(`${start}T12:00:00`); days.length < 14; d = new Date(d.getTime() + dayMs)) {
+    const iso = d.toISOString().slice(0, 10);
+    days.push(iso);
+    if (iso >= end) break;
+  }
+  return days;
+}
+
+const dayCount = (t) => tournamentDays(t).length;
+
+/** Yksikkö vai monikko: 1 ottelu, 2 ottelua. */
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** Ottelut päivittäin aikajärjestyksessä: [{ date, games }]. */
+function gamesByDay(games = []) {
+  const byDate = new Map();
+  for (const g of [...games].sort(byKickoff)) {
+    if (!byDate.has(g.date)) byDate.set(g.date, []);
+    byDate.get(g.date).push(g);
+  }
+  return [...byDate.entries()].map(([date, list]) => ({ date, games: list }));
+}
+
+const byKickoff = (a, b) =>
+  `${a.date}T${a.time || '00:00'}`.localeCompare(`${b.date}T${b.time || '00:00'}`);
+
+/* ---------- Lohkot ja vaiheet ---------- */
+
+/** Ottelun vaiheen nimi: lohkon nimi tai jatkopelin nimi. */
+function stageName(tournament, game) {
+  if (game?.stage === 'jatko') return game.label || STAGES.jatko;
+  const group = (tournament?.groups || []).find((g) => g.id === game?.groupId);
+  return group ? `Lohko ${group.name}` : STAGES.lohko;
+}
+
+/** Kaikki turnauksessa mainitut joukkueet lohkoista. */
+function allTeams(tournament) {
+  const teams = (tournament?.groups || []).flatMap((g) => g.teams || []);
+  return [...new Set(teams.map((t) => t.trim()).filter(Boolean))];
+}
+
+/* ---------- Oma saldo ---------- */
+
+/**
+ * Oman joukkueen saldo turnauksen otteluista.
+ * @returns {{ played:number, w:number, d:number, l:number, gf:number, ga:number, points:number }}
+ */
+function record(games = []) {
+  const out = { played: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, points: 0 };
+  for (const g of games) {
+    const r = g.result;
+    if (!r) continue;
+    out.played++;
+    out.gf += r.gf || 0;
+    out.ga += r.ga || 0;
+    if (r.gf > r.ga) out.w++;
+    else if (r.gf === r.ga) out.d++;
+    else out.l++;
+  }
+  out.points = out.w * 3 + out.d;
+  return out;
+}
+
+/** Seuraava pelaamaton ottelu, tai viimeisin pelattu jos kaikki on pelattu. */
+function nextGame(games = []) {
+  const sorted = [...games].sort(byKickoff);
+  return sorted.find((g) => !g.result) || sorted[sorted.length - 1] || null;
+}
+
+return { STAGES, PLAYOFF_LABELS, emptyTournament, emptyGroup, tournamentDays, dayCount, plural, gamesByDay, stageName, allTeams, record, nextGame };
+};
+
 __mods['store'] = () => {
 // Tilanhallinta ja tallennus (localStorage).
 const { getFormation } = __req('formations');
 const { emptyDrill } = __req('drills');
+const { emptyTournament, emptyGroup } = __req('tournaments');
 const { DEFAULT_TEAM_NAME } = __req('merge');
 const { emptyTiming, clockSeconds, onField } = __req('timing');
 const KEY = 'pelikirja.v1';
@@ -1611,6 +1726,7 @@ const emptyState = () => ({
   staff: [],
   lineups: [],   // tallennetut kokoonpanopohjat
   drills: [],    // alkulämmittelyt ja muut harjoitukset
+  tournaments: [],  // turnaukset; niiden ottelut ovat tavallisia otteluita
   matches: [],
 });
 
@@ -1640,6 +1756,11 @@ function migrate(data) {
   }
   st.lineups = Array.isArray(data.lineups) ? data.lineups : [];
   st.drills = Array.isArray(data.drills) ? data.drills : [];
+  st.tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+  for (const t of st.tournaments) {
+    if (!Array.isArray(t.groups)) t.groups = [];
+    if (!t.endDate) t.endDate = t.startDate;
+  }
   for (const d of st.drills) {
     if (!Array.isArray(d.elements)) d.elements = [];
   }
@@ -1822,6 +1943,65 @@ function removeLineup(id) {
   update((st) => { st.lineups = st.lineups.filter((l) => l.id !== id); });
 }
 
+/* ---------- Turnaukset ---------- */
+
+const tournamentById = (id) => state.tournaments.find((t) => t.id === id) || null;
+
+const sortedTournaments = () =>
+  [...state.tournaments].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+
+/** Turnauksen ottelut aikajärjestyksessä. */
+const tournamentGames = (id, matches = state.matches) =>
+  matches.filter((m) => m.tournamentId === id)
+    .sort((a, b) => `${a.date}T${a.time || ''}`.localeCompare(`${b.date}T${b.time || ''}`));
+
+function addTournament(data) {
+  const t = { ...emptyTournament(uid(), '', new Date().toISOString().slice(0, 10)), ...data };
+  update((st) => { st.tournaments.push(t); });
+  return t;
+}
+
+function updateTournament(id, data, opts) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === id);
+    if (t) Object.assign(t, data);
+  }, opts);
+}
+
+/** Poistaa turnauksen ja sen ottelut. */
+function removeTournament(id) {
+  update((st) => {
+    st.tournaments = st.tournaments.filter((t) => t.id !== id);
+    st.matches = st.matches.filter((m) => m.tournamentId !== id);
+  });
+}
+
+function addGroup(tournamentId, name) {
+  const group = emptyGroup(uid(), name);
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    if (t) t.groups.push(group);
+  });
+  return group;
+}
+
+function updateGroup(tournamentId, groupId, data) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    const g = t?.groups.find((x) => x.id === groupId);
+    if (g) Object.assign(g, data);
+  });
+}
+
+/** Poistaa lohkon ja irrottaa sen ottelut lohkosta. */
+function removeGroup(tournamentId, groupId) {
+  update((st) => {
+    const t = st.tournaments.find((x) => x.id === tournamentId);
+    if (t) t.groups = t.groups.filter((g) => g.id !== groupId);
+    for (const m of st.matches) if (m.groupId === groupId) m.groupId = '';
+  });
+}
+
 /* ---------- Harjoitukset (alkulämmittely) ---------- */
 
 const drillById = (id) => state.drills.find((d) => d.id === id) || null;
@@ -1857,6 +2037,10 @@ function addMatch(data) {
     time: '18:00',
     opponent: '',
     team: '',                 // oma joukkue, kun seurassa on useampi (esim. Ilves Beta)
+    tournamentId: null,       // turnausottelu kuuluu turnaukseen
+    stage: '',                // turnausottelussa: lohko | jatko
+    groupId: '',              // lohkovaiheen ottelussa lohkon tunniste
+    label: '',                // jatkopelin nimi, esim. Välierä
     home: true,
     venue: '',
     type: 'ottelu',           // ottelu | turnaus | harjoitus
@@ -2171,7 +2355,7 @@ function importJSON(text) {
   replaceState(data);
 }
 
-return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, drillById, sortedDrills, addDrill, updateDrill, removeDrill, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, scoreText, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, updateTimingEvent, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
+return { uid, STAFF_ROLES, emptyLineup, getState, subscribe, subscribeAll, save, update, replaceState, resetAll, applyTheme, playerById, playerName, sortedPlayers, addPlayer, updatePlayer, removePlayer, staffById, staffName, sortedStaff, addStaff, updateStaff, removeStaff, toggleLineupStaff, lineupById, addLineup, removeLineup, tournamentById, sortedTournaments, tournamentGames, addTournament, updateTournament, removeTournament, addGroup, updateGroup, removeGroup, drillById, sortedDrills, addDrill, updateDrill, removeDrill, matchById, addMatch, RATING_MIN, RATING_MAX, RATING_STEP, RATINGS, ratingLabel, fmtRating, clampRating, averageRating, scoreText, matchTeams, updateMatch, removeMatch, ensureTiming, startTiming, pauseTiming, endTiming, resetTiming, substitute, recordGoal, recordCard, updateTimingEvent, removeTimingEvents, removeResultEvent, moveTimingEvents, playersOnField, matchKickoff, isPlayed, sortedMatches, upcomingMatches, pastMatches, setFormation, assignToSlot, clearSlots, inSquad, toggleSquad, absentIds, lineupRole, cloneLineup, addStroke, undoStroke, clearDrawings, movePlayer, resetPositions, hasTactics, exportJSON, importJSON };
 };
 
 __mods['merge'] = () => {
@@ -2263,8 +2447,9 @@ function mergeStates(base, local, remote) {
   const matches = mergeList(b.matches, local.matches, remote.matches);
   const lineups = mergeList(b.lineups, local.lineups, remote.lineups);
   const drills = mergeList(b.drills, local.drills, remote.drills);
+  const tournaments = mergeList(b.tournaments, local.tournaments, remote.tournaments);
   conflicts += players.conflicts + staff.conflicts + matches.conflicts
-    + lineups.conflicts + drills.conflicts;
+    + lineups.conflicts + drills.conflicts + tournaments.conflicts;
 
   // Uudella laitteella, jolla ei ole omaa dataa eikä omaa joukkueen nimeä,
   // otetaan pilven tiedot sellaisenaan – muuten laitteen oletusnimi
@@ -2275,6 +2460,7 @@ function mergeStates(base, local, remote) {
     && !(local.matches || []).length
     && !(local.lineups || []).length
     && !(local.drills || []).length
+    && !(local.tournaments || []).length
     && (!local.team?.name || local.team.name === DEFAULT_TEAM_NAME);
 
   // Joukkueen tiedot ovat yksi kokonaisuus: uusin muutos voittaa.
@@ -2300,6 +2486,7 @@ function mergeStates(base, local, remote) {
     matches: sortById(matches.list),
     lineups: sortById(lineups.list),
     drills: sortById(drills.list),
+    tournaments: sortById(tournaments.list),
   };
 
   return {
@@ -2321,6 +2508,7 @@ function payload(state) {
     matches: sortById(state.matches || []),
     lineups: sortById(state.lineups || []),
     drills: sortById(state.drills || []),
+    tournaments: sortById(state.tournaments || []),
   };
 }
 
@@ -4195,6 +4383,291 @@ const uid = () => Date.now().toString(36).slice(-5) + Math.random().toString(36)
 return { drillsView, drillView };
 };
 
+__mods['tournaments'] = () => {
+// Turnausnäkymä: ohjelma päivittäin, lohkot ja jatkopelit.
+const { icon } = __req('icons');
+const { h, add, sheet, toast, confirmSheet, fmtDate, fmtShortDate } = __req('ui');
+const {
+  getState, tournamentById, tournamentGames, updateTournament, removeTournament,
+  addGroup, updateGroup, removeGroup, addMatch, matchTeams, scoreText,
+} = __req('store');
+const {
+  STAGES, PLAYOFF_LABELS, tournamentDays, gamesByDay, stageName, allTeams, record, plural,
+} = __req('tournaments');
+const { navigate } = __req('router');
+function tournamentView(id) {
+  const t = tournamentById(id);
+  if (!t) {
+    return { title: 'Turnaus', back: '#/ottelut', body: h('p', { class: 'muted', text: 'Turnausta ei löydy.' }) };
+  }
+
+  const games = tournamentGames(id);
+  const body = h('div', { class: 'stack' });
+  const days = tournamentDays(t);
+  const teams = allTeams(t);
+
+  /* --- Yhteenveto --- */
+  const r = record(games);
+  body.append(h('div', { class: 'card stack', style: 'gap:10px' },
+    h('div', { class: 'row between' },
+      h('span', { class: 'grow' },
+        h('div', { class: 'eyebrow', text: 'TURNAUS' }),
+        h('div', { class: 'bold ellip', style: 'font-size:18px', text: t.name || 'Turnaus' })),
+      h('span', { class: 'badge accent', text: plural(days.length, 'päivä', 'päivää') })),
+    h('div', { class: 'small muted' },
+      days.length > 1
+        ? `${fmtDate(t.startDate)} – ${fmtDate(t.endDate)}`
+        : fmtDate(t.startDate),
+      t.venue ? ` · ${t.venue}` : ''),
+    h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' },
+      h('span', { class: 'badge', text: plural(games.length, 'ottelu', 'ottelua') }),
+      teams.length ? h('span', { class: 'badge', text: plural(teams.length, 'joukkue', 'joukkuetta') }) : null,
+      (t.groups || []).length ? h('span', { class: 'badge', text: plural(t.groups.length, 'lohko', 'lohkoa') }) : null,
+      r.played ? h('span', { class: 'badge accent tnum', text: `${r.w}–${r.d}–${r.l} · ${r.gf}–${r.ga}` }) : null)));
+
+  /* --- Ohjelma päivittäin --- */
+  body.append(h('div', { class: 'section-title', text: `Ohjelma (${games.length})` }));
+  if (!games.length) {
+    body.append(h('div', { class: 'card small muted', text: 'Ei vielä otteluita. Lisää lohkopelit alta – jatkopelit voi lisätä turnauksen edetessä.' }));
+  } else {
+    for (const day of gamesByDay(games)) {
+      if (days.length > 1) {
+        body.append(h('div', { class: 'tiny muted bold', style: 'margin:10px 2px 4px',
+          text: fmtDate(day.date).toUpperCase() }));
+      }
+      const cards = h('div', { class: 'cards tight' });
+      for (const g of day.games) cards.append(gameCard(t, g));
+      body.append(cards);
+    }
+  }
+  body.append(h('div', { class: 'btn-row', style: 'margin-top:10px' },
+    h('button', { class: 'btn primary', style: 'flex:1', onclick: () => openGameSheet(t, null, 'lohko') }, '＋ Lohkopeli'),
+    h('button', { class: 'btn', style: 'flex:1', onclick: () => openGameSheet(t, null, 'jatko') }, '＋ Jatkopeli')));
+
+  /* --- Lohkot --- */
+  body.append(h('div', { class: 'section-title', text: `Lohkot (${(t.groups || []).length})` }));
+  if (!(t.groups || []).length) {
+    body.append(h('div', { class: 'card small muted', text: 'Lisää lohko ja sen joukkueet, niin voit merkitä ottelut lohkoon.' }));
+  } else {
+    for (const g of t.groups) {
+      const played = games.filter((m) => m.groupId === g.id);
+      body.append(h('button', { class: 'card row compact', onclick: () => openGroupSheet(t, g) },
+        h('span', { class: 'numchip sm accent', text: g.name || '?' }),
+        h('span', { class: 'grow' },
+          h('div', { class: 'bold ellip', text: `Lohko ${g.name}` }),
+          h('div', { class: 'tiny muted ellip', text: (g.teams || []).length
+            ? `${plural(g.teams.length, 'joukkue', 'joukkuetta')} · ${plural(played.length, 'oma ottelu', 'omaa ottelua')}`
+            : 'Ei joukkueita' })),
+        h('span', { class: 'muted', text: '›' })));
+    }
+  }
+  body.append(h('button', { class: 'btn', style: 'margin-top:8px', onclick: () => openGroupSheet(t, null) },
+    '＋ Lisää lohko'));
+
+  /* --- Muistiinpanot --- */
+  const notesI = h('textarea', { rows: 3, placeholder: 'Kokoontuminen, ruokailut, muuta huomioitavaa.', text: t.notes || '' });
+  notesI.addEventListener('change', () => updateTournament(id, { notes: notesI.value }, { silent: true }));
+  body.append(h('label', { class: 'field', style: 'margin-top:16px' },
+    h('span', { text: 'Muistiinpanot' }), notesI));
+
+  body.append(h('button', {
+    class: 'btn danger',
+    onclick: async () => {
+      const extra = games.length ? ` Myös ${games.length} ottelua poistetaan.` : '';
+      if (await confirmSheet('Poista turnaus', `Turnaus poistetaan pysyvästi.${extra}`)) {
+        removeTournament(id);
+        toast('Turnaus poistettu');
+        navigate('#/ottelut');
+      }
+    },
+  }, 'Poista turnaus'));
+
+  return {
+    title: t.name || 'Turnaus',
+    subtitle: days.length > 1 ? `${fmtShortDate(t.startDate)} – ${fmtShortDate(t.endDate)}` : fmtDate(t.startDate),
+    back: '#/ottelut',
+    actions: [{ icon: '✎', aria: 'Muokkaa turnausta', onClick: () => openTournamentSheet(t) }],
+    body,
+  };
+}
+
+/** Yksi turnausottelu ohjelmassa. */
+function gameCard(t, g) {
+  const played = !!g.result;
+  return h('button', { class: 'card row compact', onclick: () => navigate(`#/ottelu/${g.id}`) },
+    h('span', { class: 'numchip sm tnum', style: 'width:auto;padding:0 8px', text: g.time || '–' }),
+    h('span', { class: 'grow' },
+      h('div', { class: 'bold ellip', text: `${g.home ? '' : '@ '}${g.opponent || 'Vastustaja avoin'}` }),
+      h('div', { class: 'tiny muted ellip', text: [stageName(t, g), g.venue].filter(Boolean).join(' · ') })),
+    played
+      ? h('span', {
+        class: `badge ${g.result.gf > g.result.ga ? 'win' : g.result.gf === g.result.ga ? 'draw' : 'loss'} tnum`,
+        text: scoreText(g),
+      })
+      : h('span', { class: 'muted', text: '›' }));
+}
+
+/* ---------- Turnauksen tiedot ---------- */
+
+function openTournamentSheet(t) {
+  sheet('Turnauksen tiedot', (body, close) => {
+    const nameI = h('input', { type: 'text', value: t.name || '', placeholder: 'esim. Ilves Cup' });
+    const startI = h('input', { type: 'date', value: t.startDate || '' });
+    const endI = h('input', { type: 'date', value: t.endDate || t.startDate || '' });
+    const venueI = h('input', { type: 'text', value: t.venue || '', placeholder: 'Kenttäalue tai paikkakunta' });
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Turnauksen nimi' }), nameI),
+      h('div', { class: 'field-row' },
+        h('label', { class: 'field' }, h('span', { text: 'Alkaa' }), startI),
+        h('label', { class: 'field' }, h('span', { text: 'Päättyy' }), endI)),
+      h('label', { class: 'field' }, h('span', { text: 'Paikka' }), venueI),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const start = startI.value || t.startDate;
+          updateTournament(t.id, {
+            name: nameI.value.trim() || t.name,
+            startDate: start,
+            endDate: endI.value && endI.value >= start ? endI.value : start,
+            venue: venueI.value.trim(),
+          });
+          close();
+          toast('Tallennettu');
+        },
+      }, 'Tallenna'));
+  });
+}
+
+/* ---------- Lohkot ---------- */
+
+function openGroupSheet(t, group) {
+  sheet(group ? `Lohko ${group.name}` : 'Uusi lohko', (body, close) => {
+    const nameI = h('input', { type: 'text', value: group?.name || '', placeholder: 'A' });
+    const teamsI = h('textarea', {
+      rows: 8, placeholder: 'Yksi joukkue riviä kohden',
+      text: (group?.teams || []).join('\n'),
+    });
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Lohkon nimi' }), nameI),
+      h('label', { class: 'field' },
+        h('span', { text: 'Joukkueet' }), teamsI,
+        h('span', { class: 'tiny muted', text: 'Yksi joukkue riviä kohden. Nimet tulevat vastustajan valintaan.' })),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const teams = teamsI.value.split('\n').map((x) => x.trim()).filter(Boolean);
+          const name = nameI.value.trim() || String.fromCharCode(65 + (t.groups || []).length);
+          if (group) updateGroup(t.id, group.id, { name, teams });
+          else updateGroup(t.id, addGroup(t.id, name).id, { teams });
+          close();
+        },
+      }, group ? 'Tallenna' : 'Lisää lohko'),
+      group ? h('button', {
+        class: 'btn danger', style: 'margin-top:10px',
+        onclick: async () => {
+          if (await confirmSheet('Poista lohko', 'Lohko poistetaan. Sen ottelut säilyvät, mutta ne irrotetaan lohkosta.')) {
+            removeGroup(t.id, group.id);
+            close();
+          }
+        },
+      }, 'Poista lohko') : null);
+  });
+}
+
+/* ---------- Turnausottelu ---------- */
+
+/** Lisää turnaukseen lohkopelin tai jatkopelin. */
+function openGameSheet(t, game, stage = 'lohko') {
+  const days = tournamentDays(t);
+  sheet(stage === 'jatko' ? 'Uusi jatkopeli' : 'Uusi lohkopeli', (body, close) => {
+    const oppI = h('input', {
+      type: 'text', value: game?.opponent || '', placeholder: 'Vastustajan nimi', autocomplete: 'off',
+      list: allTeams(t).length ? 'turnauksen-joukkueet' : null,
+    });
+    const teamList = allTeams(t).length
+      ? h('datalist', { id: 'turnauksen-joukkueet' }, ...allTeams(t).map((n) => h('option', { value: n })))
+      : null;
+    const dateSel = h('select', {}, ...days.map((d) => h('option', {
+      value: d, text: fmtDate(d), selected: (game?.date || days[0]) === d,
+    })));
+    const timeI = h('input', { type: 'time', value: game?.time || '10:00' });
+    const venueI = h('input', { type: 'text', value: game?.venue || t.venue || '', placeholder: 'Kenttä' });
+    const known = matchTeams();
+    const ownI = h('input', {
+      type: 'text', value: game?.team || '', autocomplete: 'off',
+      list: known.length ? 'omat-joukkueet-turnaus' : null,
+      placeholder: getState().team.name || 'Oma joukkue',
+    });
+    const ownList = known.length
+      ? h('datalist', { id: 'omat-joukkueet-turnaus' }, ...known.map((n) => h('option', { value: n })))
+      : null;
+
+    // Lohkopelissä valitaan lohko, jatkopelissä ottelun nimi.
+    const groupSel = h('select', {},
+      h('option', { value: '', text: 'Ei lohkoa' }),
+      ...(t.groups || []).map((g) => h('option', {
+        value: g.id, text: `Lohko ${g.name}`, selected: game?.groupId === g.id,
+      })));
+    const labelI = h('input', {
+      type: 'text', value: game?.label || '', placeholder: 'esim. Välierä',
+      list: 'jatkopelien-nimet', autocomplete: 'off',
+    });
+    const labelList = h('datalist', { id: 'jatkopelien-nimet' },
+      ...PLAYOFF_LABELS.map((n) => h('option', { value: n })));
+
+    let home = game ? game.home !== false : true;
+    const haToggle = h('div', { class: 'segmented' },
+      h('button', { type: 'button', class: home ? 'on' : '', onclick: (e) => setHA(true, e) }, 'Kotijoukkue'),
+      h('button', { type: 'button', class: !home ? 'on' : '', onclick: (e) => setHA(false, e) }, 'Vierasjoukkue'));
+    function setHA(v, e) {
+      home = v;
+      [...haToggle.children].forEach((b) => b.classList.remove('on'));
+      e.currentTarget.classList.add('on');
+    }
+
+    add(body,
+      h('label', { class: 'field' }, h('span', { text: 'Vastustaja' }), oppI, teamList),
+      stage === 'jatko'
+        ? h('label', { class: 'field' },
+          h('span', { text: 'Ottelun nimi' }), labelI, labelList,
+          h('span', { class: 'tiny muted', text: 'Esimerkiksi Välierä tai Sijoitusottelu 5.–6.' }))
+        : h('label', { class: 'field' }, h('span', { text: 'Lohko' }), groupSel),
+      h('div', { class: 'field-row' },
+        h('label', { class: 'field', style: 'flex:1.4' }, h('span', { text: 'Päivä' }), dateSel),
+        h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Aika' }), timeI)),
+      h('label', { class: 'field' }, h('span', { text: 'Kenttä' }), venueI),
+      h('label', { class: 'field' }, h('span', { text: 'Oma joukkue' }), ownI, ownList),
+      h('label', { class: 'field' }, h('span', { text: 'Koti vai vieras' }), haToggle),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          const m = addMatch({
+            type: 'turnaus',
+            tournamentId: t.id,
+            stage,
+            groupId: stage === 'lohko' ? groupSel.value : '',
+            label: stage === 'jatko' ? labelI.value.trim() : '',
+            opponent: oppI.value.trim(),
+            team: ownI.value.trim(),
+            date: dateSel.value || t.startDate,
+            time: timeI.value || '10:00',
+            venue: venueI.value.trim(),
+            home,
+          });
+          close();
+          toast(stage === 'jatko' ? 'Jatkopeli lisätty' : 'Lohkopeli lisätty');
+          navigate(`#/ottelu/${m.id}`);
+        },
+      }, 'Lisää ottelu'));
+
+    setTimeout(() => oppI.focus(), 60);
+  });
+}
+
+
+return { tournamentView, openTournamentSheet, openGameSheet, STAGES };
+};
+
 __mods['tracking'] = () => {
 // Otteluseuranta: ottelukello, maalit, kortit, vaihdot ja peliaika.
 const { h, add, sheet, toast, confirmSheet, pressable, videoInfo } = __req('ui');
@@ -5007,8 +5480,9 @@ const { icon } = __req('icons');
 const { h, sheet, toast, fmtShortDate, countdownText, videoInfo } = __req('ui');
 const {
   getState, upcomingMatches, pastMatches, addMatch, updateMatch, matchKickoff, matchTeams,
-  fmtRating, scoreText,
+  fmtRating, scoreText, addTournament, tournamentById, sortedTournaments, tournamentGames,
 } = __req('store');
+const { tournamentDays, record, plural } = __req('tournaments');
 const { getFormation } = __req('formations');
 const { navigate } = __req('router');
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
@@ -5045,6 +5519,10 @@ function matchesView() {
     teamFilter = '';
   }
 
+  // Turnausottelut niputetaan yhden turnauskortin taakse, jottei lista täyty
+  // saman viikonlopun otteluista.
+  list = withTournaments(list, tab === 'tulevat', teamFilter);
+
   if (!list.length) {
     body.append(h('div', { class: 'empty' },
       h('span', { class: 'big' }, icon(tab === 'tulevat' ? 'calendar' : 'trophy', 30)),
@@ -5056,16 +5534,16 @@ function matchesView() {
   } else {
     let lastMonth = '';
     let group = null;
-    for (const m of list) {
-      const month = matchKickoff(m).getFullYear() + '-' + matchKickoff(m).getMonth();
+    for (const entry of list) {
+      const when = entry.tournament ? new Date(`${entry.tournament.startDate}T12:00:00`) : matchKickoff(entry);
+      const month = when.getFullYear() + '-' + when.getMonth();
       if (month !== lastMonth) {
         lastMonth = month;
-        const d = matchKickoff(m);
-        body.append(h('div', { class: 'section-title', text: d.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' }) }));
+        body.append(h('div', { class: 'section-title', text: when.toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' }) }));
         group = h('div', { class: 'cards' });
         body.append(group);
       }
-      group.append(matchCard(m));
+      group.append(entry.tournament ? tournamentCard(entry.tournament) : matchCard(entry));
     }
   }
 
@@ -5075,6 +5553,55 @@ function matchesView() {
     actions: [{ icon: '＋', aria: 'Lisää tapahtuma', onClick: () => openMatchSheet(null) }],
     body,
   };
+}
+
+/**
+ * Korvaa turnausottelut turnauskorteilla. Turnaus näkyy tulevissa, kunnes sen
+ * viimeinen päivä on ohi, ja sen jälkeen pelatuissa.
+ */
+function withTournaments(matches, upcoming, teamFilter = '') {
+  const today = new Date().toISOString().slice(0, 10);
+  const own = matches.filter((m) => !m.tournamentId);
+  const tournaments = sortedTournaments().filter((t) => {
+    const end = t.endDate || t.startDate;
+    if (upcoming ? end < today : end >= today) return false;
+    // Joukkuesuodatin: turnaus näkyy, jos siinä on suodatetun joukkueen ottelu
+    // – tai jos otteluita ei ole vielä lisätty lainkaan.
+    if (!teamFilter) return true;
+    const games = tournamentGames(t.id);
+    return !games.length || games.some((g) => (g.team || '').trim() === teamFilter);
+  });
+  const dateOf = (entry) => (entry.tournament
+    ? `${entry.tournament.startDate}T00:00`
+    : `${entry.date}T${entry.time || '00:00'}`);
+
+  const entries = [...own, ...tournaments.map((t) => ({ tournament: t }))]
+    .sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+  return upcoming ? entries : entries.reverse();
+}
+
+/** Turnaus näkyy listassa yhtenä korttina. */
+function tournamentCard(t) {
+  const games = tournamentGames(t.id);
+  const days = tournamentDays(t);
+  const r = record(games);
+  return h('button', { class: 'card', onclick: () => navigate(`#/turnaus/${t.id}`) },
+    h('div', { class: 'row' },
+      h('div', { class: 'grow' },
+        h('div', { class: 'bold ellip', text: t.name || 'Turnaus' }),
+        h('div', { class: 'small muted ellip' },
+          days.length > 1
+            ? `${fmtShortDate(t.startDate)} – ${fmtShortDate(t.endDate)}`
+            : fmtShortDate(t.startDate),
+          t.venue ? ` · ${t.venue}` : '')),
+      r.played
+        ? h('span', { class: 'badge accent tnum', text: `${r.w}–${r.d}–${r.l}` })
+        : h('span', { class: 'badge', text: plural(games.length, 'ottelu', 'ottelua') })),
+    h('div', { class: 'row', style: 'gap:6px;margin-top:8px' },
+      h('span', { class: 'badge', text: 'Turnaus' }),
+      days.length > 1 ? h('span', { class: 'badge', text: plural(days.length, 'päivä', 'päivää') }) : null,
+      (t.groups || []).length ? h('span', { class: 'badge', text: plural(t.groups.length, 'lohko', 'lohkoa') }) : null,
+      games.some((g) => g.stage === 'jatko') ? h('span', { class: 'badge accent', text: 'Jatkopelit' }) : null));
 }
 
 function matchCard(m) {
@@ -5113,8 +5640,22 @@ function matchCard(m) {
 function openMatchSheet(match) {
   const isNew = !match;
   let home = match ? match.home !== false : true;
+  let type = match?.type || 'ottelu';
 
   sheet(isNew ? 'Uusi tapahtuma' : 'Muokkaa tapahtumaa', (body, close) => {
+    /* --- Tyyppi ensin: se ratkaisee minkä muotoinen lomake on --- */
+    const typeRow = h('div', { class: 'segmented' },
+      ...Object.entries(TYPES).map(([value, label]) => h('button', {
+        type: 'button', class: type === value ? 'on' : '',
+        onclick: (e) => {
+          type = value;
+          [...typeRow.children].forEach((b) => b.classList.remove('on'));
+          e.currentTarget.classList.add('on');
+          apply();
+        },
+      }, label)));
+
+    /* --- Yksittäinen ottelu tai harjoituspeli --- */
     const dateI = h('input', { type: 'date', value: match?.date || new Date().toISOString().slice(0, 10) });
     const timeI = h('input', { type: 'time', value: match?.time || '18:00' });
     const oppI = h('input', { type: 'text', value: match?.opponent || '', placeholder: 'Vastustajan nimi', autocomplete: 'off' });
@@ -5134,8 +5675,6 @@ function openMatchSheet(match) {
       type: 'text', value: match?.videoUrl || '', autocomplete: 'off',
       inputmode: 'url', placeholder: 'https://app.veo.co/matches/...',
     });
-    const typeSel = h('select', {}, ...Object.entries(TYPES).map(([v, label]) =>
-      h('option', { value: v, text: label, selected: (match?.type || 'ottelu') === v })));
 
     const haToggle = h('div', { class: 'segmented' },
       h('button', { type: 'button', class: home ? 'on' : '', onclick: (e) => setHA(true, e) }, 'Kotiottelu'),
@@ -5146,7 +5685,7 @@ function openMatchSheet(match) {
       e.currentTarget.classList.add('on');
     }
 
-    body.append(
+    const matchFields = h('div', { class: 'stack', style: 'gap:12px' },
       h('label', { class: 'field' }, h('span', { text: 'Vastustaja' }), oppI),
       h('label', { class: 'field' },
         h('span', { text: 'Oma joukkue' }), teamI, teamList,
@@ -5155,46 +5694,90 @@ function openMatchSheet(match) {
         h('label', { class: 'field', style: 'flex:1.3' }, h('span', { text: 'Päivä' }), dateI),
         h('label', { class: 'field', style: 'flex:1' }, h('span', { text: 'Aika' }), timeI)),
       h('label', { class: 'field' }, h('span', { text: 'Paikka' }), venueI),
-      h('label', { class: 'field' }, h('span', { text: 'Tapahtuman tyyppi' }), typeSel),
       h('label', { class: 'field' }, h('span', { text: 'Koti vai vieras' }), haToggle),
       h('label', { class: 'field' },
         h('span', { text: 'Videolinkki' }), videoI,
         h('span', { class: 'tiny muted', text: 'Ottelun tallenne esimerkiksi Veosta – linkki avautuu ottelun Tulos-välilehdeltä.' })),
-      h('label', { class: 'field' }, h('span', { text: 'Muistiinpanot' }), notesI),
-      h('button', {
-        class: 'btn primary',
-        onclick: () => {
-          const video = videoI.value.trim();
-          if (video && !videoInfo(video)) {
-            toast('Videolinkin pitää alkaa https://');
-            videoI.focus();
-            return;
-          }
-          const data = {
-            videoUrl: video,
-            date: dateI.value || new Date().toISOString().slice(0, 10),
-            time: timeI.value || '18:00',
-            opponent: oppI.value.trim(),
-            team: teamI.value.trim(),
-            venue: venueI.value.trim(),
-            type: typeSel.value,
-            home,
-            notes: notesI.value.trim(),
-          };
-          if (isNew) {
-            const m = addMatch(data);
-            close();
-            toast('Tapahtuma lisätty');
-            navigate(`#/ottelu/${m.id}`);
-          } else {
-            updateMatch(match.id, data);
-            close();
-            toast('Tallennettu');
-          }
-        },
-      }, isNew ? 'Lisää tapahtuma' : 'Tallenna'));
+      h('label', { class: 'field' }, h('span', { text: 'Muistiinpanot' }), notesI));
 
-    if (isNew) setTimeout(() => oppI.focus(), 60);
+    /* --- Turnaus: monipäiväinen tapahtuma, jolla on omat ottelunsa --- */
+    const today = new Date().toISOString().slice(0, 10);
+    const tNameI = h('input', { type: 'text', placeholder: 'esim. Ilves Cup', autocomplete: 'off' });
+    const tStartI = h('input', { type: 'date', value: today });
+    const tEndI = h('input', { type: 'date', value: today });
+    const tVenueI = h('input', { type: 'text', placeholder: 'Kenttäalue tai paikkakunta', autocomplete: 'off' });
+    const tNotesI = h('textarea', { placeholder: 'Kokoontuminen, ruokailut, muuta huomioitavaa' });
+    const tourFields = h('div', { class: 'stack', style: 'gap:12px' },
+      h('label', { class: 'field' }, h('span', { text: 'Turnauksen nimi' }), tNameI),
+      h('div', { class: 'field-row' },
+        h('label', { class: 'field' }, h('span', { text: 'Alkaa' }), tStartI),
+        h('label', { class: 'field' }, h('span', { text: 'Päättyy' }), tEndI)),
+      h('label', { class: 'field' }, h('span', { text: 'Paikka' }), tVenueI),
+      h('label', { class: 'field' },
+        h('span', { text: 'Muistiinpanot' }), tNotesI,
+        h('span', { class: 'tiny muted', text: 'Turnaukseen lisätään seuraavaksi lohkot ja ottelut. Jatkopelit voi lisätä turnauksen edetessä.' })));
+
+    const saveBtn = h('button', { class: 'btn primary' }, 'Lisää tapahtuma');
+
+    // Turnauslomake on käytössä vain uutta tapahtumaa luodessa: valmista
+    // ottelua ei muuteta turnaukseksi kesken kaiken.
+    const isTournament = () => isNew && type === 'turnaus';
+    const apply = () => {
+      matchFields.style.display = isTournament() ? 'none' : '';
+      tourFields.style.display = isTournament() ? '' : 'none';
+      saveBtn.textContent = isTournament() ? 'Luo turnaus' : (isNew ? 'Lisää tapahtuma' : 'Tallenna');
+    };
+
+    saveBtn.addEventListener('click', () => {
+      if (isTournament()) {
+        const start = tStartI.value || today;
+        const t = addTournament({
+          name: tNameI.value.trim() || 'Turnaus',
+          startDate: start,
+          endDate: tEndI.value && tEndI.value >= start ? tEndI.value : start,
+          venue: tVenueI.value.trim(),
+          notes: tNotesI.value.trim(),
+        });
+        close();
+        toast('Turnaus luotu');
+        navigate(`#/turnaus/${t.id}`);
+        return;
+      }
+      const video = videoI.value.trim();
+      if (video && !videoInfo(video)) {
+        toast('Videolinkin pitää alkaa https://');
+        videoI.focus();
+        return;
+      }
+      const data = {
+        videoUrl: video,
+        date: dateI.value || new Date().toISOString().slice(0, 10),
+        time: timeI.value || '18:00',
+        opponent: oppI.value.trim(),
+        team: teamI.value.trim(),
+        venue: venueI.value.trim(),
+        type,
+        home,
+        notes: notesI.value.trim(),
+      };
+      if (isNew) {
+        const m = addMatch(data);
+        close();
+        toast('Tapahtuma lisätty');
+        navigate(`#/ottelu/${m.id}`);
+      } else {
+        updateMatch(match.id, data);
+        close();
+        toast('Tallennettu');
+      }
+    });
+
+    body.append(
+      h('label', { class: 'field' }, h('span', { text: 'Tapahtuman tyyppi' }), typeRow),
+      matchFields, tourFields, saveBtn);
+    apply();
+
+    if (isNew) setTimeout(() => (isTournament() ? tNameI : oppI).focus(), 60);
   });
 }
 
@@ -5417,7 +6000,7 @@ const { h, add, sheet, toast, confirmSheet, fmtDate, videoInfo } = __req('ui');
 const {
   getState, matchById, updateMatch, removeMatch, update,
   playerById, cloneLineup, addLineup, lineupById,
-  staffById, STAFF_ROLES, absentIds,
+  staffById, STAFF_ROLES, absentIds, tournamentById,
   RATINGS, RATING_MIN, RATING_MAX, RATING_STEP, ratingLabel, fmtRating, clampRating,
 } = __req('store');
 const { getFormation } = __req('formations');
@@ -5425,6 +6008,7 @@ const { matchEvents } = __req('timing');
 const { renderLineupEditor } = __req('pitch');
 const { trackingTab, eventList } = __req('tracking');
 const { openMatchSheet } = __req('matches');
+const { stageName } = __req('tournaments');
 const { lineupDataUrl, lineupImageFile } = __req('lineup-image');
 const { navigate } = __req('router');
 const TYPES = { ottelu: 'Ottelu', turnaus: 'Turnaus', harjoitus: 'Harjoituspeli' };
@@ -5449,10 +6033,14 @@ function matchView(id) {
   else if (tab === 'tulos') body.append(resultTab(m));
   else body.append(infoTab(m));
 
+  // Turnausottelu palaa turnaukseen ja kertoo otsikossa vaiheen.
+  const tournament = m.tournamentId ? tournamentById(m.tournamentId) : null;
+  const stage = tournament ? stageName(tournament, m) : '';
   return {
     title: `${m.home ? 'vs' : '@'} ${m.opponent || 'Vastustaja'}`,
-    subtitle: `${m.team ? m.team + ' · ' : ''}${fmtDate(m.date)} klo ${m.time}`,
-    back: '#/ottelut',
+    subtitle: [tournament ? `${tournament.name} · ${stage}` : (m.team || ''),
+      `${fmtDate(m.date)} klo ${m.time}`].filter(Boolean).join(' · '),
+    back: tournament ? `#/turnaus/${tournament.id}` : '#/ottelut',
     body,
   };
 }
@@ -6350,6 +6938,7 @@ const { matchesView } = __req('matches');
 const { matchView } = __req('match');
 const { lineupsView, lineupView } = __req('lineups');
 const { drillsView, drillView } = __req('drills');
+const { tournamentView } = __req('tournaments');
 const { playersView } = __req('players');
 const { statsView } = __req('stats');
 const { settingsView } = __req('settings');
@@ -6369,6 +6958,7 @@ const ROUTES = [
   { re: /^#\/ottelupaiva$/,        view: () => homeView(),            tab: '#/ottelupaiva' },
   { re: /^#\/ottelut$/,            view: () => matchesView(),         tab: '#/ottelut' },
   { re: /^#\/ottelu\/([\w-]+)$/,   view: (m) => matchView(m[1]),      tab: '#/ottelut' },
+  { re: /^#\/turnaus\/([\w-]+)$/,  view: (m) => tournamentView(m[1]),  tab: '#/ottelut' },
   { re: /^#\/kokoonpanot$/,        view: () => lineupsView(),         tab: '#/kokoonpanot' },
   { re: /^#\/kokoonpano\/([\w-]+)$/, view: (m) => lineupView(m[1]),   tab: '#/kokoonpanot' },
   { re: /^#\/lammittely$/,         view: () => drillsView(),          tab: '#/lammittely' },
