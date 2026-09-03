@@ -104,14 +104,21 @@ function withTournaments(matches, upcoming, teamFilter = '') {
   return upcoming ? entries : entries.reverse();
 }
 
-/** Turnaus näkyy listassa yhtenä korttina. */
+/** Turnaus näkyy listassa yhtenä korttina, joka erottuu selvästi otteluista. */
 function tournamentCard(t) {
   const games = tournamentGames(t.id);
   const days = tournamentDays(t);
   const r = record(games);
-  return h('button', { class: 'card', onclick: () => navigate(`#/turnaus/${t.id}`) },
+  const badges = [
+    days.length > 1 ? h('span', { class: 'badge', text: plural(days.length, 'päivä', 'päivää') }) : null,
+    (t.groups || []).length ? h('span', { class: 'badge', text: plural(t.groups.length, 'lohko', 'lohkoa') }) : null,
+    games.some((g) => g.stage === 'jatko') ? h('span', { class: 'badge accent', text: 'Jatkopelit' }) : null,
+  ].filter(Boolean);
+  return h('button', { class: 'card tourney', onclick: () => navigate(`#/turnaus/${t.id}`) },
     h('div', { class: 'row' },
+      h('span', { class: 'tico' }, icon('trophy', 20)),
       h('div', { class: 'grow' },
+        h('div', { class: 'eyebrow', text: 'Turnaus' }),
         h('div', { class: 'bold ellip', text: t.name || 'Turnaus' }),
         h('div', { class: 'small muted ellip' },
           days.length > 1
@@ -121,11 +128,7 @@ function tournamentCard(t) {
       r.played
         ? h('span', { class: 'badge accent tnum', text: `${r.w}–${r.d}–${r.l}` })
         : h('span', { class: 'badge', text: plural(games.length, 'ottelu', 'ottelua') })),
-    h('div', { class: 'row', style: 'gap:6px;margin-top:8px' },
-      h('span', { class: 'badge', text: 'Turnaus' }),
-      days.length > 1 ? h('span', { class: 'badge', text: plural(days.length, 'päivä', 'päivää') }) : null,
-      (t.groups || []).length ? h('span', { class: 'badge', text: plural(t.groups.length, 'lohko', 'lohkoa') }) : null,
-      games.some((g) => g.stage === 'jatko') ? h('span', { class: 'badge accent', text: 'Jatkopelit' }) : null));
+    badges.length ? h('div', { class: 'row', style: 'gap:6px;margin-top:8px' }, ...badges) : null);
 }
 
 function matchCard(m) {

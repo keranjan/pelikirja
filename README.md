@@ -102,6 +102,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Jokainen turnausottelu on tavallinen ottelu: kokoonpano, otteluseuranta,
   peliaika ja tulos toimivat samoin kuin muissakin otteluissa
 - Ottelut-välilehdellä turnaus näkyy yhtenä korttina, ei kymmenenä otteluna
+- Turnauskortti erottuu ottelukorteista: pokaali, TURNAUS-tunnus,
+  meripihkainen reunapalkki ja taustasävy
 
 **Ottelut ja tapahtumat**
 - Ottelut, turnaukset ja harjoituspelit: päivä, aika, vastustaja, paikka, koti/vieras, muistiinpanot

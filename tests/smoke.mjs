@@ -1003,6 +1003,48 @@ if (cards.some((c) => c.includes('FC Inter') || c.includes('MuSa'))) {
 }
 console.log('ottelulistassa turnaus on yksi kortti:', cupCards[0].replace(/\s+/g, ' ').slice(0, 60));
 
+// Vertailukohdaksi listaan tavallinen tuleva ottelu turnauksen rinnalle
+await tap('#topbar .iconbtn[aria-label="Lisää tapahtuma"]');
+await page.locator('.sheet input[type=text]:visible').first().fill('FC Vertailu');
+await page.locator('.sheet input[type=date]:visible').first()
+  .fill(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+await page.locator('.sheet input[type=time]:visible').first().fill('12:00');
+await page.locator('.sheet .btn.primary').click();
+await page.waitForTimeout(400);
+await tap('#tabbar a[href="#/ottelut"]');
+await page.waitForTimeout(300);
+
+// Turnauskortti erottuu ottelukorteista: oma luokka, pokaali, tunnus ja taustaväri
+const cupLook = await page.evaluate(() => {
+  const cards = [...document.querySelectorAll('#view .cards .card')];
+  const cup = cards.find((c) => c.classList.contains('tourney'));
+  const game = cards.find((c) => !c.classList.contains('tourney'));
+  if (!cup || !game) return { debug: cards.map((c) => c.className) };
+  const bar = getComputedStyle(cup, '::before');
+  return {
+    eyebrow: cup.querySelector('.eyebrow')?.textContent || '',
+    trophy: !!cup.querySelector('.tico svg'),
+    bar: parseFloat(bar.width) || 0,
+    barColor: bar.backgroundColor,
+    cupBg: getComputedStyle(cup).backgroundImage,
+    gameBg: getComputedStyle(game).backgroundImage,
+    cupBorder: getComputedStyle(cup).borderTopColor,
+    gameBorder: getComputedStyle(game).borderTopColor,
+  };
+});
+if (cupLook.debug) { console.error('Ottelulistasta puuttuu turnaus- tai ottelukortti: ' + JSON.stringify(cupLook.debug)); process.exit(1); }
+if (cupLook.eyebrow !== 'Turnaus' || !cupLook.trophy) {
+  console.error('Turnauskortista puuttuu tunnus tai pokaali: ' + JSON.stringify(cupLook)); process.exit(1);
+}
+if (cupLook.bar < 4 || cupLook.barColor === 'rgba(0, 0, 0, 0)') {
+  console.error('Turnauskortin reunapalkki puuttuu: ' + JSON.stringify(cupLook)); process.exit(1);
+}
+if (cupLook.cupBg === cupLook.gameBg || cupLook.cupBorder === cupLook.gameBorder) {
+  console.error('Turnauskortti ei erotu ottelukortista: ' + JSON.stringify(cupLook)); process.exit(1);
+}
+await shot('15-ottelulista-turnaus');
+console.log('turnauskortti erottuu: palkki', cupLook.bar + 'px', cupLook.barColor, '| reuna', cupLook.cupBorder, 'vs', cupLook.gameBorder);
+
 // --- Alkulämmittelyn suunnittelu ---
 await tap('#tabbar a[href="#/lammittely"]');
 await page.waitForTimeout(250);

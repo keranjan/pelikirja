@@ -318,6 +318,24 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .badge.rating { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
 
 /* Valittava kortti: napautus vihreäksi = pelaaja mukana ottelussa. */
+/* Turnauskortti erottuu otteluista: meripihkasävy, reunapalkki ja pokaali. */
+.card.tourney {
+  position: relative; overflow: hidden;
+  padding-left: 20px;
+  background: linear-gradient(104deg, var(--amber-soft), transparent 64%), var(--surface);
+  border-color: var(--amber-line);
+}
+.card.tourney::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--amber);
+}
+.card.tourney:active { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--surface-2); }
+.card.tourney .tico {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--amber-line); color: var(--amber);
+}
+.card.tourney .eyebrow { font-size: 10.5px; color: var(--amber); margin-bottom: 1px; }
+
 .card.pick { border-color: var(--line); transition: background-color .12s ease, border-color .12s ease; }
 .card.pick.on { background: var(--accent-soft); border-color: var(--accent); }
 .card.pick.on .badge { background: var(--surface); }
