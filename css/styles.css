@@ -534,17 +534,14 @@ a.btn { text-decoration: none; }
   font-family: var(--body); font-weight: 600; font-size: 11px;
 }
 .slot.gk:not(.empty) .disc { background: var(--amber); color: #fff; }
-/* Nimi näkyy kokonaan: lappu saa olla merkkiä leveämpi ja pitkä nimi
-   jakautuu kahdelle riville sen sijaan että se katkaistaisiin. Leveys
-   rajataan rivin pelaajamäärän mukaan, jottei viereisten nimet mene
-   päällekkäin. --cols asetetaan pelisysteemin mukaan. */
+/* Nimi näkyy kokonaan yhdellä rivillä. Lappu saa olla merkkiä leveämpi, ja
+   jos nimi ei mahdu rivin pelaajamäärän sallimaan tilaan, sen kirjasinkokoa
+   pienennetään (fitNames) katkaisun sijaan. */
 .slot .nm {
-  max-width: 84px;
-  max-width: min(104px, calc(100cqw / var(--cols, 4) - 8px));
-  margin-inline: -13px; padding: 1px 6px; border-radius: 6px;
+  max-width: none; margin-inline: -13px; padding: 1px 6px; border-radius: 6px;
   background: var(--pitch-chip); color: var(--pitch-chip-ink);
-  font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.2;
-  white-space: normal; overflow-wrap: anywhere;
+  font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.25;
+  white-space: nowrap;
 }
 .slot .pos {
   font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
@@ -641,17 +638,8 @@ a.btn { text-decoration: none; }
   font-family: var(--display); font-weight: 800; font-size: 13px;
   border: 2px solid rgba(255,255,255,.85); box-shadow: 0 2px 6px rgba(0,0,0,.28);
 }
-.mark .ball {
-  width: 15px; height: 15px; border-radius: 50%;
-  background: #FFFFFF; border: 2px solid #14261C;
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
-}
-.mark .cone {
-  width: 0; height: 0;
-  border-left: 9px solid transparent; border-right: 9px solid transparent;
-  border-bottom: 17px solid #E2620B;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,.35));
-}
+/* Pallo ja tötsä ovat pieniä ikoneita, ei pelkkiä kuvioita. */
+.mark .ico { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.35)); }
 .mark .goal {
   width: 54px; height: 14px;
   border: 3px solid #FFFFFF; border-bottom: 0;

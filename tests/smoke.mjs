@@ -176,6 +176,10 @@ await shot('03-kokoonpano-taytetty');
     return {
       overlaps,
       clipped: els.filter((e) => e.scrollWidth > e.clientWidth + 1).length,
+      // Rivien määrä: korkeus jaettuna rivinkorkeudella.
+      lines: els.map((e) => Math.round(e.getBoundingClientRect().height
+        / (parseFloat(getComputedStyle(e).fontSize) * 1.25))),
+      sizes: [...new Set(els.map((e) => Math.round(parseFloat(getComputedStyle(e).fontSize) * 10) / 10))],
       texts: els.map((e) => e.textContent),
     };
   });
@@ -192,7 +196,12 @@ await shot('03-kokoonpano-taytetty');
     console.error('Nimet katkeavat tai menevät päällekkäin: ' + JSON.stringify(namesOnPitch));
     process.exit(1);
   }
-  console.log(`kentän nimet kokonaisina (${namesOnPitch.texts.length} kpl, ei päällekkäisyyksiä)`);
+  if (namesOnPitch.lines.some((n) => n > 1)) {
+    console.error('Nimi jakautui usealle riville: ' + JSON.stringify(namesOnPitch.lines));
+    process.exit(1);
+  }
+  console.log(`kentän nimet yhdellä rivillä kokonaisina (${namesOnPitch.texts.length} kpl,`
+    + ` kirjasin ${namesOnPitch.sizes.join('/')} px, ei päällekkäisyyksiä)`);
 }
 
 // Vaihda pelaaja paikkaan käsin
@@ -1044,6 +1053,12 @@ if (kinds.join(' ') !== 'pelaaja:vihrea1 pelaaja:vihrea2 pelaaja:sininen1 pelaaj
 }
 if (await page.locator('#view .mark').count() !== 7) {
   console.error('Merkkejä ei piirretty kentälle'); process.exit(1);
+}
+// Pallo ja tötsä ovat pieniä ikoneita
+const icons = await page.locator('#view .mark.pallo .ico, #view .mark.totsa .ico')
+  .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+if (icons.length !== 2 || icons.some((w) => w < 12 || w > 24)) {
+  console.error('Pallo ja tötsä eivät ole pieniä ikoneita: ' + JSON.stringify(icons)); process.exit(1);
 }
 
 // Piirtotyökalut: kynä ja kolme kuviota

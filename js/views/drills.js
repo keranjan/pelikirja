@@ -342,6 +342,29 @@ function renderStroke(group, stroke, area) {
   }
 }
 
+// Kentälle asetettavat pienet ikonit. Piirretään SVG:nä, jotta ne pysyvät
+// terävinä ja tunnistettavina myös pienessä koossa.
+const MARK_ICONS = {
+  ball: `
+    <circle cx="12" cy="12" r="10" fill="#FFFFFF" stroke="#14261C" stroke-width="1.7"/>
+    <path d="M12 6.2l4.3 3.1-1.6 5.1H9.3L7.7 9.3z" fill="#14261C"/>
+    <path d="M12 2.4v3.8M21.1 9.1l-3.6 2.6M17.6 21l-1.4-4.2M6.4 21l1.4-4.2M2.9 9.1l3.6 2.6"
+      stroke="#14261C" stroke-width="1.5" fill="none" stroke-linecap="round"/>`,
+  cone: `
+    <path d="M12 2.6l6 15.2H6z" fill="#E2620B" stroke="#8E3B05" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M9.5 11.4h5" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="3.6" y="17.6" width="16.8" height="3.4" rx="1.7" fill="#C9560A"/>`,
+};
+
+/** Pieni ikoni kentälle: pallo tai tötsä. */
+function markIcon(name, size) {
+  const svg = el('svg', {
+    class: 'ico', viewBox: '0 0 24 24', width: size, height: size, 'aria-hidden': 'true',
+  });
+  svg.innerHTML = MARK_ICONS[name];
+  return svg;
+}
+
 /** Kentälle asetettu merkki: pelaaja, pallo, tötsä tai maali. */
 function itemToken(item, drill, commit, surface) {
   const style = `left:${item.x}%;top:${item.y}%`;
@@ -352,9 +375,9 @@ function itemToken(item, drill, commit, surface) {
       class: 'disc', style: `background:${c.fill};color:${c.ink}`, text: item.label || '',
     });
   } else if (item.kind === 'pallo') {
-    inner = h('span', { class: 'ball' });
+    inner = markIcon('ball', 17);
   } else if (item.kind === 'totsa') {
-    inner = h('span', { class: 'cone' });
+    inner = markIcon('cone', 19);
   } else {
     inner = h('span', { class: 'goal' });
   }

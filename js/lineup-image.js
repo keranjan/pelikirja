@@ -115,20 +115,19 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(number), cx, cy + 1 * scale);
 
-  // Nimilappu: koko nimi, tarvittaessa kahdella rivillä kuten sovelluksessa.
-  ctx.font = font(600, 12.5 * scale);
-  const lines = nameLines(ctx, name, maxLabel);
-  const tw = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  // Nimilappu: koko nimi yhdellä rivillä, kirjasinkoko pienenee tarvittaessa.
+  const size = labelSize(ctx, name, maxLabel, scale);
+  ctx.font = font(600, size);
+  const tw = ctx.measureText(name).width;
   const pad = 6 * scale;
-  const lh = 15 * scale;
-  const bh = lh * lines.length + 4 * scale;
+  const bh = 18 * scale;
   const by = cy + r + 5 * scale;
   roundRect(ctx, cx - tw / 2 - pad, by, tw + pad * 2, bh, 6 * scale);
   ctx.fillStyle = C.chip;
   ctx.fill();
   ctx.fillStyle = C.chipInk;
   ctx.textBaseline = 'middle';
-  lines.forEach((line, i) => ctx.fillText(line, cx, by + 2 * scale + lh * (i + 0.5)));
+  ctx.fillText(name, cx, by + bh / 2 + 0.5 * scale);
 
   // Pelipaikan lyhenne nimen alla
   ctx.font = font(700, 10 * scale);
@@ -136,14 +135,13 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   ctx.fillText(pos, cx, by + bh + 8 * scale);
 }
 
-/** Nimi yhdelle tai kahdelle riville annettuun leveyteen. */
-function nameLines(ctx, name, maxWidth) {
-  if (ctx.measureText(name).width <= maxWidth) return [name];
-  const words = String(name).trim().split(/\s+/);
-  if (words.length < 2) return [fit(ctx, name, maxWidth)];
-  const first = words[0];
-  const rest = words.slice(1).join(' ');
-  return [fit(ctx, first, maxWidth), fit(ctx, rest, maxWidth)];
+/** Kirjasinkoko, jolla nimi mahtuu yhdelle riville annettuun leveyteen. */
+function labelSize(ctx, name, maxWidth, scale) {
+  const base = 12.5 * scale;
+  ctx.font = font(600, base);
+  const natural = ctx.measureText(name).width;
+  if (natural <= maxWidth) return base;
+  return Math.max(8.5 * scale, (base * maxWidth) / natural);
 }
 
 /**

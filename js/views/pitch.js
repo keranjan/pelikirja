@@ -228,7 +228,33 @@ export function buildPitch(lineup, commit, { drawing = false } = {}) {
 
   if (drawing) blockBrowserGestures(pitch);
   if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
+  fitNames(pitch, cols);
   return pitch;
+}
+
+/**
+ * Sovittaa nimilaput yhdelle riville: jos nimi ei mahdu rivin pelaajamäärän
+ * sallimaan leveyteen, sen kirjasinkokoa pienennetään. Näin koko nimi näkyy
+ * eikä se mene naapurin päälle. Ajetaan asettelun jälkeen ja kentän koon
+ * muuttuessa (kääntö, tabletti).
+ */
+function fitNames(pitch, cols) {
+  const BASE = 10.5;
+  const MIN = 7.4;
+  const fit = () => {
+    const width = pitch.clientWidth;
+    if (!width) return;
+    const room = Math.min(150, width / cols - 4);
+    for (const nm of pitch.querySelectorAll('.nm')) {
+      nm.style.fontSize = '';
+      const natural = nm.scrollWidth;
+      if (natural > room) {
+        nm.style.fontSize = `${Math.max(MIN, (BASE * room) / natural).toFixed(2)}px`;
+      }
+    }
+  };
+  requestAnimationFrame(fit);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(pitch);
 }
 
 /* ---------- Koko ruudun taktiikkataulu ---------- */

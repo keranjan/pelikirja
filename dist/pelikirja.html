@@ -584,17 +584,14 @@ a.btn { text-decoration: none; }
   font-family: var(--body); font-weight: 600; font-size: 11px;
 }
 .slot.gk:not(.empty) .disc { background: var(--amber); color: #fff; }
-/* Nimi näkyy kokonaan: lappu saa olla merkkiä leveämpi ja pitkä nimi
-   jakautuu kahdelle riville sen sijaan että se katkaistaisiin. Leveys
-   rajataan rivin pelaajamäärän mukaan, jottei viereisten nimet mene
-   päällekkäin. --cols asetetaan pelisysteemin mukaan. */
+/* Nimi näkyy kokonaan yhdellä rivillä. Lappu saa olla merkkiä leveämpi, ja
+   jos nimi ei mahdu rivin pelaajamäärän sallimaan tilaan, sen kirjasinkokoa
+   pienennetään (fitNames) katkaisun sijaan. */
 .slot .nm {
-  max-width: 84px;
-  max-width: min(104px, calc(100cqw / var(--cols, 4) - 8px));
-  margin-inline: -13px; padding: 1px 6px; border-radius: 6px;
+  max-width: none; margin-inline: -13px; padding: 1px 6px; border-radius: 6px;
   background: var(--pitch-chip); color: var(--pitch-chip-ink);
-  font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.2;
-  white-space: normal; overflow-wrap: anywhere;
+  font-size: 10.5px; font-weight: 600; text-align: center; line-height: 1.25;
+  white-space: nowrap;
 }
 .slot .pos {
   font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
@@ -691,17 +688,8 @@ a.btn { text-decoration: none; }
   font-family: var(--display); font-weight: 800; font-size: 13px;
   border: 2px solid rgba(255,255,255,.85); box-shadow: 0 2px 6px rgba(0,0,0,.28);
 }
-.mark .ball {
-  width: 15px; height: 15px; border-radius: 50%;
-  background: #FFFFFF; border: 2px solid #14261C;
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
-}
-.mark .cone {
-  width: 0; height: 0;
-  border-left: 9px solid transparent; border-right: 9px solid transparent;
-  border-bottom: 17px solid #E2620B;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,.35));
-}
+/* Pallo ja tötsä ovat pieniä ikoneita, ei pelkkiä kuvioita. */
+.mark .ico { display: block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.35)); }
 .mark .goal {
   width: 54px; height: 14px;
   border: 3px solid #FFFFFF; border-bottom: 0;
@@ -3230,20 +3218,19 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(number), cx, cy + 1 * scale);
 
-  // Nimilappu: koko nimi, tarvittaessa kahdella rivillä kuten sovelluksessa.
-  ctx.font = font(600, 12.5 * scale);
-  const lines = nameLines(ctx, name, maxLabel);
-  const tw = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  // Nimilappu: koko nimi yhdellä rivillä, kirjasinkoko pienenee tarvittaessa.
+  const size = labelSize(ctx, name, maxLabel, scale);
+  ctx.font = font(600, size);
+  const tw = ctx.measureText(name).width;
   const pad = 6 * scale;
-  const lh = 15 * scale;
-  const bh = lh * lines.length + 4 * scale;
+  const bh = 18 * scale;
   const by = cy + r + 5 * scale;
   roundRect(ctx, cx - tw / 2 - pad, by, tw + pad * 2, bh, 6 * scale);
   ctx.fillStyle = C.chip;
   ctx.fill();
   ctx.fillStyle = C.chipInk;
   ctx.textBaseline = 'middle';
-  lines.forEach((line, i) => ctx.fillText(line, cx, by + 2 * scale + lh * (i + 0.5)));
+  ctx.fillText(name, cx, by + bh / 2 + 0.5 * scale);
 
   // Pelipaikan lyhenne nimen alla
   ctx.font = font(700, 10 * scale);
@@ -3251,14 +3238,13 @@ function drawToken(ctx, cx, cy, { number, name, pos, gk, maxLabel }, scale) {
   ctx.fillText(pos, cx, by + bh + 8 * scale);
 }
 
-/** Nimi yhdelle tai kahdelle riville annettuun leveyteen. */
-function nameLines(ctx, name, maxWidth) {
-  if (ctx.measureText(name).width <= maxWidth) return [name];
-  const words = String(name).trim().split(/\s+/);
-  if (words.length < 2) return [fit(ctx, name, maxWidth)];
-  const first = words[0];
-  const rest = words.slice(1).join(' ');
-  return [fit(ctx, first, maxWidth), fit(ctx, rest, maxWidth)];
+/** Kirjasinkoko, jolla nimi mahtuu yhdelle riville annettuun leveyteen. */
+function labelSize(ctx, name, maxWidth, scale) {
+  const base = 12.5 * scale;
+  ctx.font = font(600, base);
+  const natural = ctx.measureText(name).width;
+  if (natural <= maxWidth) return base;
+  return Math.max(8.5 * scale, (base * maxWidth) / natural);
 }
 
 /**
@@ -3632,7 +3618,33 @@ function buildPitch(lineup, commit, { drawing = false } = {}) {
 
   if (drawing) blockBrowserGestures(pitch);
   if (drawing && !moving) drawOnPitch(pitch, live, lineup, commit);
+  fitNames(pitch, cols);
   return pitch;
+}
+
+/**
+ * Sovittaa nimilaput yhdelle riville: jos nimi ei mahdu rivin pelaajamäärän
+ * sallimaan leveyteen, sen kirjasinkokoa pienennetään. Näin koko nimi näkyy
+ * eikä se mene naapurin päälle. Ajetaan asettelun jälkeen ja kentän koon
+ * muuttuessa (kääntö, tabletti).
+ */
+function fitNames(pitch, cols) {
+  const BASE = 10.5;
+  const MIN = 7.4;
+  const fit = () => {
+    const width = pitch.clientWidth;
+    if (!width) return;
+    const room = Math.min(150, width / cols - 4);
+    for (const nm of pitch.querySelectorAll('.nm')) {
+      nm.style.fontSize = '';
+      const natural = nm.scrollWidth;
+      if (natural > room) {
+        nm.style.fontSize = `${Math.max(MIN, (BASE * room) / natural).toFixed(2)}px`;
+      }
+    }
+  };
+  requestAnimationFrame(fit);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(pitch);
 }
 
 /* ---------- Koko ruudun taktiikkataulu ---------- */
@@ -4399,6 +4411,29 @@ function renderStroke(group, stroke, area) {
   }
 }
 
+// Kentälle asetettavat pienet ikonit. Piirretään SVG:nä, jotta ne pysyvät
+// terävinä ja tunnistettavina myös pienessä koossa.
+const MARK_ICONS = {
+  ball: `
+    <circle cx="12" cy="12" r="10" fill="#FFFFFF" stroke="#14261C" stroke-width="1.7"/>
+    <path d="M12 6.2l4.3 3.1-1.6 5.1H9.3L7.7 9.3z" fill="#14261C"/>
+    <path d="M12 2.4v3.8M21.1 9.1l-3.6 2.6M17.6 21l-1.4-4.2M6.4 21l1.4-4.2M2.9 9.1l3.6 2.6"
+      stroke="#14261C" stroke-width="1.5" fill="none" stroke-linecap="round"/>`,
+  cone: `
+    <path d="M12 2.6l6 15.2H6z" fill="#E2620B" stroke="#8E3B05" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M9.5 11.4h5" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="3.6" y="17.6" width="16.8" height="3.4" rx="1.7" fill="#C9560A"/>`,
+};
+
+/** Pieni ikoni kentälle: pallo tai tötsä. */
+function markIcon(name, size) {
+  const svg = el('svg', {
+    class: 'ico', viewBox: '0 0 24 24', width: size, height: size, 'aria-hidden': 'true',
+  });
+  svg.innerHTML = MARK_ICONS[name];
+  return svg;
+}
+
 /** Kentälle asetettu merkki: pelaaja, pallo, tötsä tai maali. */
 function itemToken(item, drill, commit, surface) {
   const style = `left:${item.x}%;top:${item.y}%`;
@@ -4409,9 +4444,9 @@ function itemToken(item, drill, commit, surface) {
       class: 'disc', style: `background:${c.fill};color:${c.ink}`, text: item.label || '',
     });
   } else if (item.kind === 'pallo') {
-    inner = h('span', { class: 'ball' });
+    inner = markIcon('ball', 17);
   } else if (item.kind === 'totsa') {
-    inner = h('span', { class: 'cone' });
+    inner = markIcon('cone', 19);
   } else {
     inner = h('span', { class: 'goal' });
   }

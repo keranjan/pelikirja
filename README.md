@@ -66,7 +66,8 @@ kokoonpano mahtuu ruudulle ilman vierittämistä myös tabletilla.
 - Neljä työkalupainiketta: siirto, merkkivalikko, piirtovalikko ja poisto –
   loput valinnat ovat valikoiden takana, jotta kenttäkuva on mahdollisimman iso
 - Merkkivalikko: pelaajat kolmella värillä (vihreät, siniset, oranssit;
-  numeroituvat väreittäin), pallo, tötsä ja maali – napauta kenttää
+  numeroituvat väreittäin) sekä pallo, tötsä ja maali pieninä ikoneina –
+  napauta kenttää
 - Piirtovalikko: vapaa kynä sekä neliö, ympyrä ja kolmio neljällä värillä
 - Merkkien siirto raahaamalla, poistotyökalu yksittäisille merkeille ja
   vedoille, Kumoa ja Tyhjennä
